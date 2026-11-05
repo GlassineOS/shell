@@ -1,0 +1,53 @@
+#!/bin/sh
+# The on-screen keyboard of the sway session (started by the sway config;
+# glassine-osk shows/hides it, glassine-swayd shows it for a focused text field): wvkbd,
+# hidden until asked, restarted while sway runs.
+# The look follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme), as
+# Onboard's does on X (/usr/share/onboard/themes/glassine-*): wvkbd-glassine is wvkbd
+# with ../wvkbd/0001-glassine-themable-keys.patch (key outlines, the gap, the label
+# of a pressed key, no press popup: one e-ink update less per key). A theme
+# change restarts it (shown again if it was). Stock wvkbd-mobintl (no patch):
+# the old look, white keys on black lines, a grey press.
+# Layers (the ⌨ key cycles them): ~/.config/glassine/osk-layers (glassine-settings →
+# Keyboard), else /etc/glassine/osk-layers, default german,special (German QWERTZ
+# with umlauts, 0002-glassine-german-layer.patch); full = US. A change restarts it too.
+EXTRA=$*                                # e.g. -o (the harness logs the keys); no spaces
+R=${XDG_RUNTIME_DIR:-/tmp}
+TF=$R/glassine-shell.theme
+LF=${HOME:-/nonexistent}/.config/glassine/osk-layers
+mtime() { echo "$(stat -c %Y "$TF" 2>/dev/null || echo 0).$(stat -c %Y "$LF" 2>/dev/null || echo 0)"; }
+while swaymsg -t get_version >/dev/null 2>&1; do
+    shown=; [ -e "$R/glassine-osk.shown" ] && shown=1
+    rm -f "$R/glassine-osk.shown"
+    t0=$(mtime)
+    if command -v wvkbd-glassine >/dev/null; then
+        case "$(cat "$TF" 2>/dev/null)" in     # the theme's look (Onboard's glassine-* themes)
+            editorial) set -- --fn "Source Serif 4 17" -R 0 --gap 2 --stroke-width 1 \
+                --bg ffffff --fg ffffff --fg-sp dedede --stroke 111111 --stroke-sp 111111 \
+                --press 111111 --press-sp 111111 --swipe 11111160 --swipe-sp 11111160 \
+                --text 111111 --text-sp 111111 --text-press ffffff --text-press-sp ffffff ;;
+            stationery) set -- --fn "EB Garamond Medium 19" -R 4 --gap 3 --stroke-width 1 \
+                --bg 111111 --fg ffffff --fg-sp d4d4d4 --stroke b0b0b0 --stroke-sp 7a7a7a \
+                --press 1b1b1b --press-sp 1b1b1b --swipe ffffff60 --swipe-sp ffffff60 \
+                --text 1b1b1b --text-sp 1b1b1b --text-press ffffff --text-press-sp ffffff ;;
+            *) set -- --fn "IBM Plex Sans Medium 16" -R 6 --gap 3 --stroke-width 1 \
+                --bg ffffff --fg ffffff --fg-sp e4e4e4 --stroke 111111 --stroke-sp 111111 \
+                --press 111111 --press-sp 111111 --swipe 11111160 --swipe-sp 11111160 \
+                --text 111111 --text-sp 111111 --text-press ffffff --text-press-sp ffffff ;;
+        esac
+        # shellcheck disable=SC2086
+        L=$(cat "$LF" 2>/dev/null || cat /etc/glassine/osk-layers 2>/dev/null); L=${L:-german,special}
+        wvkbd-glassine --hidden -H 300 --no-popup -l "$L" "$@" $EXTRA &
+    else
+        wvkbd-mobintl --hidden -H 300 -R 0 --fn "Sans 18" --bg 111111 --fg ffffff --fg-sp e8e8e8 \
+            --press c8c8c8 --press-sp c8c8c8 --swipe c8c8c8 --swipe-sp c8c8c8 --text 111111 --text-sp 111111 $EXTRA &
+    fi
+    kp=$!
+    [ -n "$shown" ] && { sleep 0.5; kill -USR2 $kp 2>/dev/null && touch "$R/glassine-osk.shown"; }
+    while kill -0 $kp 2>/dev/null; do
+        sleep 2
+        [ "$(mtime)" != "$t0" ] && { kill $kp; wait $kp; break; }   # the theme or the layers changed: restart
+    done
+    wait $kp 2>/dev/null
+    [ "$(mtime)" != "$t0" ] || sleep 3
+done

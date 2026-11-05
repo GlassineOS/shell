@@ -1,0 +1,29 @@
+#!/bin/sh
+# The on-screen keyboard (the bar's keyboard button; glassine-shell's search):
+# glassine-osk [show|hide] no argument: toggle
+# X: Onboard, started if it isn't running. Sway: wvkbd (the sway config starts
+# it hidden and keeps it running): SIGUSR2 shows, SIGUSR1 hides; the state is
+# $XDG_RUNTIME_DIR/glassine-osk.shown (wvkbd can't be asked).
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+    s=${XDG_RUNTIME_DIR:-/tmp}/glassine-osk.shown
+    case "${1:-}" in
+        show) sig=USR2 ;;
+        hide) sig=USR1 ;;
+        *) if [ -e "$s" ]; then sig=USR1; else sig=USR2; fi ;;
+    esac
+    pkill -$sig -x 'wvkbd-(glassine|mobintl)' || exit 1
+    if [ $sig = USR2 ]; then touch "$s"; u=1; else rm -f "$s"; u=0; fi
+    # glassine-epdd-desktop's debounce setting (read-write open: no wait if glassine-epdd-desktop is gone; nothing is read)
+    c=/run/glassine-epdd-desktop.ctl
+    if [ -p "$c" ]; then { echo "osk_up=$u" >&3; } 3<>"$c"; fi 2>/dev/null
+    exit 0
+fi
+k() { gdbus call --session --dest org.onboard.Onboard --object-path /org/onboard/Onboard/Keyboard \
+          --method org.onboard.Onboard.Keyboard.$1 >/dev/null 2>&1; }
+case "${1:-}" in
+    show) k Show && exit 0 ;;
+    hide) k Hide; exit 0 ;;
+    *) k ToggleVisible && exit 0 ;;
+esac
+setsid glassine-onboard >/dev/null 2>&1 &
+for i in 1 2 3 4 5 6 7 8 9 10; do sleep 1; k Show && exit 0; done

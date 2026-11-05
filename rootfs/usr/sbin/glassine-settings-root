@@ -1,0 +1,143 @@
+#!/bin/sh
+# Root half of glassine-settings (allowed for the desktop user via /etc/doas.d/glassine.conf).
+# timezone REGION/CITY : relink /etc/localtime (+ /etc/timezone); the shell clock follows
+# ntp on|off : /etc/glassine/ntp-off stops glassine-clock sync
+# ddr LEVEL : DDR vote performance|balanced|saver (glassine-ddr: saved + applied)
+# gpu panel on|off : /etc/glassine/epd-gpu + glassine-epdd-desktop gpu=on|off now (drive frames)
+# gpu sway on|off : /etc/glassine/sway-gpu (sway renders with GLES, );
+# on clears the fallback mark; restarts a running sway session
+# rotation auto|0|90|180|270 : /etc/glassine/rotation (glassine-rotd re-reads it within 1 s):
+# auto, or locked to that turn (sway's clockwise degrees)
+# uninstall APPID : flatpak uninstall of a system-wide Flatpak app (glassine-settings
+# > Apps > an app > Uninstall); packages (apk) are refused
+# apk-add NAME[=VER]... : install (Apps > Packages); apk-del NAME... removes with
+# what needs it (-r); apk-upgrade [NAME...]; apk-update
+# fetches the package lists. Through `glassine apk` when
+# there (the root is writable for that run only), else
+# apk-tools. Names are checked: nothing that starts with -
+# apk-ack : the first-change note was acknowledged (glassine apk's
+# own file, so the terminal does not ask again)
+# pkg-changes : glassine-deploy packages --porcelain (what you changed
+# against the base; needs root to read the base)
+# restart-desktop : restarts the running session (after a desktop update)
+# freeze NAME off|auto|always : /etc/glassine/bgprio.conf's nofreeze/freeze rule for
+# NAME (a process name or a Flatpak app id; auto = neither);
+# glassine-bgprio re-reads it on its next rescan (<= 30 s)
+# auth : an administrator's password on stdin (glassine-checkpass);
+# good = the password commands below work for this user
+# for 5 minutes. Exit 1 wrong. auth-check admin|password:
+# exit 0 if the command would run now, else 77.
+# Who may run what (lib/glassine/admin-auth.sh, ): anyone = apk-update,
+# apk-ack, pkg-changes, restart-desktop, rotation; admin = timezone, ntp, ddr, gpu,
+# freeze, uninstall; password = apk-add, apk-del, apk-upgrade.
+. /usr/lib/glassine/admin-auth.sh
+# apk: glassine's wrapper when installed (it unlocks / for the run), else apk-tools
+apk_run() {
+	if [ -x /usr/sbin/glassine ]; then GLASSINE_APK_ACK=1 exec /usr/sbin/glassine apk --no-progress "$@"; fi
+	exec /sbin/apk --no-progress "$@"
+}
+# package arguments: names (and name=version), never an option, at most 64
+pkg_args() {
+	[ $# -le 64 ] || { echo "too many packages" >&2; exit 2; }
+	for a in "$@"; do
+		echo "$a" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9+._-]{0,127}(=[A-Za-z0-9+._~-]{1,64})?' || { echo "bad package: $a" >&2; exit 2; }
+	done
+}
+case "$1" in
+	auth)
+		auth_submit; exit $? ;;
+	auth-check)
+		case "$2" in admin) auth_need_admin ;; password) auth_need_password ;; *) echo "auth-check admin|password" >&2; exit 2 ;; esac
+		exit 0 ;;
+	apk-add)
+		auth_need_password
+		shift; [ $# -ge 1 ] || { echo "apk-add NAME..." >&2; exit 2; }
+		pkg_args "$@"; apk_run add "$@" ;;
+	apk-del)
+		auth_need_password
+		shift; [ $# -ge 1 ] || { echo "apk-del NAME..." >&2; exit 2; }
+		pkg_args "$@"; apk_run del -r "$@" ;;
+	apk-upgrade)
+		auth_need_password
+		shift; pkg_args "$@"; apk_run upgrade "$@" ;;
+	apk-update)
+		apk_run update ;;
+	apk-ack)
+		mkdir -p /etc/glassine && : > /etc/glassine/apk-acknowledged ;;
+	pkg-changes)
+		[ -x /usr/sbin/glassine-deploy ] || { echo "glassine-deploy is not installed" >&2; exit 1; }
+		[ -e /run/glassine/booted ] || { echo "not booted from a deployment" >&2; exit 1; }
+		exec /usr/sbin/glassine-deploy packages --porcelain ;;
+	restart-desktop)
+		setsid rc-service glassine-x restart </dev/null >>/var/log/glassine-session.log 2>&1 & ;;
+	uninstall)
+		auth_need_admin
+		case "$2" in *[!A-Za-z0-9._-]*|""|-*) echo "bad app id: $2" >&2; exit 2 ;; esac
+		flatpak info --system "$2" >/dev/null 2>&1 || { echo "$2 is not a system-wide Flatpak app" >&2; exit 1; }
+		exec flatpak uninstall --system -y --noninteractive "$2" ;;
+	timezone)
+		auth_need_admin
+		case "$2" in */*) ;; *) echo "zone: REGION/CITY" >&2; exit 2 ;; esac
+		case "$2" in *..*|/*) echo "bad zone: $2" >&2; exit 2 ;; esac
+		z=/usr/share/zoneinfo/$2
+		[ -f "$z" ] || { echo "no such zone: $2" >&2; exit 1; }
+		ln -sfn "$z" /etc/localtime.glassine && mv -f /etc/localtime.glassine /etc/localtime   # atomic swap
+		echo "$2" > /etc/timezone ;;
+	ntp)
+		auth_need_admin
+		mkdir -p /etc/glassine
+		case "$2" in
+			on)  rm -f /etc/glassine/ntp-off; (/usr/sbin/glassine-clock sync &) ;;
+			off) : > /etc/glassine/ntp-off ;;
+			*) echo "ntp on|off" >&2; exit 2 ;;
+		esac ;;
+	ddr)
+		auth_need_admin
+		exec /usr/sbin/glassine-ddr "$2" ;;
+	rotation)
+		mkdir -p /etc/glassine
+		case "$2" in
+			auto) echo auto > /etc/glassine/rotation.new ;;
+			0|90|180|270) echo "lock $2" > /etc/glassine/rotation.new ;;
+			*) echo "rotation auto|0|90|180|270" >&2; exit 2 ;;
+		esac
+		mv -f /etc/glassine/rotation.new /etc/glassine/rotation ;;
+	gpu)
+		auth_need_admin
+		mkdir -p /etc/glassine
+		case "$2 $3" in
+			"panel on")  : > /etc/glassine/epd-gpu ;;
+			"panel off") rm -f /etc/glassine/epd-gpu ;;
+			"sway on")   : > /etc/glassine/sway-gpu; rm -f /run/glassine/gpu-fallback /var/lib/glassine/gpu-fallback /var/lib/glassine/gles-strikes ;;
+			"sway off")  rm -f /etc/glassine/sway-gpu ;;
+			*) echo "gpu panel|sway on|off" >&2; exit 2 ;;
+		esac
+		if [ "$2" = panel ]; then
+			# a FIFO without a reader blocks: only to a running glassine-epdd-desktop, at most 2 s
+			[ -p /run/glassine-epdd-desktop.ctl ] && pidof glassine-epdd-desktop >/dev/null &&
+				timeout 2 sh -c "echo gpu=$3 > /run/glassine-epdd-desktop.ctl" || true
+		else
+			s=x; [ -r /etc/glassine/session ] && read -r s < /etc/glassine/session
+			# detached: the caller (glassine-settings) is an app of the session being restarted
+			[ "$s" = sway ] && { setsid rc-service glassine-x restart </dev/null >>/var/log/glassine-session.log 2>&1 & }
+		fi ;;
+	freeze)
+		auth_need_admin
+		echo "$2" | grep -Eqx '[A-Za-z0-9][A-Za-z0-9._+-]{0,126}' || { echo "bad name: $2" >&2; exit 2; }
+		case "$3" in off) kw=nofreeze ;; always) kw=freeze ;; auto) kw= ;; *) echo "freeze NAME off|auto|always" >&2; exit 2 ;; esac
+		c=/etc/glassine/bgprio.conf
+		mkdir -p /etc/glassine; [ -f $c ] || : > $c
+		# NAME out of every nofreeze/freeze line (a line left empty goes), then its rule
+		awk -v n="$2" -v kw="$kw" '
+			{ split($0, p, "#"); k = split(p[1], t, /[ \t]+/); first = ""; for (i = 1; i <= k; i++) if (t[i] != "") { first = t[i]; break } }
+			first == "nofreeze" || first == "freeze" {
+				out = first; hit = 0; left = 0
+				for (i = 1; i <= k; i++) { if (t[i] == "" || t[i] == first) continue; if (t[i] == n) { hit = 1; continue }; out = out " " t[i]; left++ }
+				if (!hit) { print; next }
+				if (left) print out
+				next
+			}
+			{ print }
+			END { if (kw != "") print kw " " n }' $c > $c.glassine && cat $c.glassine > $c && rm -f $c.glassine ;;
+	*) echo "usage: $0 timezone REGION/CITY | ntp on|off | ddr LEVEL | gpu panel|sway on|off | freeze NAME off|auto|always | apk-add|apk-del|apk-upgrade NAME... | apk-update | apk-ack | pkg-changes | restart-desktop | auth | auth-check admin|password" >&2; exit 2 ;;
+esac

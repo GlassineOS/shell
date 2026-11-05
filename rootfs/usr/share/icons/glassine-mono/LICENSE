@@ -1,0 +1,13 @@
+The icons in scalable/apps are from Arcticons (https://github.com/Arcticons-Team/Arcticons,
+icons/black), by the Arcticons team and contributors, licensed CC BY-SA 4.0
+(https://creativecommons.org/licenses/by-sa/4.0/). Changed: stroke width 1 -> 1.5 (e-ink),
+renamed to the Linux apps' icon names. This theme is licensed CC BY-SA 4.0 as well.
+
+  koreader            <- koreader           com.github.xournalpp.xournalpp <- note
+  firefox-esr         <- firefox            org.xfce.terminal     <- termux
+  org.xfce.thunar     <- fossify_filemanager org.gnome.Software   <- app_market
+  io.m51.Gelly        <- jellyfin           io.gitlab.news_flash.NewsFlash <- rss
+  org.gnome.Nautilus  <- fossify_filemanager
+  org.gnome.Sudoku    <- sudoku             htop                  <- simple_system_monitor
+  io.gitlab.caveman250.headlines <- reddit  animatch              <- bejeweled_3
+  org.xfce.settings.manager <- settings

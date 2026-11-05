@@ -1,0 +1,376 @@
+#!/usr/bin/python3
+"""glassine-app-render: an app's render profile, per user.
+
+  glassine-app-render APP gpu|short|l3|cpu set it (APP = a desktop id, e.g. org.gnome.Nautilus)
+  glassine-app-render get APP              print it (gpu when not set)
+  glassine-app-render list                 the apps set to something else than gpu
+  glassine-app-render refresh              re-apply all (an app update changed its files; sway runs it at start)
+
+Profiles: see glassine-appenv (gpu = the session's environment, short = FD_MESA_DEBUG
+sysmem, cpu = llvmpipe/cairo/Qt software). State: ~/.config/glassine/app-render.conf.
+
+Where it applies (each launch path gets the wrapper /usr/bin/glassine-appenv):
+  - the drawer (glassine-shell reads $XDG_DATA_HOME/applications first) and any
+    launcher of .desktop files: a generated copy ~/.local/share/applications/APP.desktop,
+    every Exec= line (actions too) prefixed. Marked X-Glassine-AppRender=PROFILE;
+  - D-Bus activation (Nautilus, GNOME Software: their windows come from a
+    --gapplication-service process): generated copies of the app's service
+    files (APP.service, and any whose Exec runs the same program) in
+    ~/.local/share/dbus-1/services, first line "# X-Glassine-AppRender=PROFILE app=APP";
+    the session bus is told to reload;
+  - Flatpak apps: flatpak override --user --env=... (gpu: removes exactly the
+    keys the last profile set, other overrides stay).
+gpu removes only the files we generated; a file of the user's own at one of
+those paths is never touched (reported). Not covered: an app started from a
+terminal (run it as: glassine-appenv PROFILE CMD). A running app (a D-Bus service
+too: Nautilus stays after its last window) keeps its environment until it exits.
+"""
+import os
+import shlex
+import subprocess
+import sys
+
+HOME = os.path.expanduser("~")
+DATA_HOME = os.environ.get("XDG_DATA_HOME") or HOME + "/.local/share"
+CONF = (os.environ.get("XDG_CONFIG_HOME") or HOME + "/.config") + "/glassine/app-render.conf"
+APPENV = os.environ.get("GLASSINE_APPENV", "/usr/bin/glassine-appenv")      # (host tests point it into the tree)
+PROFILES = ("gpu", "short", "l3", "cpu")
+MARK = "X-Glassine-AppRender="
+FP_DIRS = ("/var/lib/flatpak/app", HOME + "/.local/share/flatpak/app")
+
+
+def data_dirs():
+    """$XDG_DATA_DIRS + the usual ones (a shell without the session's environment), not $XDG_DATA_HOME"""
+    ds = (os.environ.get("XDG_DATA_DIRS") or "").split(":") + [
+        HOME + "/.local/share/flatpak/exports/share", "/var/lib/flatpak/exports/share", "/usr/local/share", "/usr/share"]
+    out = []
+    for d in ds:
+        d = d.rstrip("/")
+        if d and d != DATA_HOME.rstrip("/") and d not in out:
+            out.append(d)
+    return out
+
+
+def read_conf():
+    r = {}
+    try:
+        with open(CONF) as f:
+            for l in f:
+                t = l.split("#")[0].split()
+                if len(t) == 2 and t[1] in PROFILES:
+                    r[t[0]] = t[1]
+    except OSError:
+        pass
+    return r
+
+
+def write_conf(c):
+    os.makedirs(os.path.dirname(CONF), exist_ok=True)
+    tmp = CONF + ".tmp"
+    with open(tmp, "w") as f:
+        f.write("# glassine-app-render: desktop id, then gpu|short|cpu (gpu = no line)\n")
+        f.writelines("%s %s\n" % (a, p) for a, p in sorted(c.items()) if p != "gpu")
+    os.replace(tmp, CONF)
+
+
+def prof_lines(p):
+    out = subprocess.run([APPENV, "--print", p], capture_output=True, text=True).stdout
+    return [l.strip() for l in out.splitlines() if l.strip()]
+
+
+def prof_env(p):
+    """the profile's KEY=VALUE pairs, from glassine-appenv (the one place they are defined)"""
+    return [l for l in prof_lines(p) if "=" in l and not l.startswith("!")]
+
+
+def prof_unset(p):
+    """the variables the profile unsets (glassine-appenv's !KEY lines)"""
+    return [l[1:] for l in prof_lines(p) if l.startswith("!") and len(l) > 1]
+
+
+def is_flatpak(app):
+    return any(os.path.isdir(os.path.join(d, app)) for d in FP_DIRS)
+
+
+def wrap_exec(v, prof):
+    """an Exec value with the wrapper in front (an old wrapper is replaced)"""
+    t = v.split(None, 2)
+    if t and os.path.basename(t[0]) == "glassine-appenv" and len(t) == 3:
+        v = t[2]
+    return "%s %s %s" % (APPENV, prof, v)
+
+
+def program(execv):
+    """the program an Exec runs (env and VAR=x skipped), its basename"""
+    try:
+        t = shlex.split(execv)
+    except ValueError:
+        t = execv.split()
+    for x in t:
+        if x == "env" or ("=" in x and not x.startswith("/")):
+            continue
+        return os.path.basename(x)
+    return ""
+
+
+def generated(path, first_only=False):
+    try:
+        with open(path, errors="replace") as f:
+            ls = [f.readline()] if first_only else f.readlines()
+    except OSError:
+        return None                         # no file
+    return any(MARK in l for l in ls)
+
+
+def find_desktop(app):
+    for d in data_dirs():
+        p = "%s/applications/%s.desktop" % (d, app)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def desktop(app, prof, src, notes):
+    dst = "%s/applications/%s.desktop" % (DATA_HOME, app)
+    g = generated(dst)
+    if g is False:
+        if prof != "gpu":
+            notes.append("%s is your own file: not changed (put %s %s in front of its Exec lines yourself)" % (dst, APPENV, prof))
+        return
+    if prof == "gpu" or not src:
+        if g:
+            os.unlink(dst)
+            notes.append("removed " + dst)
+        return
+    out, sec = [], None
+    with open(src, errors="replace") as f:
+        for l in f:
+            s = l.rstrip("\n")
+            if s.startswith("["):
+                sec = s
+                out.append(s)
+                if s == "[Desktop Entry]":
+                    out.append(MARK + prof)
+                continue
+            k, eq, v = s.partition("=")
+            if eq and k.strip() == "Exec" and sec:
+                s = "Exec=" + wrap_exec(v.strip(), prof)
+            if eq and k.strip().startswith(MARK[:-1]):
+                continue
+            out.append(s)
+    hdr = "# generated by glassine-app-render (%s) from %s; 'glassine-app-render %s gpu' removes it\n" % (prof, src, app)
+    os.makedirs(os.path.dirname(dst), exist_ok=True)
+    with open(dst + ".tmp", "w") as f:
+        f.write(hdr + "\n".join(out) + "\n")
+    os.replace(dst + ".tmp", dst)
+    notes.append("wrote " + dst)
+
+
+def services(app, prog):
+    """the session service files that start this app: APP.service, and any whose
+    Exec runs the same program (Nautilus: also FileManager1); first one per name"""
+    seen, r = set(), []
+    for d in data_dirs():
+        sd = d + "/dbus-1/services"
+        try:
+            names = sorted(os.listdir(sd))
+        except OSError:
+            continue
+        for n in names:
+            if not n.endswith(".service") or n in seen:
+                continue
+            seen.add(n)
+            p = os.path.join(sd, n)
+            ex = ""
+            try:
+                with open(p, errors="replace") as f:
+                    for l in f:
+                        if l.startswith("Exec="):
+                            ex = l[5:].strip()
+            except OSError:
+                continue
+            if n == app + ".service" or (prog and prog not in ("flatpak", "sh", "bash") and program(ex) == prog):
+                r.append(p)
+    return r
+
+
+def dbus(app, prof, prog, notes):
+    sd = DATA_HOME + "/dbus-1/services"
+    changed = False
+    # ours for this app (any profile) go first
+    try:
+        for n in sorted(os.listdir(sd)):
+            p = os.path.join(sd, n)
+            with open(p, errors="replace") as f:
+                first = f.readline()
+            if first.startswith("# " + MARK) and ("app=%s " % app) in first + " ":
+                os.unlink(p)
+                changed = True
+                if prof == "gpu":
+                    notes.append("removed " + p)
+    except OSError:
+        pass
+    if prof != "gpu":
+        for src in services(app, prog):
+            dst = os.path.join(sd, os.path.basename(src))
+            if generated(dst, first_only=True) is False:
+                notes.append("%s is your own file: not changed" % dst)
+                continue
+            out = []
+            with open(src, errors="replace") as f:
+                for l in f:
+                    s = l.rstrip("\n")
+                    if s.startswith("Exec="):
+                        s = "Exec=" + wrap_exec(s[5:].strip(), prof)
+                    out.append(s)
+            os.makedirs(sd, exist_ok=True)
+            with open(dst + ".tmp", "w") as f:
+                f.write("# %s%s app=%s (generated by glassine-app-render from %s)\n" % (MARK, prof, app, src) + "\n".join(out) + "\n")
+            os.replace(dst + ".tmp", dst)
+            changed = True
+            notes.append("wrote " + dst)
+    if changed and os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        # the bus watches only dirs that existed when it started: tell it
+        subprocess.run(["dbus-send", "--session", "--type=method_call", "--dest=org.freedesktop.DBus",
+                        "/org/freedesktop/DBus", "org.freedesktop.DBus.ReloadConfig"],
+                       capture_output=True, timeout=10)
+
+
+def fp_clear(app, keys):
+    """remove exactly these keys from [Environment] of the app's user override
+    (and from [Context] unset-environment, where --unset-env lists them too)"""
+    p = "%s/flatpak/overrides/%s" % (DATA_HOME, app)
+    try:
+        with open(p) as f:
+            ls = f.read().splitlines()
+    except OSError:
+        return False
+    out, sec, hit = [], None, False
+    for l in ls:
+        if l.startswith("["):
+            sec = l.strip()
+        elif sec == "[Environment]" and l.partition("=")[0].strip() in keys:
+            hit = True
+            continue
+        elif sec == "[Context]" and l.partition("=")[0].strip() == "unset-environment":
+            vs = [v for v in l.partition("=")[2].strip().split(";") if v]
+            left = [v for v in vs if v not in keys]
+            if len(left) != len(vs):
+                hit = True
+                if not left:
+                    continue
+                l = "unset-environment=" + ";".join(left) + ";"
+        out.append(l)
+    # an [Environment] or [Context] header left without keys goes too
+    res = []
+    for i, l in enumerate(out):
+        if l.strip() in ("[Environment]", "[Context]"):
+            nxt = next((x for x in out[i + 1:] if x.strip()), "[")
+            if nxt.startswith("["):
+                continue
+        res.append(l)
+    while res and not res[-1].strip():
+        res.pop()
+    if not any(x.strip() for x in res):
+        os.unlink(p)
+    else:
+        with open(p + ".tmp", "w") as f:
+            f.write("\n".join(res) + "\n")
+        os.replace(p + ".tmp", p)
+    return hit
+
+
+def flatpak(app, prof, old, notes):
+    if old != "gpu":
+        keys = [kv.partition("=")[0] for kv in prof_env(old)] + prof_unset(old)
+        if fp_clear(app, keys):
+            notes.append("flatpak override %s: removed %s" % (app, " ".join(keys)))
+    env, uns = prof_env(prof), prof_unset(prof)
+    if env or uns:
+        subprocess.run(["flatpak", "override", "--user"] + ["--env=" + kv for kv in env] +
+                       ["--unset-env=" + k for k in uns] + [app], check=True)
+        notes.append("flatpak override %s: %s" % (app, " ".join(env + ["unset " + k for k in uns])))
+
+
+def running(prog):
+    if not prog:
+        return False
+    uid = os.getuid()
+    for pid in os.listdir("/proc"):
+        if not pid.isdigit():
+            continue
+        try:
+            if os.stat("/proc/" + pid).st_uid != uid:
+                continue
+            with open("/proc/%s/comm" % pid) as f:
+                if f.read().strip() == prog[:15]:
+                    return True
+        except OSError:
+            pass
+    return False
+
+
+def apply(app, prof, old):
+    notes = []
+    src = find_desktop(app)
+    prog = ""
+    if src:
+        with open(src, errors="replace") as f:
+            sec = None
+            for l in f:
+                if l.startswith("["):
+                    sec = l.strip()
+                elif sec == "[Desktop Entry]" and l.startswith("Exec="):
+                    prog = program(l[5:].strip())
+                    break
+    fp = is_flatpak(app)
+    if fp:
+        flatpak(app, prof, old, notes)
+        prog = app.rsplit(".", 1)[-1].lower()
+    else:
+        if not src and not services(app, "") and prof != "gpu":
+            raise SystemExit("glassine-app-render: no app %s (no .desktop or D-Bus service file)" % app)
+    # the files: also for a Flatpak (gpu) in case an older run left copies
+    desktop(app, "gpu" if fp else prof, src, notes)
+    dbus(app, "gpu" if fp else prof, prog, notes)
+    if prof != old and running(prog):
+        notes.append("%s is running: the change applies when it is started again (close it; a D-Bus app may keep a service process)" % prog)
+    return notes
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        print(__doc__.strip())
+        return 0 if len(argv) >= 2 else 2
+    c = read_conf()
+    if argv[1] == "list":
+        for a, p in sorted(c.items()):
+            print(a, p)
+        return 0
+    if argv[1] == "get" and len(argv) == 3:
+        print(c.get(argv[2], "gpu"))
+        return 0
+    if argv[1] == "refresh":
+        for a, p in sorted(c.items()):
+            try:
+                apply(a, p, p)
+            except (OSError, subprocess.SubprocessError, SystemExit) as e:
+                print("glassine-app-render: %s: %s" % (a, e), file=sys.stderr)
+        return 0
+    if len(argv) == 3 and argv[2] in PROFILES:
+        app, prof = argv[1], argv[2]
+        old = c.get(app, "gpu")
+        for n in apply(app, prof, old):
+            print(n)
+        c[app] = prof
+        if prof == "gpu":
+            c.pop(app, None)
+        write_conf(c)
+        print("%s: %s" % (app, prof))
+        return 0
+    print("usage: glassine-app-render APP gpu|short|l3|cpu | get APP | list | refresh", file=sys.stderr)
+    return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

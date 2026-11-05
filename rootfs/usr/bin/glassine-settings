@@ -1,0 +1,10 @@
+#!/usr/bin/python3
+"""glassine-settings: settings for the device.
+See /usr/lib/glassine/settings/app.py for the options."""
+import os
+import sys
+# the package beside this script (…/bin -> …/lib/glassine: the device, or a checkout)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib", "glassine"))
+from settings.app import main  # noqa: E402
+
+sys.exit(main(sys.argv))

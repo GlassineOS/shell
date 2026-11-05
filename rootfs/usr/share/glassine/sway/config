@@ -1,0 +1,100 @@
+# sway config of the device e-ink session (.
+# The panel is output EPD-1 (glassine-epd backend, glassine-epdd-desktop draws it).
+# User additions: ~/.config/glassine/sway.d/* (included last).
+output EPD-1 scale 2 bg #ffffff solid_color
+default_border none
+default_floating_border none
+# 20 px (40 on the panel) between tiles, none at the screen edges: glassine-swayd's
+# drag handles sit in these gaps (as glassine-winfit's GAP on X)
+gaps inner 20
+gaps outer -20
+smart_gaps on
+focus_follows_mouse no
+# an app that asks for its window (started again from the drawer while it
+# runs: Chromium, GNOME apps hand over to the running copy) gets it, on its
+# own workspace; sway's default only marked it urgent there
+focus_on_window_activation focus
+# dialogs without a parent float as on X (xfwm4 floats by the dialog type hint;
+# sway only floats Wayland windows with a parent or a fixed size): the power &
+# light settings (GTK3: app_id = its program name)
+for_window [app_id="glassine-power-settings"] floating enable
+# the mouse pointer: the backend hands its cursor to glassine-epdd-desktop, which paints it
+# (@pointer=off in eink.conf: never). The pen and touch never show
+# it (sway-glassine 0009). Hovering is wanted with a mouse (tooltips, highlights)
+# but not after the pen: left where the pen was, GTK showed the tooltip of
+# whatever row scrolled under it (GNOME Software: a tooltip after
+# every stroke, closed by the next touch). So the hide timer (which also
+# clears the pointer focus: no hover) is 500 ms after touch or the pen (0009)
+# and this after the mouse; typing hides it too
+seat * hide_cursor 5000
+seat * hide_cursor when-typing enable
+# 24 px at the output's scale 2 = a 48 px sprite on the panel (clients:
+# XCURSOR_SIZE / GSettings cursor-size, glassine-session-sway / glassine-theme-apply)
+seat * xcursor_theme Adwaita 24
+# focus changes never move (and so show) the pointer
+mouse_warping none
+
+# touch (the touchscreen itself: glassine-touchd is stopped in this session) and the
+# pen, both in panel coordinates -> portrait (as 40-glassine-input.conf on X)
+input type:touch {
+    map_to_output EPD-1
+    calibration_matrix 0 1 0 -1 0 1
+}
+input type:tablet_tool {
+    map_to_output EPD-1
+    calibration_matrix 0 -1 1 1 0 0
+}
+# touchpads scroll like the touchscreen: the content follows the fingers
+# ("haptic" / natural scrolling). The ProtoArc XK01's pad
+# is a mouse to libinput (wheel events), so it is named; real mice keep their
+# wheel direction
+input type:touchpad natural_scroll enabled
+input 13652:62981:ProtoArc_XK01_TP_Mouse natural_scroll enabled
+# the grey output's matrices (input-grey.conf), when glassine-session-sway links it
+include /run/glassine-sway-input.conf
+
+include /usr/share/glassine/sway/keys.conf
+
+# D-Bus activated services (portals, dconf) start from the bus, which began
+# before sway: give them sway's display
+exec dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE SWAYSOCK
+# ... and the apps' FD_MESA_DEBUG: sway hands its children GLASSINE_APP_FD_MESA_DEBUG
+# (0005, the split), the bus has none of its own: D-Bus-activated apps
+# (Nautilus) drew without it, 19.6 ms GPU per scroll frame vs 4.6
+# (L2, ). Its own line: GLES only, an unset name stays out
+exec sh -c '[ -n "$FD_MESA_DEBUG" ] && exec dbus-update-activation-environment FD_MESA_DEBUG'
+# (the chunked submits' settings likewise, /etc/glassine/gpu-app-l3)
+exec sh -c '[ -n "$FD_CHUNK_US" ] && exec dbus-update-activation-environment FD_CHUNK_US FD_CHUNK_COST'
+# (and L4's switch, glassine-session-sway)
+exec sh -c '[ -n "$FD_L4" ] && exec dbus-update-activation-environment FD_L4'
+# (and the Flatpak GL driver choice: D-Bus-activated Flatpaks run `flatpak run` from the bus)
+exec sh -c '[ -n "$FLATPAK_GL_DRIVERS" ] && exec dbus-update-activation-environment FLATPAK_GL_DRIVERS'
+# what the X session gets from XDG autostart (xfce4-session runs it, sway
+# doesn't): PipeWire (sound; also screen casts via the wlr portal), blueman's
+# applet (the pairing agent for Devices), Bluetooth media keys. The X-only
+# entries (glassine-popupd, Onboard) have their sway versions below.
+# (glassine-pipewire: pipewire-launcher + the speaker volume kept across restarts)
+exec /usr/bin/glassine-pipewire
+exec blueman-applet
+# NetworkManager's secret agent (nm-applet's job on X): a network that needs a
+# new password gets a notice that opens glassine-settings on it (P14-1)
+exec sh -c 'until /usr/bin/glassine-nm-agent; do sleep 5; done'
+# a device that becomes paired is trusted, whoever paired it (BlueZ turns away
+# an untrusted device that reconnects itself, e.g. a gamepad; )
+exec sh -c 'until /usr/bin/glassine-bt-trust; do sleep 5; done'
+exec /usr/bin/mpris-proxy
+# per-app render profiles (glassine-settings > Apps > an app > Rendering):
+# re-generate the wrapped .desktop/D-Bus copies from the current app files
+exec /usr/bin/glassine-app-render refresh
+# the bar + popups (glassine-shell's Wayland backend; restarted when it dies)
+exec /usr/bin/glassine-shell-wl-run
+# tiling as glassine-winfit on X (newest on top, 3 apps per workspace, no empty
+# workspaces, drag handles), window hints for glassine-epdd-desktop; restarted if it fails
+exec sh -c 'until /usr/bin/glassine-swayd; do sleep 2; done'
+# the on-screen keyboard: wvkbd, hidden until glassine-osk shows it (the bar's
+# keyboard button, the shell's search)
+exec /usr/bin/glassine-wvkbd
+# the pen's ink areas of apps that register none: their canvas, read from the
+# accessibility tree (restarted with sway's IPC)
+exec sh -c 'until /usr/bin/glassine-ink-discover; do sleep 5; done'
+include ~/.config/glassine/sway.d/*

@@ -1,0 +1,11 @@
+#!/bin/sh
+# glassine-screenshot — the Print key (sway keys.conf): the frame sway composed (grim,
+# wlr-screencopy; what glassine-epdd-desktop then puts on the panel may differ: grey levels,
+# dither), a PNG in ~/Pictures/Screenshots. No popup (e-ink: a refresh).
+# glassine-screenshot [FILE]
+command -v grim >/dev/null || { echo "glassine-screenshot: no grim (apk add grim)" >&2; exit 1; }
+d=$(xdg-user-dir PICTURES 2>/dev/null) || d=
+[ -n "$d" ] && [ "$d" != "$HOME" ] || d=$HOME/Pictures
+f=${1:-$d/Screenshots/Screenshot-$(date +%Y-%m-%d-%H%M%S).png}
+mkdir -p "$(dirname "$f")" || exit 1
+grim "$f" && echo "$f"

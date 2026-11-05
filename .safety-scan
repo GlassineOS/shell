@@ -1,0 +1,3 @@
+# /home/anna and /home/bea: made-up users in the first-run tests, reviewed 2026-11-05.
+allow-path test/setup/apply-test.sh
+allow-path test/setup/flow.py

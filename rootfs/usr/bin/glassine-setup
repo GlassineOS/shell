@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+"""glassine-setup: the first-run setup (see /usr/lib/glassine/setup/app.py).
+    glassine-setup --needs      print what is still missing (needs.py), one per line;
+                                nothing = the setup has nothing to ask"""
+import os
+import sys
+# the packages beside this script (…/bin -> …/lib: the device, or a checkout); drawing comes from glassine-settings
+LIB = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
+sys.path[:0] = [os.path.join(LIB, "glassine"), os.path.join(LIB, "glassine")]
+if sys.argv[1:2] == ["--needs"]:
+    from setup.needs import needs  # noqa: E402
+    print("\n".join(needs()))
+    sys.exit(0)
+from setup.app import main  # noqa: E402
+
+sys.exit(main(sys.argv))

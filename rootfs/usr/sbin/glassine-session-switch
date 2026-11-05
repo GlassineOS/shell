@@ -1,0 +1,34 @@
+#!/bin/sh
+# glassine-session-switch x|sway -- choose the graphical session (/etc/glassine/session,
+# read by glassine-session) and restart it: every app of the current session
+# closes. As root; the desktop user runs it as `doas glassine-power-root session x|sway`.
+# Choosing sway clears this boot's sway failure mark (/run/glassine-session-failed).
+# glassine-session-switch print the choice (and whether sway failed)
+# Keep SWAY_PKGS in step with the image (build-in-container.sh) and sway/deploy-live.sh.
+SWAY_PKGS="sway seatd foot xwayland swaybg wvkbd wtype dconf gsettings-desktop-schemas xdg-desktop-portal-wlr playerctl grim"
+case "$1" in
+    x|sway) ;;
+    "")
+        c=x; [ -r /etc/glassine/session ] && read -r c < /etc/glassine/session
+        echo "session: ${c:-x}$([ -e /run/glassine-session-failed ] && echo ' (sway failed this boot: X runs)')"
+        exit 0 ;;
+    *) echo "usage: $0 [x|sway]" >&2; exit 2 ;;
+esac
+if [ "$1" = sway ]; then
+    # the sway session's packages (the image has them since; an older
+    # root fs gets them here, over the network) and the patched sway (the kit)
+    need=
+    for p in $SWAY_PKGS; do apk info -e "$p" >/dev/null 2>&1 || need="$need $p"; done
+    if [ -n "$need" ]; then
+        echo "glassine-session-switch: installing$need"
+        # shellcheck disable=SC2086
+        apk add -q $need || { echo "glassine-session-switch: apk add failed (network?); staying on X" >&2; exit 1; }
+    fi
+    [ -x /usr/bin/sway-glassine ] || { echo "glassine-session-switch: /usr/bin/sway-glassine missing (image kit); staying on X" >&2; exit 1; }
+fi
+mkdir -p /etc/glassine
+echo "$1" > /etc/glassine/session.new && mv /etc/glassine/session.new /etc/glassine/session
+[ "$1" = sway ] && rm -f /run/glassine-session-failed
+echo "glassine-session-switch: $1; restarting the session"
+# detached: the caller may be an app of the session being restarted
+setsid rc-service glassine-x restart </dev/null >>/var/log/glassine-session.log 2>&1 &

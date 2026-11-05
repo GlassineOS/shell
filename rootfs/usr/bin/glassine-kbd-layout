@@ -1,0 +1,40 @@
+#!/bin/sh
+# glassine-kbd-layout — the hardware keyboards' xkb layout in the sway session
+# (sway set none, a Bluetooth keyboard typed US English):
+# ~/.config/glassine/kbd-layout de | us (glassine-settings > Keyboard); absent:
+# the on-screen keyboard's first language
+# (~/.config/glassine/osk-layers, /etc/glassine/osk-layers:
+# german -> de, else us; neither: de, as wvkbd)
+# writes ~/.config/glassine/sway-keyboard.conf (keys.conf includes it: the layout
+# from sway's start) and, sway running, sets it at once. Only libinput
+# keyboards take it: wvkbd's virtual keyboard keeps its own keymap (sway never
+# sets a layout on a virtual one); the power key has no letters to move.
+# glassine-kbd-layout apply (sway runs it at start; glassine-settings on a change)
+# glassine-kbd-layout -n print the layout only
+C=${XDG_CONFIG_HOME:-$HOME/.config}/glassine
+l=
+[ -r "$C/kbd-layout" ] && read -r l < "$C/kbd-layout"
+# also "LAYOUT [VARIANT]" in xkb's names (glassine-setup writes e.g. "de nodeadkeys", "gb")
+v=
+case "$l" in
+    *" "*) v=${l#* }; l=${l%% *} ;;
+esac
+case "$l" in
+    [a-z][a-z]|[a-z][a-z][a-z]) case "$v" in ""|*[!a-z0-9_]*) v= ;; esac ;;
+    *) v=; o=german
+       if [ -r "$C/osk-layers" ]; then read -r o < "$C/osk-layers"
+       elif [ -r /etc/glassine/osk-layers ]; then read -r o < /etc/glassine/osk-layers; fi
+       case "$o" in german*) l=de ;; *) l=us ;; esac ;;
+esac
+[ "${1:-}" = -n ] && { echo "$l${v:+ $v}"; exit 0; }
+mkdir -p "$C" || exit 1
+f=$C/sway-keyboard.conf
+want="input type:keyboard xkb_layout $l"
+var="input type:keyboard xkb_variant ${v:-\"\"}"     # always: clears an earlier variant
+new=$(printf '# glassine-kbd-layout (generated)\n%s\n%s' "$want" "$var")
+if [ "$(cat "$f" 2>/dev/null)" != "$new" ]; then
+    printf '%s\n' "$new" > "$f.tmp" && mv "$f.tmp" "$f"
+fi
+# sway running (no sway, X: nothing to do)
+swaymsg -q "$want; $var" 2>/dev/null
+exit 0

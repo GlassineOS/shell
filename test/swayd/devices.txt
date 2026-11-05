@@ -1,0 +1,54 @@
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="pm8941_pwrkey"
+P: Phys=pm8941_pwrkey/input0
+S: Sysfs=/devices/platform/soc@0/400f000.spmi/spmi-0/0-00/800000.pon/pwrkey/input/input0
+H: Handlers=kbd event0
+B: PROP=0
+B: EV=3
+B: KEY=10000000000000 0
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="sample-hall"
+H: Handlers=kbd event2
+B: EV=3
+B: KEY=10000000000000 0 0 0 0 0 0 100
+
+I: Bus=0005 Vendor=05ac Product=024f Version=0001
+N: Name="Keychron K3"
+P: Phys=00:00:5E:00:53:01
+H: Handlers=sysrq kbd leds event6
+B: PROP=0
+B: EV=12001f
+B: KEY=3007f 0 0 0 0 0 0 0 0 0 0 0 0 1000000000007 ff800000000007ff febeffdff3cfffff fffffffffffffffe
+B: MSC=10
+B: LED=1f
+
+I: Bus=0005 Vendor=046d Product=b034 Version=0002
+N: Name="MX Anywhere 3"
+H: Handlers=mouse0 event7
+B: EV=17
+B: KEY=1f0000 0 0 0 0
+
+I: Bus=0005 Vendor=046d Product=b034 Version=0002
+N: Name="MX Anywhere 3 Consumer Control"
+H: Handlers=kbd event8
+B: EV=1f
+B: KEY=306ff 0 0 483ffff17aff32d bfd4444600000000 1 130ff38b17d000 677bfad9415fed 9ed68000004400 10000002
+
+I: Bus=0003 Vendor=1234 Product=9999 Version=0001
+N: Name="Fake Board"
+H: Handlers=kbd event9
+B: EV=12001f
+B: KEY=fffffffffffffffe
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="sf-keys"
+H: Handlers=kbd event10
+B: EV=3
+B: KEY=fffffffffffffffe
+
+I: Bus=0000 Vendor=0000 Product=0000 Version=0000
+N: Name="Sample Headset Jack"
+H: Handlers=kbd event3
+B: EV=23
+B: KEY=1000000000 4000000000000 0 0

@@ -1,0 +1,4 @@
+/glassine-shell-wl
+/glassine-swayd
+/test/*/out*/
+__pycache__/

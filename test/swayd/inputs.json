@@ -1,0 +1,15 @@
+[
+ {"identifier": "0:0:pm8941_pwrkey", "name": "pm8941_pwrkey", "vendor": 0, "product": 0, "type": "keyboard", "xkb_active_layout_name": "German", "libinput": {"send_events": "enabled"}},
+ {"identifier": "0:0:Sample_Headset_Jack", "name": "Sample Headset Jack", "vendor": 0, "product": 0, "type": "keyboard", "xkb_active_layout_name": "English (US)", "libinput": {"send_events": "enabled"}},
+ {"identifier": "0:0:gpio-keys", "name": "gpio-keys", "vendor": 0, "product": 0, "type": "switch", "libinput": {"send_events": "enabled"}},
+ {"identifier": "0:0:sample-hall", "name": "sample-hall", "vendor": 0, "product": 0, "type": "keyboard", "xkb_active_layout_name": "German", "libinput": {"send_events": "enabled"}},
+ {"identifier": "0:0:cyttsp5", "name": "cyttsp5", "vendor": 0, "product": 0, "type": "touch", "libinput": {"send_events": "enabled"}},
+ {"identifier": "1386:0:Wacom_I2C_Digitizer", "name": "Wacom I2C Digitizer", "vendor": 1386, "product": 0, "type": "tablet_tool", "libinput": {"send_events": "enabled"}},
+ {"identifier": "0:0:wlr_virtual_keyboard_v1", "name": "wlr_virtual_keyboard_v1", "type": "keyboard", "xkb_active_layout_name": "English (US)"},
+ {"identifier": "0:0:virtual-keyboard", "name": "virtual-keyboard", "type": "keyboard", "xkb_active_layout_name": "German"},
+ {"identifier": "1452:591:Keychron_K3", "name": "Keychron K3", "vendor": 1452, "product": 591, "type": "keyboard", "xkb_active_layout_name": "German", "libinput": {"send_events": "enabled"}},
+ {"identifier": "1133:45108:MX_Anywhere_3", "name": "MX Anywhere 3", "vendor": 1133, "product": 45108, "type": "pointer", "libinput": {"send_events": "enabled"}},
+ {"identifier": "1133:45108:MX_Anywhere_3_Consumer_Control", "name": "MX Anywhere 3 Consumer Control", "vendor": 1133, "product": 45108, "type": "keyboard", "xkb_active_layout_name": "German", "libinput": {"send_events": "enabled"}},
+ {"identifier": "4660:22136:Fake_Board", "name": "Fake Board", "vendor": 4660, "product": 22136, "type": "keyboard", "xkb_active_layout_name": "German", "libinput": {"send_events": "enabled"}},
+ {"identifier": "0:0:sf-keys", "name": "sf-keys", "vendor": 0, "product": 0, "type": "keyboard", "xkb_active_layout_name": "German", "libinput": {"send_events": "enabled"}}
+]

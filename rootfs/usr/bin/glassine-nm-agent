@@ -1,0 +1,155 @@
+#!/usr/bin/python3
+"""glassine-nm-agent: NetworkManager's secret agent for the sway session, P14-1). On X, nm-applet is the agent; sway
+has none, so a network whose password NetworkManager needs (a changed router
+password, a login for an 802.1X network) just failed without a word.
+
+This agent never prompts and holds no request. When NetworkManager may ask
+the user (flag ALLOW_INTERACTION), it answers "no secrets" at once and posts
+one notice for that network. Tapping the notice opens glassine-settings on a
+password page for that network; its Connect stores the new secret in the
+profile and brings it up. Other requests (VPN, background retries without
+interaction) get "no secrets" and no notice.
+
+  glassine-nm-agent [-v]     (the sway config starts it and restarts it if it dies)
+Test hooks: GLASSINE_NM_BUS=session (a fake NetworkManager on the session bus),
+GLASSINE_SETTINGS (the settings command)."""
+import os
+import subprocess
+import sys
+import warnings
+
+import gi
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+
+NM = "org.freedesktop.NetworkManager"
+AGENT_PATH = "/org/freedesktop/NetworkManager/SecretAgent"
+IDENT = "org.glassine.nm-agent"
+ALLOW_INTERACTION, REQUEST_NEW = 0x1, 0x2
+NO_SECRETS = "org.freedesktop.NetworkManager.SecretAgent.NoSecrets"
+SETTINGS = os.environ.get("GLASSINE_SETTINGS", "/usr/bin/glassine-settings")
+VERBOSE = "-v" in sys.argv
+
+XML = """<node><interface name='org.freedesktop.NetworkManager.SecretAgent'>
+<method name='GetSecrets'><arg type='a{sa{sv}}' direction='in'/><arg type='o' direction='in'/>
+ <arg type='s' direction='in'/><arg type='as' direction='in'/><arg type='u' direction='in'/>
+ <arg type='a{sa{sv}}' direction='out'/></method>
+<method name='CancelGetSecrets'><arg type='o' direction='in'/><arg type='s' direction='in'/></method>
+<method name='SaveSecrets'><arg type='a{sa{sv}}' direction='in'/><arg type='o' direction='in'/></method>
+<method name='DeleteSecrets'><arg type='a{sa{sv}}' direction='in'/><arg type='o' direction='in'/></method>
+</interface></node>"""
+
+
+def log(*a):
+    if VERBOSE:
+        print("glassine-nm-agent:", *a, file=sys.stderr, flush=True)
+
+
+def ssid_of(con):
+    raw = con.get("802-11-wireless", {}).get("ssid")
+    if raw is None:
+        return None
+    return bytes(raw).decode("utf-8", "replace")
+
+
+class Agent:
+    def __init__(self):
+        kind = Gio.BusType.SESSION if os.environ.get("GLASSINE_NM_BUS") == "session" else Gio.BusType.SYSTEM
+        self.nm_bus = Gio.bus_get_sync(kind, None)
+        self.ses = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self.nm_owner = None
+        self.notices = {}          # connection uuid -> (notice id, ssid, eap)
+        node = Gio.DBusNodeInfo.new_for_xml(XML)
+        self.nm_bus.register_object(AGENT_PATH, node.interfaces[0], self.call, None, None)
+        Gio.bus_watch_name_on_connection(self.nm_bus, NM, Gio.BusNameWatcherFlags.NONE,
+                                         self.nm_up, self.nm_down)
+        for sig, fn in (("ActionInvoked", self.action), ("NotificationClosed", self.closed)):
+            self.ses.signal_subscribe(None, "org.freedesktop.Notifications", sig,
+                                      "/org/freedesktop/Notifications", None, Gio.DBusSignalFlags.NONE, fn)
+
+    # -- NetworkManager comes and goes: register each time it appears
+    def nm_up(self, bus, name, owner):
+        self.nm_owner = owner
+        try:
+            bus.call_sync(NM, "/org/freedesktop/NetworkManager/AgentManager", NM + ".AgentManager",
+                          "RegisterWithCapabilities", GLib.Variant("(su)", (IDENT, 0)), None,
+                          Gio.DBusCallFlags.NONE, 10000, None)
+            log("registered with", owner)
+        except GLib.Error as e:
+            log("register failed:", e.message)
+
+    def nm_down(self, bus, name):
+        self.nm_owner = None
+        log("NetworkManager gone")
+
+    # -- the agent interface
+    def call(self, conn, sender, path, iface, method, params, inv):
+        if sender != self.nm_owner:                     # only NetworkManager asks us anything
+            inv.return_dbus_error("org.freedesktop.DBus.Error.AccessDenied", "not NetworkManager")
+            return
+        if method == "GetSecrets":
+            con, cpath, setting, hints, flags = params.unpack()
+            self.get_secrets(con, setting, flags)
+            inv.return_dbus_error(NO_SECRETS, "glassine-nm-agent never answers; the notice leads to glassine-settings")
+        else:                                           # Cancel/Save/Delete: nothing stored, nothing pending
+            inv.return_value(None)
+
+    def get_secrets(self, con, setting, flags):
+        c = con.get("connection", {})
+        uuid, cid, ctype = c.get("uuid", ""), c.get("id", ""), c.get("type", "")
+        ssid = ssid_of(con)
+        log("GetSecrets %s (%s) setting=%s flags=%#x" % (cid, ctype, setting, flags))
+        if ctype != "802-11-wireless" or not ssid or setting not in ("802-11-wireless-security", "802-1x"):
+            return
+        if not flags & ALLOW_INTERACTION:
+            return
+        eap = setting == "802-1x" or con.get("802-11-wireless-security", {}).get("key-mgmt") in ("wpa-eap", "wpa-eap-suite-b-192")
+        if uuid in self.notices:                        # already on screen: no second notice, no repaint
+            return
+        if eap:
+            title, body = "%s needs your login" % ssid, "Tap to enter the user name and password."
+        elif flags & REQUEST_NEW:
+            title, body = "%s refused the password" % ssid, "Tap to enter the new one."
+        else:
+            title, body = "%s needs its password" % ssid, "Tap to enter it."
+        try:
+            r = self.ses.call_sync("org.freedesktop.Notifications", "/org/freedesktop/Notifications",
+                                   "org.freedesktop.Notifications", "Notify",
+                                   GLib.Variant("(susssasa{sv}i)", ("Wi-Fi", 0, "network-wireless-symbolic", title, body,
+                                                                    ["default", "Enter password"],
+                                                                    {"desktop-entry": GLib.Variant("s", "glassine-settings")}, 0)),
+                                   None, Gio.DBusCallFlags.NONE, 5000, None)
+            self.notices[uuid] = (r.unpack()[0], ssid, eap)
+            log("notice", r.unpack()[0], title)
+        except GLib.Error as e:
+            log("no notification server:", e.message)
+
+    # -- the notice
+    def _uuid_of(self, nid):
+        return next((u for u, v in self.notices.items() if v[0] == nid), None)
+
+    def action(self, conn, sender, path, iface, sig, params):
+        nid, key = params.unpack()
+        u = self._uuid_of(nid)
+        if u is None or key != "default":
+            return
+        _, ssid, eap = self.notices.pop(u)
+        cmd = [SETTINGS, "wifi-ask", ssid] + (["--eap"] if eap else []) + (["--uuid", u] if u else [])
+        log("open", cmd)
+        subprocess.Popen(cmd, stdin=subprocess.DEVNULL, start_new_session=True)
+
+    def closed(self, conn, sender, path, iface, sig, params):
+        u = self._uuid_of(params.unpack()[0])
+        if u is not None:
+            del self.notices[u]
+
+
+def main():
+    Agent()
+    GLib.MainLoop().run()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Full-screen GC16 refresh (clears e-ink ghosting) via glassine-epdd-desktop's control FIFO.
+[ -p /run/glassine-epdd-desktop.ctl ] || { echo "glassine-epdd-desktop not running" >&2; exit 1; }
+echo full > /run/glassine-epdd-desktop.ctl

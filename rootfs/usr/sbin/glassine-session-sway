@@ -1,0 +1,429 @@
+#!/bin/sh
+# The sway session (, started and
+# watched by glassine-session (3 quick deaths -> X for the rest of the boot):
+# glassine-epdd-desktop (root, frames from sway: GLASSINE_EPDD_SRC=wl) + seatd (root; gives the
+# desktop user's sway the input devices) + sway-glassine (the patched sway with
+# the glassine-epd output backend) as $GLASSINE_USER. Exits when any of the three dies:
+# with 3 if the session gave itself up (glassine-shell-wl-run: the bar keeps dying),
+# which glassine-session takes as failed at once. glassine-bgprio -sway rides along.
+# /etc/glassine/sway-dry: glassine-epdd-desktop without the panel's high voltage (dry run: the
+# whole pipeline runs, the panel doesn't change) -- for first tests
+# /etc/glassine/epd-gpu: drive frames on the GPU, as on X
+# /etc/glassine/sway-gpu: sway renders with GLES (GBM dma-bufs, read
+# by glassine-epdd-desktop's GPU ingest), else pixman. A GLES sway that dies is restarted
+# here at once with pixman (glassine-epdd-desktop and seatd keep running, the death is not
+# counted by glassine-session), for the rest of this boot only: /run/glassine/gpu-fallback
+# says when and why (glassine-settings shows it; turning the switch on clears it).
+# /etc/glassine/sway-gpu is the user's and never removed here (until
+# the fallback deleted it and kept a marker in /var/lib: every later boot and
+# image ran pixman until switched back by hand; the GPU recovery patches
+# 0052-0056 recover hangs in the kernel "super annoying")
+# /etc/glassine/sway-grey (with sway-gpu): the grey output: sway
+# composites luma into R8 buffers already in panel order (our wlroots'
+# shaders), glassine-epdd-desktop only applies its gamma table; pixman ignores it
+# /etc/glassine/sway-heap (with sway-gpu; a default since v11): sway's render targets from the
+# system dma-heap (cached), for glassine-epdd-desktop's ingest=cpu
+# /etc/glassine/sway-latch (with sway-gpu): sway's repaint waits (at most 50 ms)
+# while an app's GPU job still writes a buffer it committed (our wlroots 0002
+# + sway 0006, GLASSINE_FENCE_WAIT=1): the composite and glassine-epdd-desktop's ingest never
+# queue behind the app (device 50 -> 11 ms). v2 :
+# the commit itself is no longer held (v1 left Chromium with stale tiles).
+# A file containing "log" also traces the waits (GLASSINE_LATCH_LOG=1, sway.log)
+# A SoC freeze ends nothing cleanly: /var/lib/glassine/gles-running is set while a
+# GLES sway runs and removed by cleanup (session stop, reboot); found at start,
+# the last GLES session froze or lost power: a strike (/var/lib/glassine/gles-strikes).
+# Two in a row -> this boot runs pixman (and the count starts over), so a
+# freeze -> long press -> freeze loop ends after two rounds; a GLES session
+# that lasts GLES_GOOD_S resets the count
+# Touch: sway reads the touchscreen itself (apps handle tap, drag and long
+# press; the 3-finger swipe is in sway, 0002-glassine-touch-gestures.patch), so
+# glassine-touchd (X's hold-back + right click) is stopped for this session and
+# started again when it ends (glassine-session also starts it before X).
+U=${GLASSINE_USER:-user}
+SWAY=/usr/bin/sway-glassine
+EPID= SEPID= SPID=
+cleanup() {
+    # first: a stop is a clean end even if the rest is slow or gets killed
+    # (rc-service restart started the next session while this one still
+    # tore down: "did not end: strike 1", then pixman )
+    rm -f /var/lib/glassine/gles-running
+    [ -n "$SPID" ] && kill $SPID 2>/dev/null
+    pkill -u "$U" 2>/dev/null
+    [ -n "$SEPID" ] && kill $SEPID 2>/dev/null
+    [ -n "$EPID" ] && kill $EPID 2>/dev/null
+    sleep 1
+    wait
+    rc-service -q glassine-touchd start 2>/dev/null
+    rm -f /var/lib/glassine/gles-running
+}
+trap 'cleanup; exit 0' TERM INT
+# one session at a time: a new one waits (up to 30 s) until the last one's
+# cleanup has exited (its late pkill -u would hit the new session). A pid
+# file, not flock: children inherit a lock fd and would hold it past the end
+mkdir -p /run/glassine
+op=$(cat /run/glassine/session-sway.pid 2>/dev/null); i=0
+while [ -n "$op" ] && [ "$op" != $$ ] && grep -qs glassine-session-sway /proc/$op/cmdline && [ $i -lt 60 ]; do
+    [ $i = 0 ] && echo "glassine-session-sway: $(date) waiting for the last session ($op) to end"
+    sleep 0.5; i=$((i + 1))
+done
+echo $$ > /run/glassine/session-sway.pid
+[ -x $SWAY ] || { echo "glassine-session-sway: $SWAY missing"; exit 1; }
+command -v seatd >/dev/null || { echo "glassine-session-sway: seatd missing (apk add seatd)"; exit 1; }
+
+rc-service -q glassine-touchd stop 2>/dev/null
+
+# The fast defaults ("fastest known-good state", ), set once
+# per defaults version (/etc/glassine/defaults-N): GLES sway, GPU drive frames,
+# high-priority epdd contexts, the apps-only job split, the grey output, and
+# the stagger (ctl 3, pay 3) in eink.conf (the run boost until v6). Once only: a switch
+# turns off afterwards (or the GLES fallback's removal of sway-gpu)
+# stays off. GLASSINE_NO_DEFAULTS=1 skips it.
+# v2 : no latch -- the wlroots latch (0002) causes the tile and
+# invert artifacts (bisect); a device that ran v1 only loses sway-latch,
+# nothing else is set again
+# v3 : latch v2 (the repaint waits, the commit is not held; no
+# stuck Chromium tiles on the device) is back in the defaults
+# v4 : the stagger pays like panel mode (@stagger_pay=panel, one
+# payback rule, 5f6e625); run tail and blue-noise dither are code defaults
+# v5 : the old DC-gated hammer's lines go (@hammer=, @hammer_dc=:
+# retired, the rail hammer is hammer_top, on by default in glassine-epdd-desktop)
+# v6 : no run boost (@boost_run): doesn't want the top clock
+# for every glide (A/B: 23.8 vs 22.2 fps while scrolling Chromium); a toggle in
+# glassine-settings (E-ink > Advanced) turns it back on
+# v7 : the apps' GPU jobs are chunked (/etc/glassine/gpu-app-l3, our
+# system Mesa r102, instead of split: the
+# chosen after the runs (heavy apps: short's fps, misses 58 -> 27-30 %)
+# v8 : the fastest app default = the short profile (sysmem,
+# no chunking): the seeded (empty) gpu-app-l3 and gpu-app-split go. On r103:
+# L3 costs fps everywhere (light OpenMW 56-58 vs up to 66-74 off) for few
+# fewer panel misses (48-51 -> 42 %), so the fastest default wins.
+# Both files stay as opt-ins (a file with us=/cost= is the user's: kept)
+# v9 : the stagger's controller 3 (a pulse instead of the idle frame,
+# k 8) is the default: a seeded @stagger_ctl=1 becomes 3
+# v10 : KOReader's line (luajit) gets pages=on (pages on by default;
+# a page turn = one GC16 partial, every 6th a flash). Only that app:
+# on the '*' line it would change every large repaint. Not if the line already says
+# pages= or motion=always (Content = Moving)
+# v11 : the image ships the most performant settings we have: stagger stripes
+# (@stagger_stripe=64: the cheapest layout, chosen for max-performance
+# work), CPU ingest from sway's cached dma-heap targets (/etc/glassine/sway-heap
+# + @ingest=cpu, @ingest_kernel=tile, @ingest_bands=4, @ingest_sync=on: 0 hangs in an
+# A/B run), the run boost (@boost_run=on) and the foreground boost
+# (/etc/glassine/fg-boost 70: front apps on the fast cores, glassine-bgprio). Each only
+# where the key is absent: whatever a user set stays
+# v12 : the stagger's bit-plane controller (@stagger_ctl=4: frame
+# 20 -> 9 ms on a GNOME Software scroll vs ctl 3, blue noise, in a live A/B;
+# 0 hangs in 30 min) and blue noise (@stagger_stripe=0: chosen by eye).
+# Each replaces only the earlier seeded value
+# (ctl 3 / stripe 64) or fills an absent key: other values are the user's
+# v13 : the debounce of the first still frame (@debounce_ms=150: from an
+# eye test, also the code default). Only where the key is absent
+# v14 : the grey dead band (@deadband=8: from an eye test,
+# T 4, 8, 16, then back to 8; the code default stays 0). Only where the key is absent
+# past N: a defaults version >= N ran here (a device keeps only some markers:
+# each run writes its own, e.g. 1 4 5 7)
+past() { local m; for m in $(seq $1 20); do [ -e /etc/glassine/defaults-$m ] && return 0; done; return 1; }
+glassine_defaults() {
+    local f
+    [ -n "$GLASSINE_NO_DEFAULTS" ] && return 0
+    past 14 && return 0
+    mkdir -p /etc/glassine
+    if ! past 1; then
+        for f in sway-gpu epd-gpu gpu-prio gpu-prio-ingest sway-grey; do
+            [ -e /etc/glassine/$f ] || : > /etc/glassine/$f
+        done
+        if ! grep -q '^@stagger' /etc/glassine/eink.conf 2>/dev/null; then
+            printf '@stagger=on\n@stagger_ctl=3\n@stagger_pay=3\n' >> /etc/glassine/eink.conf
+        fi
+    fi
+    # (each step once: a later version must not undo what turned off since)
+    past 3 || [ -e /etc/glassine/sway-latch ] || : > /etc/glassine/sway-latch
+    if ! past 4; then
+        if grep -q '^@stagger_pay=' /etc/glassine/eink.conf 2>/dev/null; then
+            sed -i 's/^@stagger_pay=.*/@stagger_pay=panel/' /etc/glassine/eink.conf
+        else
+            echo '@stagger_pay=panel' >> /etc/glassine/eink.conf
+        fi
+    fi
+    # (a rewrite only when there is something to change: sed -i makes a new file,
+    # which the in-place writers would miss while they hold the old one)
+    grep -q -E '^@hammer(_dc)?=' /etc/glassine/eink.conf 2>/dev/null && sed -i '/^@hammer=/d; /^@hammer_dc=/d' /etc/glassine/eink.conf
+    ! past 6 && grep -qx '@boost_run=on' /etc/glassine/eink.conf 2>/dev/null && sed -i '/^@boost_run=on$/d' /etc/glassine/eink.conf
+    ! past 8 && for f in gpu-app-l3 gpu-app-split; do
+        [ -e /etc/glassine/$f ] && [ ! -s /etc/glassine/$f ] && rm -f /etc/glassine/$f && echo "glassine-session-sway: /etc/glassine/$f (a seeded default) removed: apps on the short profile"
+    done
+    grep -qx '@stagger_ctl=1' /etc/glassine/eink.conf 2>/dev/null && sed -i 's/^@stagger_ctl=1$/@stagger_ctl=3/' /etc/glassine/eink.conf
+    if ! past 10; then
+        if grep -q '^luajit\( \|$\)' /etc/glassine/eink.conf 2>/dev/null; then
+            grep -q '^luajit .*\(pages=\|motion=always\)' /etc/glassine/eink.conf || sed -i 's/^luajit\( .*\)\?$/& pages=on/' /etc/glassine/eink.conf
+        else
+            echo 'luajit pages=on' >> /etc/glassine/eink.conf
+        fi
+    fi
+    if ! past 11; then
+        [ -e /etc/glassine/sway-heap ] || : > /etc/glassine/sway-heap
+        [ -e /etc/glassine/fg-boost ] || echo 70 > /etc/glassine/fg-boost
+        # (appends under the eink.conf lock, like every writer since 86e1a88)
+        {
+            flock -x 9
+            for f in stagger_stripe=64 ingest=cpu ingest_kernel=tile ingest_bands=4 ingest_sync=on boost_run=on; do
+                grep -q "^@${f%%=*}=" /etc/glassine/eink.conf 2>/dev/null || echo "@$f" >&9
+            done
+        } 9>> /etc/glassine/eink.conf
+    fi
+    if ! past 12; then
+        grep -qx '@stagger_ctl=3' /etc/glassine/eink.conf 2>/dev/null && sed -i 's/^@stagger_ctl=3$/@stagger_ctl=4/' /etc/glassine/eink.conf
+        grep -qx '@stagger_stripe=64' /etc/glassine/eink.conf 2>/dev/null && sed -i 's/^@stagger_stripe=64$/@stagger_stripe=0/' /etc/glassine/eink.conf
+        {
+            flock -x 9
+            for f in stagger_ctl=4 stagger_stripe=0; do
+                grep -q "^@${f%%=*}=" /etc/glassine/eink.conf 2>/dev/null || echo "@$f" >&9
+            done
+        } 9>> /etc/glassine/eink.conf
+    fi
+    if ! past 13; then
+        {
+            flock -x 9
+            grep -q '^@debounce_ms=' /etc/glassine/eink.conf 2>/dev/null || echo "@debounce_ms=150" >&9
+        } 9>> /etc/glassine/eink.conf
+    fi
+    if ! past 14; then
+        {
+            flock -x 9
+            grep -q '^@deadband=' /etc/glassine/eink.conf 2>/dev/null || echo "@deadband=8" >&9
+        } 9>> /etc/glassine/eink.conf
+    fi
+    date > /etc/glassine/defaults-14
+    echo "glassine-session-sway: the fast defaults set (/etc/glassine/defaults-14)"
+}
+glassine_defaults
+# the user's settings write eink.conf (group video); a root rewrite (busybox
+# sed -i, a copy) leaves it root:root 0644 -> "Permission denied" in glassine-settings
+#
+[ -e /etc/glassine/eink.conf ] && chgrp video /etc/glassine/eink.conf && chmod 664 /etc/glassine/eink.conf
+# datable: what eink.conf holds at each session start (its globals
+# vanished between two starts, unnoticed)
+if [ -e /etc/glassine/eink.conf ]; then
+    echo "glassine-session-sway: eink.conf: $(grep -c '^@' /etc/glassine/eink.conf) @ lines, '*' $(grep -q '^\* ' /etc/glassine/eink.conf && echo present || echo ABSENT), $(grep -c -v -E '^(#|@|\* |$)' /etc/glassine/eink.conf) app lines, $(stat -c '%s B %U:%G %a inode %i' /etc/glassine/eink.conf)"
+else
+    echo "glassine-session-sway: eink.conf: none"
+fi
+
+export GLASSINE_EPDD_SRC=wl
+# the power mode's glassine-epdd-desktop options (touch boost, glassine-ddr); GLASSINE_EPDD's own come first and win
+B=$(/usr/sbin/glassine-ddr epdd-opts 2>/dev/null) && export GLASSINE_EPDD="${GLASSINE_EPDD:+$GLASSINE_EPDD }$B"
+[ -e /etc/glassine/sway-dry ] && export GLASSINE_EPDD_HV=0
+[ -e /etc/glassine/epd-gpu ] && export GLASSINE_EPDD_GPU=1
+echo "glassine-session-sway: $(date) glassine-epdd-desktop (wl$([ -e /etc/glassine/sway-dry ] && echo ', dry run'))"
+# glassine-epdd-desktop-wl: a build live-deployed beside the image's glassine-epdd-desktop (sway/deploy-live.sh;
+# the X session's binary stays untouched), used while it is newer than the
+# image's (the kit's glassine-epdd-desktop has the Wayland source too, and replaces an old -wl)
+EPDD=/usr/sbin/glassine-epdd-desktop; [ -x $EPDD-wl ] && [ $EPDD-wl -nt $EPDD ] && EPDD=$EPDD-wl
+[ -s /var/log/glassine-epdd-desktop.log ] && mv -f /var/log/glassine-epdd-desktop.log /var/log/glassine-epdd-desktop.log.1
+$EPDD >/var/log/glassine-epdd-desktop.log 2>&1 &
+EPID=$!
+rm -f /run/seatd.sock
+seatd -g video >/var/log/seatd.log 2>&1 &
+SEPID=$!
+i=0; while [ ! -S /run/seatd.sock ] && [ $i -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+
+UID_=$(id -u "$U")
+# the first-run setup (glassine-session: no desktop user yet): its own config, no shell
+CONF=/usr/share/glassine/sway/config
+[ "${GLASSINE_SESSION:-}" = setup ] && CONF=/usr/share/glassine/setup/sway.config
+mkdir -p /run/user/$UID_ && chown "$U" /run/user/$UID_ && chmod 700 /run/user/$UID_
+# the pen-preview brushes (glassine_ink_v1 v3, epd-brush.h): sway writes them as
+# /run/glassine-ink/<id>.brush, glassine-epdd-desktop (root) reads the ones the FIFO names
+mkdir -p /run/glassine-ink && chown "$U" /run/glassine-ink && chmod 755 /run/glassine-ink
+GAVEUP=/run/user/$UID_/glassine-shell-failed
+rm -f $GAVEUP
+# WLR_BACKENDS=libinput: input only; the one output is the glassine-epd backend
+# (GLASSINE_EPD=1, added by the patch). pixman: all-CPU, as the X session.
+# dbus-run-session, not dbus-launch --exit-with-session (as on X): without
+# $DISPLAY that watches stdin, which is /dev/null under supervise-daemon, so the
+# session bus exited at once (GSettings, notifications, portals had no bus).
+FALLBACK=/run/glassine/gpu-fallback STRIKES=/var/lib/glassine/gles-strikes GLES_GOOD_S=300
+gpu_fallback() {
+    mkdir -p /run/glassine
+    echo "$(date +%H:%M) $1" > $FALLBACK
+    rm -f /var/lib/glassine/gles-running
+    echo "glassine-session-sway: $(date) $1: pixman for this boot ($FALLBACK)"
+}
+# the old sticky fallback (before ) removed the user's sway-gpu: give it back once
+if [ -e /var/lib/glassine/gpu-fallback ]; then
+    : > /etc/glassine/sway-gpu; rm -f /var/lib/glassine/gpu-fallback
+    echo "glassine-session-sway: the old permanent GPU fallback is gone; /etc/glassine/sway-gpu restored"
+fi
+if [ -e /var/lib/glassine/gles-running ]; then
+    rm -f /var/lib/glassine/gles-running
+    n=$(( $(cat $STRIKES 2>/dev/null || echo 0) + 1 ))
+    echo "glassine-session-sway: $(date) the last GLES session did not end (a freeze or power loss): strike $n"
+    if [ $n -ge 2 ]; then
+        rm -f $STRIKES
+        gpu_fallback "two GLES sessions in a row did not end (a freeze or power loss)"
+    else
+        echo $n > $STRIKES
+    fi
+fi
+REN=pixman
+[ -e /etc/glassine/sway-gpu ] && [ ! -e $FALLBACK ] && REN=gles2
+# Chromium (Flatpaks, e.g. io.github.ungoogled_software.ungoogled_chromium):
+# its launcher only reads the user's own ~/.var/app/ID/config/chromium-flags.conf.
+# Ours (a first line "# glassine...": GLASSINE_CHROMIUM_MARK or an older default) follows the renderer at every start: on a
+# GLES sway no flag (it draws on the GPU; garbled text was most
+# likely the A509 2D-blitter bug, fixed in our system Mesa: glassine-0003), on
+# pixman --disable-gpu (software drawing). A file without the mark is the
+# user's and never touched. (Firefox is no longer forced to software either:
+# it picks hardware WebRender where it gets dma-bufs and SWGL elsewhere.)
+# Both: classic scrollbars, no overlay ones -- their fade-out ~0.3 s after a
+# scroll is six small frames that restarted a motion run after the settle
+# GC16 (stagger again, then a second GC16; epdd trace )
+# Render profile: each Chromium Flatpak starts on "short" (no chunked
+# submits: a0, Chromium's three GPU hangs that day all ran with L3, and
+# L3 brought it nothing over short), once per app (/var/lib/glassine/render-seeded/ID):
+# the user's later choice in glassine-settings stays
+GLASSINE_CHROMIUM_MARK='# glassine default (glassine-session-sway): follows the session renderer; edit this line away to keep your own flags'
+chromium_defaults() {
+    local h d id f flags
+    h=$(getent passwd "$U" | cut -d: -f6)
+    [ -n "$h" ] || return 0
+    flags=--disable-features=OverlayScrollbar,FluentOverlayScrollbar
+    [ "$REN" = gles2 ] || flags="--disable-gpu $flags"
+    for d in /var/lib/flatpak/app/*chromium* "$h"/.local/share/flatpak/app/*chromium*; do
+        [ -d "$d" ] || continue
+        id=${d##*/}; f=$h/.var/app/$id/config/chromium-flags.conf
+        # ours: a first line "# glassine..." (the mark, or the older software-only defaults)
+        if [ -e "$f" ] && ! head -n 1 "$f" | grep -q '^# glassine'; then continue; fi
+        su "$U" -c "mkdir -p '${f%/*}' && printf '%s\\n' '$GLASSINE_CHROMIUM_MARK' $flags > '$f'" &&
+            echo "glassine-session-sway: $f: $flags (default, $REN)"
+    done
+    for d in /var/lib/flatpak/app/*chromium* /var/lib/flatpak/app/*Chromium* "$h"/.local/share/flatpak/app/*hromium*; do
+        [ -d "$d" ] || continue
+        id=${d##*/}
+        case $id in *.Codecs|*.Locale|*.Debug) continue ;; esac
+        mkdir -p /var/lib/glassine/render-seeded
+        # L4 : a short profile written before it does not unset FD_L4:
+        # write it again once (Chromium stays unchunked)
+        if [ ! -e /var/lib/glassine/render-seeded/$id.l4 ]; then
+            [ "$(su "$U" -c "HOME='$h' /usr/bin/glassine-app-render get $id")" = short ] &&
+                su "$U" -c "HOME='$h' /usr/bin/glassine-app-render $id short" >/dev/null 2>&1
+            : > /var/lib/glassine/render-seeded/$id.l4
+        fi
+        [ -e /var/lib/glassine/render-seeded/$id ] && continue
+        if [ "$(su "$U" -c "HOME='$h' /usr/bin/glassine-app-render get $id")" = gpu ]; then
+            su "$U" -c "HOME='$h' /usr/bin/glassine-app-render $id short" >/dev/null 2>&1 &&
+                echo "glassine-session-sway: $id: render profile short (default)"
+        fi
+        : > /var/lib/glassine/render-seeded/$id
+    done
+}
+[ "${GLASSINE_SESSION:-}" = setup ] || chromium_defaults
+start_sway() {
+    echo "glassine-session-sway: $(date) sway ($REN)"
+    if [ "$REN" = gles2 ]; then mkdir -p /var/lib/glassine; date > /var/lib/glassine/gles-running; sync; fi
+    [ -s /var/log/sway.log ] && mv -f /var/log/sway.log /var/log/sway.log.1
+    # GLES: GTK4 draws on the A509 (glassine-gtk.sh, read by su -l first, sets cairo
+    # for X/pixman) -- GNOME Software 146 -> 70 ms per scroll step, 30 ms to
+    # the first paint. Texture sub-uploads into a busy texture
+    # (GTK4's glyph atlas: letters missing after a scroll) went through the
+    # A509's 2D blitter, which writes nothing: FD_MESA_DEBUG=noblit until our
+    # system Mesa's glassine-0003 took the 3D path there by itself
+    # /etc/glassine/gpu-app-split (opt-in): sysmem + a submit per draw. The A509
+    # switches rings only between submits, and a GTK4 frame is one 40-80 ms
+    # job (GNOME Software) that holds up the panel's frames; split, the jobs
+    # stay under 20 ms: stagger frames 17.6 -> 9.5 ms, the app ~13 % fewer
+    # frames and ~30 % more CPU. For the apps only:
+    # sway itself split left popups unfinished in the panel, so
+    # sway runs stock and hands GLASSINE_APP_FD_MESA_DEBUG to what it starts
+    # (our sway 0005)
+    # The apps' default (defaults v8, ) = the short profile: sysmem, no split, no chunking
+    # (the fastest: the r103 runs). No noblit since r103's glassine-0003 (blit-upload: the
+    # A509's 2D blitter is off in our Mesa). FLATPAK_GL_DRIVERS: Flatpak apps load our Mesa
+    # too (the GL extension, r103's A509 fixes; no fps cost vs the runtime's): it goes into
+    # the session's env (sway's and the bus's), only under GLES
+    GL=; [ "$REN" = gles2 ] && GL="GDK_DISABLE=vulkan GSK_RENDERER=ngl FLATPAK_GL_DRIVERS=glassine:default"
+    if [ "$REN" = gles2 ] && [ ! -e /etc/glassine/gpu-app-l3 ]; then
+        if [ -e /etc/glassine/gpu-app-split ]; then GL="$GL GLASSINE_APP_FD_MESA_DEBUG=sysmem,flush"
+        else GL="$GL GLASSINE_APP_FD_MESA_DEBUG=sysmem"; fi
+    fi
+    # /etc/glassine/gpu-app-l3 (opt-in, wins over the split): chunked submits in our
+    # system Mesa (FD_CHUNK_* unknown to
+    # stock Mesa = ignored): OpenMW at the short profile's fps with the split's
+    # panel misses, 0 faults in 215k chunks. The file's
+    # "us=N cost=A,B" override the defaults. sway hands every GLASSINE_APP_X on as X (0005)
+    # The default in defaults v7 only (v8 went back to short). r102: the cost model
+    # calibrates itself (FD_CHUNK_ADAPT) and a context chunks only while it keeps
+    # the GPU busy (FD_CHUNK_BUSY 75,60): both stay at Mesa's defaults. Per app:
+    # glassine-app-render APP l3 (the same env for one app)
+    if [ "$REN" = gles2 ] && [ -e /etc/glassine/gpu-app-l3 ]; then
+        L3US=$(sed -n 's/.*us=\([0-9]*\).*/\1/p' /etc/glassine/gpu-app-l3); L3COST=$(sed -n 's/.*cost=\([0-9,]*\).*/\1/p' /etc/glassine/gpu-app-l3)
+        GL="$GL GLASSINE_APP_FD_MESA_DEBUG=sysmem GLASSINE_APP_FD_CHUNK_US=${L3US:-2000}${L3COST:+ GLASSINE_APP_FD_CHUNK_COST=$L3COST}"
+    fi
+    # L4 (the default since; opt-out /etc/glassine/gpu-app-nol4): our
+    # system Mesa r106+ (glassine-0005) cuts an app's sysmem batch every 8 draws inside
+    # ONE submit with a preemption point between the cuts, so the panel's ring-0
+    # jobs (glassine-epdd-desktop, sway) run in the middle of a long app frame: GNOME Software
+    # epdd drive p90 28 -> 15 ms, +20 % panel frames, the app's own frames -13 %;
+    # OpenMW -12 % . Apps only (GLASSINE_APP_: sway 0005), not sway;
+    # the short profile (Chromium) stays unchunked (glassine-appenv)
+    [ "$REN" = gles2 ] && [ ! -e /etc/glassine/gpu-app-nol4 ] && GL="$GL GLASSINE_APP_FD_L4=1"
+    # grey: also the input matrices for its output transform (sway/config includes it)
+    rm -f /run/glassine-sway-input.conf
+    [ "$REN" = gles2 ] && [ -e /etc/glassine/sway-grey ] && GL="$GL GLASSINE_EPD_GREY=1" &&
+        ln -s /usr/share/glassine/sway/input-grey.conf /run/glassine-sway-input.conf
+    # its formula (wlroots 0003): luminance unless eink.conf says @grey=luma (glassine-epdd-desktop's
+    # own XRGB frames follow @grey live; sway's grey output only at its start)
+    [ "$REN" = gles2 ] && [ -e /etc/glassine/sway-grey ] && ! grep -qs '^@grey=luma$' /etc/glassine/eink.conf &&
+        GL="$GL GLASSINE_EPD_GREY_LUM=1"
+    [ "$REN" = gles2 ] && [ -e /etc/glassine/sway-latch ] && GL="$GL GLASSINE_FENCE_WAIT=1"
+    [ "$REN" = gles2 ] && grep -qs log /etc/glassine/sway-latch && GL="$GL GLASSINE_LATCH_LOG=1"
+    # /etc/glassine/sway-heap (with sway-gpu, a default since v11; ): sway renders into
+    # system dma-heap buffers (cached) instead of GBM (write-combined on msm), for
+    # glassine-epdd-desktop's ingest=cpu (our wlroots 0006, GLASSINE_EPD_HEAP=1). The heap node is
+    # root-only: group video (the desktop user's) may allocate from it until the
+    # next boot. sway falls back to GBM by itself (sway.log "glassine:") if it cannot
+    if [ "$REN" = gles2 ] && [ -e /etc/glassine/sway-heap ] && [ -e /dev/dma_heap/system ]; then
+        if chgrp video /dev/dma_heap/system && chmod 660 /dev/dma_heap/system; then GL="$GL GLASSINE_EPD_HEAP=1"
+        else echo "glassine-session-sway: /etc/glassine/sway-heap: /dev/dma_heap/system not opened to video: GBM"; fi
+    fi
+    # the pointer's theme and size (sway/config xcursor_theme; sway exports it only to
+    # what it starts, not to D-Bus-activated apps): 24 at scale 2 = 48 px on the panel
+    su -l "$U" -c "export XDG_RUNTIME_DIR=/run/user/$UID_ XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=sway \
+        XDG_SESSION_DESKTOP=sway LIBSEAT_BACKEND=seatd GLASSINE_EPD=1 WLR_BACKENDS=libinput WLR_RENDERER=$REN \
+        MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1 GTK_MODULES=glassine-ink XCURSOR_THEME=Adwaita XCURSOR_SIZE=24 $GL; \
+        exec dbus-run-session -- $SWAY -c $CONF" >/var/log/sway.log 2>&1 &
+    SPID=$!
+    SSTART=$(date +%s)
+}
+start_sway
+# apps on other workspaces: background CPU/IO priority, frozen after a while
+# (its sway side: waits for the user's sway socket, exits with sway; not
+# supervised, as on X)
+BGPRIO=/usr/sbin/glassine-bgprio; [ -x $BGPRIO-wl ] && [ $BGPRIO-wl -nt $BGPRIO ] && BGPRIO=$BGPRIO-wl   # as glassine-epdd-desktop-wl
+[ "${GLASSINE_SESSION:-}" = setup ] || $BGPRIO -sway >>/var/log/glassine-bgprio.log 2>&1 &
+alive() { local s; { read -r s < /proc/$1/stat; } 2>/dev/null || return 1; s=${s##*) }; [ "${s%% *}" != Z ]; }
+while :; do
+    # wait -n bounded by a sleep job: busybox ash can reap two children that
+    # exit together (sway's su + glassine-bgprio, which ends with sway) in one wait,
+    # and the next wait -n then sleeps forever (seen )
+    while alive $EPID && alive $SEPID && alive $SPID; do
+        sleep 5 & SL=$!
+        wait -n
+        kill $SL 2>/dev/null
+        # a GLES session that held up clears the freeze strikes
+        [ "$REN" = gles2 ] && [ -e $STRIKES ] && [ $(( $(date +%s) - SSTART )) -ge $GLES_GOOD_S ] && rm -f $STRIKES
+    done
+    # a GLES sway died (a GPU hang ends its context; a quick death is a bad
+    # driver or config): pixman for this boot, the user's apps are gone either way
+    [ "$REN" = gles2 ] && alive $EPID && alive $SEPID && ! alive $SPID || break
+    up=$(( $(date +%s) - SSTART ))
+    why="sway with GLES exited after ${up} s"; grep -qiE "GPU reset|context lost|GPU hang" /var/log/sway.log && why="$why (GPU reset in its log)"
+    gpu_fallback "$why"
+    pkill -u "$U" 2>/dev/null; sleep 1
+    REN=pixman
+    start_sway
+done
+echo "glassine-session-sway: $(date) a component exited (epdd=$(alive $EPID && echo up || echo down) seatd=$(alive $SEPID && echo up || echo down) sway=$(alive $SPID && echo up || echo down))"
+cleanup
+[ -e $GAVEUP ] && { echo "glassine-session-sway: the session gave up ($GAVEUP)"; exit 3; }
+exit 1

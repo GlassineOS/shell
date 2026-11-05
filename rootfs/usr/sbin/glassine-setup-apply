@@ -1,0 +1,392 @@
+#!/usr/bin/python3
+"""glassine-setup-apply: writes the first-run setup's choices, as root (doas from the
+setup user, /etc/doas.d/glassine-setup.conf). The plan comes as JSON on stdin (the
+password inside it, never on the command line or on disk):
+
+  {"language": "de", "voice": "white", "zone": "Europe/Berlin", "ntp": true,
+   "clock24": true, "layout": "de", "osk": true, "hostname": "anna-note",
+   "user": {"name": "anna", "fullname": "Anna Krause", "password": "…",
+            "admin": true, "autologin": false},
+   "admin_password": "glassine", "packs": ["web", "containers"], "network": "skipped"}
+
+Only what the setup asked is in the plan (needs.py: a reset asks only for what it
+removed): no "user" = the account exists (its home gets the profile), no "voice" =
+keep the look, no "packs" = keep the recorded packs, no "admin_password" = keep
+root's. "network": "skipped" is recorded so the step is not asked again.
+
+  glassine-setup-apply --check     validate only (Review enables Install on it)
+  glassine-setup-apply --dry-run   print the steps, change nothing
+  glassine-setup-apply             apply
+
+One line per event on stdout (the Installing screen reads them):
+  steps N              the number of steps
+  step I ID LABEL      step I (1-based) starts
+  ok ID | skip ID REASON | fail ID REASON
+  done | done-with-skips | failed ID
+Errors of --check: "invalid FIELD REASON" lines, exit 1.
+
+The order makes a re-run safe: locale -> account (the commit point; a re-run with
+the same name updates its password and groups) -> profile -> one step per pack (a
+failed pack is reported and the rest go on) -> cleanup. Pack contents come from
+packs.conf here, never from the plan: the plan names pack ids only, and only
+packs marked status=offered install.
+
+Test overrides (env): GLASSINE_SETUP_APK, GLASSINE_SETUP_FLATPAK (the commands),
+GLASSINE_SETUP_PACKS (packs.conf), GLASSINE_SETUP_NOLIVE=1 (no hostname/service calls),
+GLASSINE_SETUP_RECORD (the accounts record), GLASSINE_SETUP_ARLIB (accounts-record.sh).
+"""
+import errno
+import json
+import os
+import re
+import subprocess
+import sys
+
+PACKS = os.environ.get("GLASSINE_SETUP_PACKS", "/usr/share/glassine/setup/packs.conf")
+APK = os.environ.get("GLASSINE_SETUP_APK") or ("/usr/sbin/glassine" if os.access("/usr/sbin/glassine", os.X_OK) else "")
+FLATPAK = os.environ.get("GLASSINE_SETUP_FLATPAK", "flatpak")
+LIVE = not os.environ.get("GLASSINE_SETUP_NOLIVE")
+SETUP_CONF = "/etc/glassine/setup.conf"
+NO_SLEEP = os.environ.get("GLASSINE_SETUP_NOSLEEP", "/run/glassine-no-sleep")
+RECORD = os.environ.get("GLASSINE_SETUP_RECORD", "/home/.glassine/accounts")
+ARLIB = os.environ.get("GLASSINE_SETUP_ARLIB", "/usr/lib/glassine/accounts-record.sh")
+LANGS = {"en-GB": "en_GB.UTF-8", "en-US": "en_US.UTF-8", "de": "de_DE.UTF-8", "fr": "fr_FR.UTF-8",
+         "es": "es_ES.UTF-8", "nb": "nb_NO.UTF-8", "nl": "nl_NL.UTF-8", "pl": "pl_PL.UTF-8"}
+# layout id -> (xkb layout, variant, on-screen keyboard layers)
+LAYOUTS = {"en-gb": ("gb", "", "full,special"), "en-us": ("us", "", "full,special"),
+           "de": ("de", "", "german,special"), "de-nd": ("de", "nodeadkeys", "german,special"),
+           "fr": ("fr", "", "full,special"), "no": ("no", "", "full,special")}
+VOICES = ("white", "editorial", "stationery")
+GROUPS = ["input", "video", "audio", "aid_inet", "aid_net_raw", "desktop"]
+COMMON = {"password", "12345678", "123456789", "qwertyui", "iloveyou", "sunshine", "princess", "password1", "glassine"}
+
+
+def say(*a):
+    print(*a, flush=True)
+
+
+def read_packs():
+    """packs.conf -> {id: {apk: [...], flatpak: [...], status, name}}"""
+    packs, cur = {}, None
+    try:
+        lines = open(PACKS, encoding="utf-8").read().splitlines()
+    except OSError:
+        return {}
+    for line in lines:
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            cur = packs.setdefault(line[1:-1], {"apk": [], "flatpak": [], "status": "demo", "name": line[1:-1]})
+        elif cur is not None and "=" in line:
+            k, v = (x.strip() for x in line.split("=", 1))
+            cur[k] = v.split() if k in ("apk", "flatpak") else v
+    return packs
+
+
+def users():
+    """{name: (uid, home)}"""
+    out = {}
+    for line in open("/etc/passwd"):
+        f = line.rstrip("\n").split(":")
+        if len(f) >= 7:
+            out[f[0]] = (int(f[2]), f[5])
+    return out
+
+
+def desktop_users():
+    return [n for n, (uid, _) in users().items() if 1000 <= uid < 65534]
+
+
+def target(plan):
+    """the account the profile goes to: the plan's, else the existing desktop account"""
+    if plan.get("user"):
+        return plan["user"]["name"]
+    d = desktop_users()
+    return d[0] if d else None
+
+
+def read_conf():
+    out = {}
+    try:
+        for line in open(SETUP_CONF, encoding="utf-8"):
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                out[k.strip()] = v.strip()
+    except OSError:
+        pass
+    return out
+
+
+def save_record():
+    """the accounts record in the home (glassine-home restores it after a full reset)"""
+    if os.path.exists(ARLIB):
+        subprocess.run(["sh", "-c", '. "$1" && ar_save "$2"', "sh", ARLIB, RECORD], capture_output=True)
+
+
+def check(plan):
+    """-> [(field, reason)]"""
+    bad = []
+    u = plan.get("user")
+    if u is None:
+        if not desktop_users():
+            bad.append(("user", "no account yet: the plan needs one"))
+    else:
+        bad += check_user(u)
+    ap = plan.get("admin_password")
+    if ap is not None and (not isinstance(ap, str) or len(ap) < 8 or "\n" in ap or ":" in ap):
+        bad.append(("admin_password", "at least 8 characters"))
+    bad += check_system(plan)
+    return bad
+
+
+def check_user(u):
+    bad = []
+    name = u.get("name", "")
+    if not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", name):
+        bad.append(("user.name", "lower-case letters, digits, - and _, starting with a letter"))
+    else:
+        uid = users().get(name, (None,))[0]
+        if uid is not None and not 1000 <= uid < 65534:
+            bad.append(("user.name", "a system account has this name"))
+    if not str(u.get("fullname", "")).strip() or re.search(r"[:\n]", u.get("fullname", "")):
+        bad.append(("user.fullname", "needed, without ':'"))
+    pw = u.get("password", "")
+    if not isinstance(pw, str) or len(pw) < 8 or "\n" in pw:
+        bad.append(("user.password", "at least 8 characters"))
+    elif pw.lower() in COMMON:
+        bad.append(("user.password", "a common password"))
+    return bad
+
+
+def check_system(plan):
+    bad = []
+    if not re.fullmatch(r"[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?", plan.get("hostname", "")):
+        bad.append(("hostname", "letters, digits and -"))
+    z = plan.get("zone", "")
+    if not re.fullmatch(r"[A-Za-z0-9_+-]+(/[A-Za-z0-9_+-]+)+", z) or not os.path.isfile("/usr/share/zoneinfo/" + z):
+        bad.append(("zone", "no such time zone"))
+    if plan.get("layout") not in LAYOUTS:
+        bad.append(("layout", "unknown"))
+    if plan.get("language") not in LANGS:
+        bad.append(("language", "unknown"))
+    if plan.get("voice") is not None and plan["voice"] not in VOICES:
+        bad.append(("voice", "unknown"))
+    packs = read_packs()
+    for p in plan.get("packs", []):
+        if packs.get(p, {}).get("status") != "offered":
+            bad.append(("packs", "not offered: %s" % p))
+    return bad
+
+
+def run(*cmd, inp=None):
+    r = subprocess.run(cmd, input=inp, capture_output=True, text=True)
+    if r.returncode:
+        raise RuntimeError((r.stderr or r.stdout).strip().splitlines()[-1:] or ["%s failed" % cmd[0]])
+    return r.stdout
+
+
+def write(path, text, mode=0o644):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".setup"
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.chmod(tmp, mode)
+    try:
+        os.replace(tmp, path)
+    except OSError as e:                            # a file mounted on its own (a container's hosts): in place
+        if e.errno not in (errno.EBUSY, errno.EXDEV):
+            raise
+        with open(path, "w") as f:
+            f.write(text)
+        os.unlink(tmp)
+
+
+def s_locale(plan):
+    z = "/usr/share/zoneinfo/" + plan["zone"]
+    if os.path.lexists("/etc/localtime.setup"):
+        os.unlink("/etc/localtime.setup")
+    os.symlink(z, "/etc/localtime.setup")
+    os.replace("/etc/localtime.setup", "/etc/localtime")
+    write("/etc/timezone", plan["zone"] + "\n")
+    os.makedirs("/etc/glassine", exist_ok=True)
+    if plan.get("ntp", True):
+        if os.path.exists("/etc/glassine/ntp-off"):
+            os.unlink("/etc/glassine/ntp-off")
+    else:
+        write("/etc/glassine/ntp-off", "")
+    h = plan["hostname"]
+    write("/etc/hostname", h + "\n")
+    hosts = [ln for ln in (open("/etc/hosts").read().splitlines() if os.path.exists("/etc/hosts") else [])
+             if not ln.startswith("127.0.1.1")]
+    write("/etc/hosts", "\n".join(hosts + ["127.0.1.1\t%s" % h]) + "\n")
+    if LIVE:
+        subprocess.run(["hostname", h], capture_output=True)
+    write("/etc/profile.d/glassine-locale.sh", "# glassine-setup: the language chosen at first start\nexport LANG=%s\n"
+          % LANGS[plan["language"]])
+    write("/etc/glassine/osk-layers", LAYOUTS[plan["layout"]][2] + "\n")
+    # the record of the answers (needs.py reads it): earlier answers kept where not asked again
+    conf = read_conf()
+    conf.pop("adopted", None)
+    conf.update(language=plan["language"], zone=plan["zone"], layout=plan["layout"])
+    if plan.get("voice"):
+        conf["voice"] = plan["voice"]
+    u = plan.get("user")
+    if u:
+        conf.update(user=u["name"], admin="yes" if u.get("admin") else "no", autologin="yes" if u.get("autologin") else "no")
+    if "packs" in plan:
+        conf["packs"] = " ".join(plan["packs"])
+    conf.setdefault("packs", "")
+    if plan.get("network"):
+        conf["network"] = plan["network"]
+    write(SETUP_CONF, "# glassine-setup (no secrets)\n" + "".join("%s=%s\n" % kv for kv in conf.items()))
+
+
+def s_account(plan):
+    u = plan["user"]
+    name = u["name"]
+    home = "/home/" + name
+    # desktop accounts whose home is gone (the home was wiped, /etc kept): replaced
+    for old, (uid, h) in users().items():
+        if old != name and 1000 <= uid < 65534 and not os.path.isdir(h):
+            subprocess.run(["deluser", old], capture_output=True)
+    if name not in users():
+        opts = ["-D", "-g", u["fullname"], "-s", "/bin/sh", "-h", home]
+        if os.path.isdir(home):                     # kept from before a full reset: adopt it
+            opts.append("-H")
+        elif os.path.isdir("/etc/skel"):
+            opts += ["-k", "/etc/skel"]
+        run("adduser", *opts, name)
+    run("chpasswd", "-c", "sha512", inp="%s:%s\n" % (name, u["password"]))
+    have = {ln.split(":")[0] for ln in open("/etc/group")}
+    for g in GROUPS + (["wheel"] if u.get("admin") else []):
+        if g in have:
+            subprocess.run(["addgroup", name, g], capture_output=True)
+    if not u.get("admin") and "wheel" in have:
+        subprocess.run(["delgroup", name, "wheel"], capture_output=True)
+    if not os.path.isdir(home):                     # the account was kept, its home wiped
+        if os.path.isdir("/etc/skel"):
+            subprocess.run(["cp", "-a", "/etc/skel", home], capture_output=True)
+        os.makedirs(home, exist_ok=True)
+    os.chmod(home, 0o750)
+    subprocess.run(["chown", "-R", "%s:%s" % (name, name), home], capture_output=True)
+    save_record()
+
+
+def s_admin(plan):
+    """root's password (default glassine in the image; the setup's Account step)"""
+    run("chpasswd", "-c", "sha512", inp="root:%s\n" % plan["admin_password"])
+
+
+def s_profile(plan):
+    name = target(plan)
+    if not name:
+        raise RuntimeError("no account for the profile")
+    home = users()[name][1]
+    files = {".config/glassine-shell/theme": plan["voice"] + "\n"} if plan.get("voice") else {}
+    xkb, var, layers = LAYOUTS[plan["layout"]]
+    files[".config/glassine/kbd-layout"] = (xkb + (" " + var if var else "")) + "\n"
+    files[".config/glassine/osk-layers"] = layers + "\n"
+    for rel, text in files.items():
+        write(os.path.join(home, rel), text)
+    for rel, on in ((".config/glassine-shell/clock12", not plan.get("clock24", True)),
+                    (".config/glassine/osk-no-auto", not plan.get("osk", True))):
+        p = os.path.join(home, rel)
+        if on:
+            write(p, "")
+        elif os.path.exists(p):
+            os.unlink(p)
+    subprocess.run(["chown", "-R", "%s:%s" % (name, name), os.path.join(home, ".config")], capture_output=True)
+
+
+def s_pack(pack):
+    def go(plan):
+        if pack["apk"]:
+            cmd = ([APK, "apk"] if APK.endswith("/glassine") else [APK or "apk"]) + ["--no-progress", "add"] + pack["apk"]
+            env = dict(os.environ, GLASSINE_APK_ACK="1")
+            r = subprocess.run(cmd, capture_output=True, text=True, env=env)
+            if r.returncode:
+                raise RuntimeError(((r.stderr or r.stdout).strip().splitlines() or ["apk failed"])[-1])
+        if pack["flatpak"]:
+            run(FLATPAK, "install", "--system", "-y", "--noninteractive", "flathub", *pack["flatpak"])
+    return go
+
+
+def s_cleanup(plan):
+    name = target(plan)
+    if os.path.exists("/usr/sbin/glassine-subids"):    # the Containers pack: this account's sub-ids
+        subprocess.run(["/usr/sbin/glassine-subids"], capture_output=True)
+    if APK.endswith("/glassine") and LIVE:
+        subprocess.run([APK, "lock"], capture_output=True)
+    write("/etc/glassine/setup-done", "")
+    save_record()
+
+
+def main(argv):
+    mode = argv[1] if len(argv) > 1 else ""
+    if mode not in ("", "--check", "--dry-run"):
+        say("usage: glassine-setup-apply [--check|--dry-run] < plan.json")
+        return 2
+    try:
+        plan = json.loads(sys.stdin.read())
+        assert isinstance(plan, dict) and (plan.get("user") is None or isinstance(plan["user"], dict))
+    except (ValueError, AssertionError):
+        say("invalid plan not-json")
+        return 1
+    bad = check(plan)
+    for field, why in bad:
+        say("invalid", field, why)
+    if bad:
+        return 1
+    if mode == "--check":
+        say("ok check")
+        return 0
+    packs = read_packs()
+    steps = [("locale", "Language, time zone and keyboard", s_locale)]
+    if plan.get("user"):
+        steps.append(("account", "Creating your account", s_account))
+    if plan.get("admin_password") is not None:
+        steps.append(("admin", "Setting the administrator password", s_admin))
+    steps.append(("profile", "Writing the look and screen settings", s_profile))
+    steps += [("pack-" + p, "Installing " + packs[p].get("name", p), s_pack(packs[p])) for p in plan.get("packs", [])]
+    steps.append(("cleanup", "Cleaning up", s_cleanup))
+    say("steps", len(steps))
+    if mode == "":
+        try:
+            write(NO_SLEEP, "glassine-setup-apply\n")   # glassine-powerd: no idle sleep while this runs
+        except OSError:
+            pass
+    try:
+        return run_steps(mode, steps, plan)
+    finally:
+        if mode == "" and os.path.exists(NO_SLEEP):
+            os.unlink(NO_SLEEP)
+
+
+def run_steps(mode, steps, plan):
+    skipped = False
+    for i, (sid, label, fn) in enumerate(steps, 1):
+        say("step", i, sid, label)
+        if mode == "--dry-run":
+            say("ok", sid)
+            continue
+        try:
+            fn(plan)
+            say("ok", sid)
+        except (OSError, RuntimeError, subprocess.SubprocessError) as e:
+            why = " ".join(str(x) for x in e.args[0]) if e.args and isinstance(e.args[0], list) else str(e)
+            say("fail", sid, why.replace("\n", " ")[:200])
+            if not sid.startswith("pack-"):
+                say("failed", sid)
+                return 1
+            skipped = True
+    say("done-with-skips" if skipped else "done")
+    return 0
+
+
+if __name__ == "__main__":
+    if os.geteuid() != 0 and "--check" not in sys.argv and "--dry-run" not in sys.argv:
+        say("failed not-root")
+        sys.exit(1)
+    sys.exit(main(sys.argv))
