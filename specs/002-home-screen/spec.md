@@ -83,7 +83,7 @@ later with one partial refresh of that rectangle only; nothing else moves.
 
 **App widgets (built into Home, drawn natively)**
 - **FR-010**: Favourite apps (in the user's order), All apps (A–Z), App category (one category chosen in its
-  settings; may be added any number of times). Any can be removed. Each shows as many rows of four apps as its
+  settings; may be added any number of times). Every widget can be removed, All apps included. Each shows as many rows of four apps as its
   height holds and pages the rest with its own pager.
 - **FR-011**: Tap an app: open it on a new screen, or fill the empty screen Home sits on (spec 001 FR-040).
   Hold: the app menu of Scenario 1.
