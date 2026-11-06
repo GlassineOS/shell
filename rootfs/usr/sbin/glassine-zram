@@ -170,6 +170,19 @@ spill_files() {
 on() { grep -q '^/dev/zram0 ' "$ROOT/proc/swaps"; }
 spilling() { case "$(cat "$Z/backing_dev" 2>/dev/null)" in /dev/*) return 0 ;; esac; log "no spill"; return 1; }
 
+# zram reset, the spill's loops detached and the btrfs unmounted (stop, a failed start)
+teardown() {
+	local loop img
+	loop=$(cat "$Z/backing_dev" 2>/dev/null)
+	echo 1 > "$Z/reset" 2>/dev/null
+	case "$loop" in /dev/loop*) losetup -d "$loop" 2>/dev/null ;; esac
+	if mountpoint -q "$SPILL"; then
+		img=$(awk -v m="${SPILL#"$ROOT"}" '$2 == m { print $1 }' "$ROOT/proc/mounts")
+		umount "$SPILL" && case "$img" in /dev/loop*) losetup -d "$img" 2>/dev/null ;; esac
+	fi
+}
+failed() { log "start failed: $*"; teardown; exit 1; }
+
 case "${1:-}" in
 start)
 	have_zram || { log "no zram in this kernel"; exit 1; }
@@ -199,11 +212,11 @@ start)
 			losetup -d "$loop"
 		fi
 	fi
-	echo "$ZRAM_SIZE" > "$Z/disksize" || exit 1
+	echo "$ZRAM_SIZE" > "$Z/disksize" || failed "disksize $ZRAM_SIZE"
 	echo "$ZRAM_MEM_LIMIT" > "$Z/mem_limit"
 	[ -e "$Z/writeback_limit_enable" ] && echo 0 > "$Z/writeback_limit_enable"
-	mkswap /dev/zram0 >/dev/null || exit 1
-	swapon -p 100 /dev/zram0 || exit 1
+	mkswap /dev/zram0 >/dev/null || failed mkswap
+	swapon -p 100 /dev/zram0 || failed swapon
 	echo "$SWAPPINESS" > "$ROOT/proc/sys/vm/swappiness"
 	# zram pages are decompressed one at a time: no read-ahead clusters
 	echo 0 > "$ROOT/proc/sys/vm/page-cluster"
@@ -211,13 +224,7 @@ start)
 	;;
 stop)
 	on && swapoff /dev/zram0
-	loop=$(cat "$Z/backing_dev" 2>/dev/null)
-	echo 1 > "$Z/reset" 2>/dev/null
-	case "$loop" in /dev/loop*) losetup -d "$loop" 2>/dev/null ;; esac
-	if mountpoint -q "$SPILL"; then
-		img=$(awk -v m="${SPILL#"$ROOT"}" '$2 == m { print $1 }' "$ROOT/proc/mounts")
-		umount "$SPILL" && case "$img" in /dev/loop*) losetup -d "$img" 2>/dev/null ;; esac
-	fi
+	teardown
 	exit 0
 	;;
 park)

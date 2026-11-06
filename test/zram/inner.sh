@@ -117,6 +117,19 @@ has "stop: image loop detached" $S/log "losetup -d /dev/loop1"
 is "stop: the image stays" "$(mib $IMG)" 2048
 run stop; is "stop when off: exit 0" $? 0
 
+echo "--- a failed start leaves nothing attached"
+fresh; stub mkswap 'echo "mkswap $*" >> /s/log; exit 1'
+run start; is "mkswap fails: exit 1" $? 1
+has "mkswap fails: says so" $S/err "start failed: mkswap"
+is "mkswap fails: zram reset" "$(z reset)" 1
+has "mkswap fails: wb loop detached" $S/log "losetup -d /dev/loop2"
+has "mkswap fails: spill unmounted" $S/log "umount $R/run/glassine-zram"
+has "mkswap fails: image loop detached" $S/log "losetup -d /dev/loop1"
+hasnt "mkswap fails: no swapon" $S/log "swapon"
+fresh; stub swapon 'echo "swapon $*" >> /s/log; exit 1'
+run start; is "swapon fails: exit 1" $? 1
+has "swapon fails: spill unmounted" $S/log "umount $R/run/glassine-zram"
+
 echo "--- the next boot: the image is reused, a broken one recreated"
 echo none > $Z/backing_dev; rm -f $S/st/loops; : > $S/log
 run start

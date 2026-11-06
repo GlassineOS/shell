@@ -101,12 +101,20 @@ expect "freeze footc: C frozen once demoted (no freeze_after wait)" "$(where $PC
 swaymsg -q "workspace number 3"; sleep 0.5
 expect "C back in front: thawed" "$(where $PC)" "init"
 grep -q "frozen glassine-shell-" /tmp/bgprio.log && { echo "FAIL a desktop name was frozen"; fail=1; } || echo "ok   log: the desktop name never frozen"
-swaymsg -q "workspace number 2"; sleep 0.5
+swaymsg -q "workspace number 2"; sleep 4
+hidden() { case $(where $1) in glassine-bg*) echo hidden ;; *) where $1 ;; esac; }
+expect "before the stop: A, C, D in the background (or frozen)" "$(hidden $PA) $(hidden $PC) $(hidden $PD)" "hidden hidden hidden"
+kill $BG; sleep 0.5
+expect "SIGTERM: bgprio exited" "$(kill -0 $BG 2>/dev/null && echo running || echo exited)" "exited"
+expect "SIGTERM: everything back in front" "$(where $PA) $(where $PC) $(where $PD)" "init init init"
+grep -q "stopped, everything back in front" /tmp/bgprio.log && echo "ok   log: stopped" || { echo "FAIL no stop log"; fail=1; }
+expect "SIGTERM: the thaw socket removed" "$([ -e /run/glassine-bgprio.sock ] && echo there || echo gone)" "gone"
+$B 2>/tmp/bgprio2.log &
+BG=$!
+sleep 1
 kill $SW; sleep 1.5
 expect "sway gone: bgprio exited" "$(kill -0 $BG 2>/dev/null && echo running || echo exited)" "exited"
-grep -q "sway gone, exiting" /tmp/bgprio.log && echo "ok   log: sway gone" || { echo "FAIL log"; fail=1; }
-expect "sway gone: everything released (glassine-bg, frozen, fg empty)" \
-    "$(cat $C/glassine-bg/cgroup.procs $C/glassine-bg/frozen/cgroup.procs $C/glassine-fg/cgroup.procs | wc -l)" "0"
+grep -q "sway gone, exiting" /tmp/bgprio2.log && echo "ok   log: sway gone" || { echo "FAIL log"; cat /tmp/bgprio2.log; fail=1; }
 expect "sway gone: the thaw socket removed" "$([ -e /run/glassine-bgprio.sock ] && echo there || echo gone)" "gone"
 
 # glassine-zpark: usage and a dry run (finding real zram slots needs a zram swap device)
