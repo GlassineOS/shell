@@ -34,13 +34,19 @@ auth_need_admin() { auth_is_admin || auth_fresh || auth_refuse; }
 auth_need_password() { auth_fresh || auth_refuse; }
 
 # the password on stdin. One check at a time, 2 s after a wrong one.
+# Exit 0 accepted, 1 wrong, 2 couldn't check (the kept password stays).
 auth_submit() {
 	mkdir -p "${AUTH_DIR%/*}"
 	( umask 077; mkdir -p "$AUTH_DIR"; exec 9>"$AUTH_DIR/.lock"; flock 9
-	  if /usr/sbin/glassine-checkpass; then
+	  /usr/sbin/glassine-checkpass; _rc=$?
+	  if [ "$_rc" = 0 ]; then
 		auth_now > "$AUTH_DIR/$(auth_user)"
 		logger -t glassine-auth -p auth.notice "administrator password accepted for $(auth_user)" 2>/dev/null
 		exit 0
+	  fi
+	  if [ "$_rc" != 1 ]; then
+		logger -t glassine-auth -p auth.err "administrator password could not be checked for $(auth_user) (glassine-checkpass exit $_rc)" 2>/dev/null
+		exit 2
 	  fi
 	  rm -f "$AUTH_DIR/$(auth_user)"
 	  logger -t glassine-auth -p auth.warning "wrong administrator password from $(auth_user)" 2>/dev/null

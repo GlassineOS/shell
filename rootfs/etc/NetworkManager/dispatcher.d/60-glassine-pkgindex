@@ -1,13 +1,19 @@
 #!/bin/sh
 # Refresh the apk index + Alpine's AppStream catalogue (GNOME Software's "Explore"
 # and search) when a connection comes up, at most once a day. Without the index,
-# apk search finds nothing.
+# apk search finds nothing. The catalogue is best effort: without alpine-appstream-downloader,
+# or when it fails, the index still counts and the day still starts.
 [ "$2" = up ] || exit 0
-STAMP=/var/lib/glassine/pkgindex-stamp
+DIR=/var/lib/glassine
+STAMP=$DIR/pkgindex-stamp
 [ -n "$(find $STAMP -mmin -1440 2>/dev/null)" ] && exit 0
+mkdir -p $DIR
 (
+    flock -n 9 || exit 0            # one refresh at a time (two "up" events)
     sleep 20                        # let DNS / the clock settle first
-    apk update -q && alpine-appstream-downloader >/dev/null 2>&1 &&
-        { mkdir -p /var/lib/glassine; touch $STAMP; }
-) >/dev/null 2>&1 &
+    apk update -q || exit 0
+    touch $STAMP
+    command -v alpine-appstream-downloader >/dev/null &&
+        alpine-appstream-downloader
+) 9>$DIR/pkgindex.lock >/dev/null 2>&1 &
 exit 0

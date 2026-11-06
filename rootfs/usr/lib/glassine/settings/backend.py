@@ -495,11 +495,13 @@ class Base:
         return run("doas", ROOT, "auth-check", level, timeout=10)[0] == 0
 
     def admin_auth(self, pw):
-        """an administrator's password to the root helper -> good?"""
+        """an administrator's password to the root helper -> True good, False wrong,
+        None couldn't be checked (the helper's exit 2, or it didn't run)"""
         try:
-            return subprocess.run(["doas", ROOT, "auth"], input=pw, text=True, capture_output=True, timeout=30).returncode == 0
+            rc = subprocess.run(["doas", ROOT, "auth"], input=pw, text=True, capture_output=True, timeout=30).returncode
         except (OSError, subprocess.SubprocessError):
-            return False
+            return None
+        return True if rc == 0 else False if rc == 1 else None
 
     def bg(self, fn, *a):
         """fn(*a) in a thread, then changed()"""

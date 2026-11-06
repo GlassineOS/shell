@@ -20,7 +20,7 @@ make            # glassine-shell-wl and glassine-swayd, on Alpine
 make check      # compiles, then the host tests in Docker
 ```
 
-`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper) and `test/swayd` (the window model on stock sway, headless). None of them need a device.
+`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper), `test/swayd` (the window model on stock sway, headless), `test/admin-auth` (the administrator tiers of the root helpers, with real accounts) and `test/health` (the boot health check with BusyBox). None of them need a device.
 
 ## Runtime interfaces
 

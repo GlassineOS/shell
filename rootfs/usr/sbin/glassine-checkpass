@@ -1,26 +1,36 @@
 #!/usr/bin/python3 -I
-"""glassine-checkpass: is the password on stdin the one of an administrator (a member
-of group wheel, or root while root has a password)? Exit 0 yes, 1 no, 2 can't tell.
+"""glassine-checkpass: is the password on stdin the one of an administrator (in group
+wheel, as a member or by primary group, or root while root has a password)?
+Exit 0 yes, 1 no, 2 can't tell (a file unreadable, no crypt in libc).
 Root only (it reads /etc/shadow). Python's crypt module is gone since 3.13: this
-calls libc's crypt. SHADOW and GROUP are for the host test."""
+calls libc's crypt. The files are fixed: the host test uses real accounts in a
+container."""
 import ctypes
 import hmac
-import os
 import sys
 
+GROUP, PASSWD, SHADOW = "/etc/group", "/etc/passwd", "/etc/shadow"
 
-def admins(group):
-    names = ["root"]
-    with open(group) as f:
+
+def admins():
+    names, gid = ["root"], None
+    with open(GROUP) as f:
         for line in f:
             p = line.rstrip("\n").split(":")
             if len(p) >= 4 and p[0] == "wheel":
+                gid = p[2]
                 names += [n for n in p[3].split(",") if n]
+    if gid is not None:
+        with open(PASSWD) as f:
+            for line in f:
+                p = line.split(":")
+                if len(p) >= 4 and p[3] == gid:
+                    names.append(p[0])
     return names
 
 
-def hashes(shadow, names):
-    with open(shadow) as f:
+def hashes(names):
+    with open(SHADOW) as f:
         for line in f:
             p = line.split(":")
             # "!…", "*" and "" are locked accounts or no password: nothing to match
@@ -32,18 +42,18 @@ def main():
     pw = sys.stdin.buffer.read(4097).rstrip(b"\n")
     if not pw or len(pw) > 4096 or b"\0" in pw:
         return 1
-    libc = ctypes.CDLL(None)
-    libc.crypt.restype = ctypes.c_char_p
-    libc.crypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
     try:
-        hs = list(hashes(os.environ.get("SHADOW", "/etc/shadow"),
-                         admins(os.environ.get("GROUP", "/etc/group"))))
-    except OSError as e:
+        libc = ctypes.CDLL(None)
+        crypt = libc.crypt
+        crypt.restype = ctypes.c_char_p
+        crypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+        hs = list(hashes(admins()))
+    except (OSError, AttributeError) as e:
         print("glassine-checkpass: %s" % e, file=sys.stderr)
         return 2
     ok = False
     for h in hs:
-        c = libc.crypt(pw, h)
+        c = crypt(pw, h)
         ok |= c is not None and hmac.compare_digest(c, h)
     return 0 if ok else 1
 
