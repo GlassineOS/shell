@@ -2,3 +2,5 @@
 /glassine-swayd
 /test/*/out*/
 __pycache__/
+/specs/*/*
+!/specs/*/spec.md
