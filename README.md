@@ -2,7 +2,7 @@
 
 The desktop around the apps on an e-ink device running sway:
 
-- **`glassine-shell-wl`:** the bar, launcher, overview, quick settings, power view and notifications, drawn natively.
+- **`glassine-shell-wl`:** the bar (Home button, screen button), Overview, divider mode, quick settings, power view and notifications, drawn natively. Its requests and the verbs it sends to `glassine-swayd` are listed at the top of `src/glassine-shell.c`.
 - **`glassine-swayd`:** the window model over sway's IPC: tiles, drag handles, dividers and when the on-screen keyboard shows.
 - **`glassine-settings`:** the touch settings app (Python, GTK3, cairo), with its root helper.
 - **`glassine-setup`:** the first-run setup, with its root helper.
@@ -22,7 +22,7 @@ make            # glassine-shell-wl, glassine-swayd, glassine-bgprio and glassin
 make check      # compiles, then the host tests in Docker
 ```
 
-`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper), `test/swayd` (the window model on stock sway, headless), `test/admin-auth` (the administrator tiers of the root helpers, with real accounts), `test/health` (the boot health check with BusyBox), `test/session-dispatch` (the session's restart loop), `test/bgprio` (glassine-bgprio on headless sway in a privileged container with its own cgroup v2 tree; the page-out check is skipped on a host without swap) and `test/zram` (the zram service against a fake root with stubbed tools). None of them need a device. What they can't show: real zram, writeback and recompression, `glassine-zpark` finding real zram slots, and the spill on a device's userdata.
+`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper), `test/swayd` (the window model on stock sway, headless), `test/shell` (the bar, Overview and divider mode on stock sway with screenshots of each voice, portrait and landscape, in `test/shell/out/shots`), `test/admin-auth` (the administrator tiers of the root helpers, with real accounts), `test/health` (the boot health check with BusyBox), `test/session-dispatch` (the session's restart loop), `test/bgprio` (glassine-bgprio on headless sway in a privileged container with its own cgroup v2 tree; the page-out check is skipped on a host without swap) and `test/zram` (the zram service against a fake root with stubbed tools). None of them need a device. What they can't show: real zram, writeback and recompression, `glassine-zpark` finding real zram slots, and the spill on a device's userdata.
 
 ## Installing
 
