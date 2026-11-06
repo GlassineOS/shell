@@ -910,7 +910,6 @@ void be_close(WinId w)
     if (fd >= 0) close(fd);
     swaycmd("[con_id=%lu] kill", w);
 }
-void be_toggle_max(WinId w) { swaycmd("[con_id=%lu] fullscreen toggle", w); }
 /* minimized = sway's scratchpad (the three-finger swipe down): shown here,
  * then tiled (floating disable takes it out of the scratchpad) */
 void be_restore(WinId w) { swaycmd("[con_id=%lu] scratchpad show, floating disable, focus", w); }
@@ -1243,10 +1242,10 @@ static int snap_take(void)
     be_read_desktop();
     snap_key(curdesk, &cap.k);
     if (!cap.k.n) return 0;
-    for (int i = 0; i < cap.k.n; i++) {     /* a fullscreen window covers the bar: no still of the work area */
+    for (int i = 0; i < cap.k.n; i++) {     /* a sway fullscreen window covers the bar: no still of the work area */
         Client *c = NULL;
         for (int k = 0; k < ncl; k++) if (cl[k].w == cap.k.id[i]) c = &cl[k];
-        if (c && c->maxed) return 0;
+        if (c && c->maxed && !(curdesk >= 0 && curdesk < MAXDESK && lay[curdesk].full == c->w)) return 0;
     }
     cap.busy = 1; cap.done = 0; cap.yinv = 0;
     cap.f = zwlr_screencopy_manager_v1_capture_output(scm, 0, out);
