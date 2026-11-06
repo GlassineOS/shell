@@ -1,0 +1,42 @@
+#!/bin/sh
+# glassine-pipewire — PipeWire for the sway session (pipewire-launcher), with the
+# speaker's volume kept across restarts (it came back at 100 % on every boot).
+# The speaker workaround is device-specific (a plain ALSA sink without ACP): it
+# moves to the device's configuration (GlassineOS/shell#1).
+#
+# Why it was lost: the speaker sink (plain ALSA PCM, no ACP: 50-glassine-speaker.conf)
+# ignores every volume/mute change until it has run once; its audioconvert is
+# not set up before the first stream. WirePlumber restores the saved volume
+# when the sink appears, the sink ignores it and reports 1.0, and WirePlumber
+# saves that 1.0 over the user's value (stream-properties, written at start).
+# Once the sink has played, changes stick, also while suspended.
+#
+# So: read the saved value before WirePlumber starts, start PipeWire, play a
+# few ms of silence into the speaker when it appears, then set the value
+# again (WirePlumber saves it). No saved value: 40 %.
+S=${XDG_STATE_HOME:-$HOME/.local/state}/wireplumber/stream-properties
+SINK=alsa_output.platform-sound.playback.0.0
+DEFAULT=0.40
+# channelVolumes are cubic (wpctl's 0.40 = 0.064); the first channel's
+vol=$(sed -n "s/^Audio\/Sink:node.name:$SINK=.*\"channelVolumes\":\[\([0-9.]*\).*/\1/p" "$S" 2>/dev/null |
+      awk 'NF { v = $1 ^ (1 / 3); if (v > 1) v = 1; printf "%.2f", v }')
+[ -n "$vol" ] || vol=$DEFAULT
+mute=$(sed -n "s/^Audio\/Sink:node.name:$SINK=.*\"mute\":\(true\|false\).*/\1/p" "$S" 2>/dev/null)
+
+/usr/libexec/pipewire-launcher
+
+# the sink, by name (up to 20 s: the ADSP and the card come late after boot)
+id=
+i=0
+while [ $i -lt 40 ]; do
+    id=$(wpctl status 2>/dev/null | sed -n '/Sinks:/,/Sources:/p' | grep -m1 'Speaker' | grep -o '[0-9]\+\.' | head -1 | tr -d .)
+    [ -n "$id" ] && break
+    sleep 0.5; i=$((i + 1))
+done
+[ -n "$id" ] || { echo "glassine-pipewire: no speaker sink, volume not restored" >&2; exit 0; }
+# a few ms of silence into the speaker: its first run sets it up
+head -c 4800 /dev/zero | pacat --device="$SINK" --format=s16le --rate=48000 --channels=2 --raw 2>/dev/null
+wpctl set-volume "$id" "$vol"
+[ "$mute" = true ] && wpctl set-mute "$id" 1
+echo "glassine-pipewire: speaker $id volume $vol${mute:+ mute $mute}" >&2
+exit 0

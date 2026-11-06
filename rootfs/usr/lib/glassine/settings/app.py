@@ -374,6 +374,8 @@ class UI:
                     self.auth, self.show_pw = None, False
                     self.go(a["back"])
                     a["then"]()
+                elif good is None:
+                    a["err"] = "The password couldn’t be checked. Try again, or restart the device."
                 else:
                     a["err"] = "That isn’t an administrator’s password."
                     self.redraw()

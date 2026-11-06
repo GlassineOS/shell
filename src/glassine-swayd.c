@@ -531,7 +531,7 @@ static void build(Keep *k)
      * the only child flattens its parent): "layout" on a workspace's child wraps
      * the workspace's children in a new container, so each rebuild nested the
      * tree 2 JSON levels deeper (34 after 12; json-c's default parse stops at
-     * 32 and the handles then did nothing, ) */
+     * 32 and the handles then did nothing) */
     Ws *w = ws_named(k->name);
     for (int i = 0; w && i < w->nun; i++) cadd("[con_id=%ld] split none", w->unwrap[i]);
     if (k->n == 4) k->orient[1] = !k->orient[0];  /* across the outer split */

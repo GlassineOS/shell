@@ -1,0 +1,316 @@
+#!/usr/bin/python3
+# glassine-ink-discover — canvas autodiscovery for the pen's ink areas.
+# For apps that register nothing themselves
+# (glassine_ink_v1, the GTK 3 module), it reads their accessibility tree (AT-SPI:
+# GTK 4, GTK 3, Qt with accessibility on), takes the largest opaque canvas
+# (a drawing area / canvas, or a scroll pane holding nothing but empty panels)
+# and cuts the controls floating over it out; sway gets the result per window:
+# swaymsg '[con_id=N] glassine_ink X Y W H ...' (window coordinates) / glassine_ink none
+# A window without a canvas is left alone: its per-app ink= setting decides.
+# Apps with an explicit "APP ... ink=off" line in eink.conf are skipped.
+# Event driven (sway window/workspace events, AT-SPI show/hide), debounced;
+# it never polls. Runs in the sway session (exec in the sway config).
+import json
+import os
+import subprocess
+import sys
+import threading
+
+import gi
+gi.require_version("Atspi", "2.0")
+from gi.repository import Atspi, GLib
+
+CONF = "/etc/glassine/eink.conf"
+DEBOUNCE_MS = 300
+MIN_SHARE = 0.25        # a canvas covers at least this share of its window
+PANEL_SHARE = 0.5       # a control's floating box: its largest ancestor below this share
+PAD = 4                 # px around a cut control
+VERBOSE = "-v" in sys.argv
+
+R = Atspi.Role
+CANVAS = {R.DRAWING_AREA, R.CANVAS}
+HOLLOW = {R.PANEL, R.FILLER, R.SCROLL_BAR, R.VIEWPORT, R.UNKNOWN}
+INTERACTIVE = {R.PUSH_BUTTON, R.TOGGLE_BUTTON, R.CHECK_BOX, R.RADIO_BUTTON,
+               R.COMBO_BOX, R.SLIDER, R.SPIN_BUTTON, R.ENTRY, R.TEXT,
+               R.MENU_BUTTON if hasattr(R, "MENU_BUTTON") else R.PUSH_BUTTON,
+               R.LIST, R.LIST_BOX, R.TOOL_BAR, R.MENU_BAR, R.PAGE_TAB_LIST,
+               R.LABEL, R.LINK, R.IMAGE, R.SEPARATOR}
+
+sent = {}               # con_id -> the args sent last
+
+
+def log(*a):
+    if VERBOSE:
+        print("glassine-ink-discover:", *a, file=sys.stderr, flush=True)
+
+
+def ink_off_apps():
+    """match strings of the per-app lines with ink=off (not '*' / '@')"""
+    out = []
+    try:
+        with open(CONF) as f:
+            for line in f:
+                t = line.split()
+                if t and t[0][0] not in "#@*" and "ink=off" in t[1:]:
+                    out.append(t[0])
+    except OSError:
+        pass
+    return out
+
+
+def app_name(node):
+    """as epdd matches it: the app_id, else 'class instance', lower case"""
+    if node.get("app_id"):
+        return node["app_id"].lower()
+    p = node.get("window_properties") or {}
+    return ("%s %s" % (p.get("class", ""), p.get("instance", ""))).lower()
+
+
+def sway_views():
+    tree = json.loads(subprocess.run(["swaymsg", "-t", "get_tree", "-r"],
+                                     capture_output=True, text=True).stdout or "{}")
+    out = []
+
+    def walk(n, ws_visible):
+        if n.get("type") == "workspace":
+            ws_visible = n.get("visible", False) if "visible" in n else True
+        if n.get("pid") and n.get("type") in ("con", "floating_con") and not n.get("nodes"):
+            out.append(n)
+        for c in n.get("nodes", []) + n.get("floating_nodes", []):
+            walk(c, ws_visible)
+    walk(tree, True)
+    return out
+
+
+def ext(a):
+    try:
+        c = a.get_component_iface()
+        if not c:
+            return None
+        e = c.get_extents(Atspi.CoordType.WINDOW)
+        # hidden stack pages report garbage (e.g. 0,0 1815780880x65535)
+        if e.width <= 0 or e.height <= 0 or e.width > 1 << 14 or e.height > 1 << 14:
+            return None
+        return (e.x, e.y, e.width, e.height)
+    except Exception:
+        return None
+
+
+def showing(a):
+    try:
+        s = a.get_state_set()
+        return s.contains(Atspi.StateType.SHOWING) and s.contains(Atspi.StateType.VISIBLE)
+    except Exception:
+        return False
+
+
+def children(a):
+    try:
+        n = min(a.get_child_count(), 300)
+    except Exception:
+        return []
+    out = []
+    for i in range(n):
+        try:
+            c = a.get_child_at_index(i)
+        except Exception:
+            c = None
+        if c:
+            out.append(c)
+    return out
+
+
+def role(a):
+    try:
+        return a.get_role()
+    except Exception:
+        return R.INVALID
+
+
+def hollow(a, depth=0):
+    """only empty panels below (an opaque custom widget)"""
+    if depth > 3:
+        return False
+    for c in children(a):
+        if role(c) not in HOLLOW or not hollow(c, depth + 1):
+            return False
+    return True
+
+
+def area(b):
+    return b[2] * b[3] if b else 0
+
+
+def overlap(a, b):
+    return a[0] < b[0] + b[2] and b[0] < a[0] + a[2] and a[1] < b[1] + b[3] and b[1] < a[1] + a[3]
+
+
+def scan(frame):
+    """(canvas box, [boxes over it]) in window coordinates, or None"""
+    fb = ext(frame)
+    if not fb:
+        return None
+    wa = area(fb)
+    cands = []          # (area, box, node)
+    controls = []       # (box, path of (node, box) from the frame down)
+
+    def walk(a, path, depth):
+        if depth > 40 or not showing(a):
+            return
+        b = ext(a)
+        r = role(a)
+        here = path + [(a, b)]
+        if b and area(b) >= MIN_SHARE * wa and (r in CANVAS or (r == R.SCROLL_PANE and hollow(a))):
+            cands.append((area(b), b, a))
+            return      # (its inside is opaque)
+        if r in INTERACTIVE and b:
+            controls.append((b, here))
+            if r not in (R.TOOL_BAR, R.LIST, R.LIST_BOX, R.MENU_BAR, R.PAGE_TAB_LIST):
+                return
+        for c in children(a):
+            walk(c, here, depth + 1)
+
+    for c in children(frame):
+        walk(c, [(frame, fb)], 1)
+    if not cands:
+        return None
+    _, cb, cnode = max(cands, key=lambda t: t[0])
+    cuts = []
+    for b, path in controls:
+        if not overlap(b, cb):
+            continue
+        box = b                 # its largest ancestor below PANEL_SHARE that still overlaps the canvas
+        for _, pb in path[1:]:
+            if pb and area(pb) < PANEL_SHARE * wa and overlap(pb, cb) and \
+                    pb[0] <= b[0] and pb[1] <= b[1] and pb[0] + pb[2] >= b[0] + b[2] and pb[1] + pb[3] >= b[1] + b[3]:
+                box = pb
+                break
+        cut = (box[0] - PAD, box[1] - PAD, box[2] + 2 * PAD, box[3] + 2 * PAD)
+        if cut not in cuts:
+            cuts.append(cut)
+    return cb, cuts
+
+
+def subtract(rects, cut):
+    out = []
+    cx0, cy0, cx1, cy1 = cut[0], cut[1], cut[0] + cut[2], cut[1] + cut[3]
+    for (x, y, w, h) in rects:
+        x1, y1 = x + w, y + h
+        if cx1 <= x or cx0 >= x1 or cy1 <= y or cy0 >= y1:
+            out.append((x, y, w, h))
+            continue
+        if cy0 > y:
+            out.append((x, y, w, cy0 - y))
+        if cy1 < y1:
+            out.append((x, cy1, w, y1 - cy1))
+        my0, my1 = max(y, cy0), min(y1, cy1)
+        if cx0 > x:
+            out.append((x, my0, cx0 - x, my1 - my0))
+        if cx1 < x1:
+            out.append((cx1, my0, x1 - cx1, my1 - my0))
+    return out
+
+
+def frames():
+    """{pid: [(title, frame)]} of the AT-SPI toplevels"""
+    out = {}
+    desk = Atspi.get_desktop(0)
+    for app in children(desk):
+        try:
+            pid = app.get_process_id()
+        except Exception:
+            continue
+        for f in children(app):
+            if role(f) in (R.FRAME, R.WINDOW, R.DIALOG) and showing(f):
+                try:
+                    t = f.get_name() or ""
+                except Exception:
+                    t = ""
+                out.setdefault(pid, []).append((t, f))
+    return out
+
+
+def run():
+    off = ink_off_apps()
+    fr = frames()
+    live = set()
+    for v in sway_views():
+        cid = v["id"]
+        live.add(cid)
+        name = app_name(v)
+        if any(m in name for m in off):
+            continue
+        cand = fr.get(v["pid"], [])
+        title = v.get("name") or ""
+        f = next((f for t, f in cand if t == title), None)
+        if f is None and len(cand) == 1:
+            f = cand[0][1]
+        if f is None and not cand and title:
+            # a Flatpak app: AT-SPI sees its pid in the sandbox; by title if unique
+            same = [f for fs in fr.values() for t, f in fs if t == title]
+            if len(same) == 1:
+                f = same[0]
+        if f is None:
+            continue
+        res = scan(f)
+        if res is None:
+            args = "none"
+        else:
+            cb, cuts = res
+            rects = [cb]
+            for c in cuts:
+                rects = subtract(rects, c)
+            rects = [r for r in rects if r[2] > 0 and r[3] > 0]
+            args = " ".join("%d %d %d %d" % r for r in rects) if rects else "none"
+        if args == "none" and cid not in sent:
+            continue
+        if sent.get(cid) != args:
+            log(name, cid, args)
+            subprocess.run(["swaymsg", "-q", "[con_id=%d] glassine_ink %s" % (cid, args)])
+            sent[cid] = args
+    for cid in list(sent):
+        if cid not in live:
+            del sent[cid]
+
+
+timer = None
+
+
+def poke(*_):
+    global timer
+    if timer:
+        GLib.source_remove(timer)
+    timer = GLib.timeout_add(DEBOUNCE_MS, fire)
+
+
+def fire():
+    global timer
+    timer = None
+    try:
+        run()
+    except Exception as e:
+        log("scan failed:", e)
+    return False
+
+
+def sway_events():
+    p = subprocess.Popen(["swaymsg", "-t", "subscribe", "-m", '["window","workspace"]'],
+                         stdout=subprocess.PIPE, text=True)
+    for line in p.stdout:
+        GLib.idle_add(lambda: (poke(), False)[1])
+    os._exit(1)         # sway gone: the session restarts us
+
+
+def main():
+    if not os.environ.get("SWAYSOCK"):
+        sys.exit("glassine-ink-discover: not in sway")
+    l = Atspi.EventListener.new(lambda e: poke())
+    for ev in ("object:state-changed:showing", "window:activate", "window:create"):
+        l.register(ev)
+    threading.Thread(target=sway_events, daemon=True).start()
+    poke()
+    Atspi.event_main()
+
+
+if __name__ == "__main__":
+    main()

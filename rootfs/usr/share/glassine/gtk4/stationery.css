@@ -1,0 +1,75 @@
+/* glassine: libadwaita in the glassine-shell "stationery" theme — glassine-theme-apply copies this to
+ * ~/.config/gtk-4.0/gtk.css (GTK4 apps read it when they start). Ink accents,
+ * no shades, no transitions: e-ink. */
+:root {
+  --window-bg-color: #ffffff; --window-fg-color: #1b1b1b;
+  --view-bg-color: #ffffff; --view-fg-color: #1b1b1b;
+  --headerbar-bg-color: #111111; --headerbar-fg-color: #ffffff; --headerbar-border-color: #a0a0a0;
+  --headerbar-backdrop-color: #111111; --headerbar-shade-color: transparent; --headerbar-darker-shade-color: transparent;
+  --sidebar-bg-color: #ffffff; --sidebar-fg-color: #1b1b1b; --sidebar-backdrop-color: #ffffff; --sidebar-shade-color: transparent;
+  --secondary-sidebar-bg-color: #ffffff; --secondary-sidebar-fg-color: #1b1b1b;
+  --card-bg-color: #ffffff; --card-fg-color: #1b1b1b; --card-shade-color: transparent;
+  --dialog-bg-color: #ffffff; --dialog-fg-color: #1b1b1b;
+  --popover-bg-color: #ffffff; --popover-fg-color: #1b1b1b; --popover-shade-color: transparent;
+  --thumbnail-bg-color: #ffffff; --thumbnail-fg-color: #1b1b1b;
+  --accent-bg-color: #1b1b1b; --accent-fg-color: #ffffff; --accent-color: #1b1b1b;
+  --destructive-bg-color: #1b1b1b; --destructive-fg-color: #ffffff; --destructive-color: #1b1b1b;
+  --success-bg-color: #1b1b1b; --success-fg-color: #ffffff; --success-color: #1b1b1b;
+  --warning-bg-color: #1b1b1b; --warning-fg-color: #ffffff; --warning-color: #1b1b1b;
+  --error-bg-color: #1b1b1b; --error-fg-color: #ffffff; --error-color: #1b1b1b;
+  --shade-color: transparent; --scrollbar-outline-color: transparent;
+}
+@define-color window_bg_color #ffffff;
+@define-color window_fg_color #1b1b1b;
+@define-color view_bg_color #ffffff;
+@define-color view_fg_color #1b1b1b;
+@define-color headerbar_bg_color #111111;
+@define-color headerbar_fg_color #ffffff;
+@define-color headerbar_border_color #a0a0a0;
+@define-color card_bg_color #ffffff;
+@define-color card_fg_color #1b1b1b;
+@define-color popover_bg_color #ffffff;
+@define-color popover_fg_color #1b1b1b;
+@define-color dialog_bg_color #ffffff;
+@define-color dialog_fg_color #1b1b1b;
+@define-color accent_bg_color #1b1b1b;
+@define-color accent_fg_color #ffffff;
+@define-color accent_color #1b1b1b;
+* { transition: none; animation: none; }
+.card, row.card, list.boxed-list, popover > contents { box-shadow: 0 0 0 1px #141414; }
+
+/* Plain windows (with glassine-epdd-desktop compositing): no client-side shadow
+ * margin, no rounded corners, no window border — square and opaque. */
+window, window.csd, window.solid-csd, window.maximized, window.fullscreen, window.tiled,
+dialog, window.dialog, messagedialog, window.messagedialog, tooltip, .tooltip,
+headerbar, .titlebar, window.csd > .titlebar {
+    border-radius: 0; box-shadow: none; outline: none; margin: 0;
+}
+window.csd, window.solid-csd { border: none; }
+/* no compositor announced (glassine-epdd-desktop): GTK4 marks windows solid-csd and
+ * libadwaita pads them 4 px for resize handles, drawn as a dark frame */
+window.solid-csd { padding: 0; }
+dialog.floating sheet, floating-sheet > sheet, .floating sheet { border-radius: 0; }
+
+/* No soft shadows (e-ink renders blur as grey dither): libadwaita's knobs, toasts,
+ * sheets and raised bars get a hairline instead; dimming, scroll edge and page
+ * transition shadows go. Inset outlines (check, radio, entries) stay. */
+* { text-shadow: none; -gtk-icon-shadow: none; }
+/* Nautilus (and other GTK4 icon views) draw a per-icon drop-shadow filter: one
+ * blurred offscreen pass per visible icon, every frame, ~half of a scroll frame
+ * on a small GPU. User CSS outranks the app's own. */
+.view picture { filter: none; }
+switch > slider, scale > trough > slider, scale > trough > slider:hover { box-shadow: 0 0 0 1px #141414; }
+toast { box-shadow: none; background-color: #141414; color: #ffffff; }
+.osd, .app-notification { box-shadow: none; text-shadow: none; }
+dialog.floating sheet, floating-sheet > sheet, dialog.bottom sheet, bottom-sheet > sheet { box-shadow: 0 0 0 1px #141414; }
+dimming, floating-sheet > dimming, bottom-sheet > dimming { background: none; }
+navigation-view > shadow, overlay-split-view > shadow, flap > shadow, leaflet > shadow,
+navigation-view > border, overlay-split-view > border, flap > border, leaflet > border,
+flap > outline, leaflet > outline { background: none; box-shadow: none; }
+undershoot.top, undershoot.bottom, undershoot.left, undershoot.right,
+overshoot.top, overshoot.bottom, overshoot.left, overshoot.right { background: none; box-shadow: none; }
+toolbarview > .top-bar.raised, toolbarview > .bottom-bar.raised,
+.top-bar.raised, .bottom-bar.raised, searchbar > revealer > box { box-shadow: none; }
+toolbarview > .top-bar.raised { box-shadow: 0 1px #141414; }
+toolbarview > .bottom-bar.raised { box-shadow: 0 -1px #141414; }

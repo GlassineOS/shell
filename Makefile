@@ -16,6 +16,8 @@ check:
 	sh test/swayd/test.sh
 	sh test/settings/test.sh
 	sh test/setup/test.sh
+	sh test/admin-auth/test.sh
+	sh test/health/test.sh
 
 clean:
 	rm -f $(OUT)/glassine-shell-wl $(OUT)/glassine-swayd

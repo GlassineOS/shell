@@ -1,4 +1,4 @@
-/* glassine-shell-wl.c — glassine-shell's Wayland backend (the sway session, ).
+/* glassine-shell-wl.c — glassine-shell's Wayland backend (the sway session).
  *
  * Surfaces: layer-shell surfaces (wlr-layer-shell-unstable-v1). The bar is on
  * the top layer, anchored to the top edge with an exclusive zone (sway's

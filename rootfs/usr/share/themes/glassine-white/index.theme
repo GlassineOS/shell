@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=Glassine White
+Comment=The glassine-shell "white" theme for GTK3
+
+[X-GNOME-Metatheme]
+GtkTheme=glassine-white
+IconTheme=glassine-mono

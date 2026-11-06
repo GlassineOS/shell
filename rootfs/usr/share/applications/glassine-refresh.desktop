@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Refresh screen
+Comment=Full e-ink refresh (clears ghosting)
+Exec=glassine-refresh
+Icon=view-refresh
+Categories=Utility;

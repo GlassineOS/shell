@@ -171,7 +171,7 @@ def human(b):
 # glassine-settings E-ink > Scrolling: the paint of a motion run's steps, adaptive
 # (follows the speed, up to the fastest paint) or fixed (always that paint);
 # the glassine-epdd-desktop policy's mmin/mmax steps (epd-policy.h). Payback is not a
-# setting: glassine-epdd-desktop pays back every cut A2 (user, ); lines an older
+# setting: glassine-epdd-desktop pays back every cut A2 (user); lines an older
 # glassine-settings wrote for it are removed so the defaults apply
 AHEAD = ("predict", "run", "off")          # glassine-epdd-desktop ahead= (settings "Next frame")
 PAYBACK_KEYS = ("matched", "matched_from", "matched_cap", "model", "payback", "heal", "heal_from")
@@ -268,7 +268,7 @@ def desktop_apps():
             if flatpak:
                 prog = ""                              # "flatpak run ID": the id says it
                 wmc = ""                               # (X's WM_CLASS: under sway glassine-epdd-desktop sees the app_id + the Flatpak id,
-                                                       # Chromium's "chromium-browser" line never matched, )
+                                                       # Chromium's "chromium-browser" line never matched)
             run_as = PROC_ALIAS.get(prog, prog)
             seen[did] = dict(id=did, name=e["Name"], icon=icon, match=wmc or did.lower(),
                              ident=" ".join(x for x in (wmc, did.lower(), prog.lower(), run_as) if x),
@@ -355,7 +355,7 @@ class Base:
         self.ahead = "predict"          # Next frame: glassine-epdd-desktop ahead=predict|run|off (when sway may draw)
         self.dpat = "blue"              # dither_pattern=blue|bayer|dizzy (the dots of dither=on; an app's own: its dither=)
         self.dzreuse = False            # dizzy_reuse=on|off (dizzy: the dots move with a scroll)
-        self.grey = "luminance"         # grey=luminance|luma (glassine-epdd-desktop: colours to grey, )
+        self.grey = "luminance"         # grey=luminance|luma (glassine-epdd-desktop: colours to grey)
         self.hammer = True              # hammer_top=2|0 (the rail hammer, glassine-epdd-desktop's default on)
         self.pointer = True             # pointer=on|off (sway: the mouse pointer on the panel, glassine-epdd-desktop's default on)
         self.boost_run = False          # boost_run=on|off (full CPU clock through a motion run; glassine-epdd-desktop's default off)
@@ -495,11 +495,13 @@ class Base:
         return run("doas", ROOT, "auth-check", level, timeout=10)[0] == 0
 
     def admin_auth(self, pw):
-        """an administrator's password to the root helper -> good?"""
+        """an administrator's password to the root helper -> True good, False wrong,
+        None couldn't be checked (the helper's exit 2, or it didn't run)"""
         try:
-            return subprocess.run(["doas", ROOT, "auth"], input=pw, text=True, capture_output=True, timeout=30).returncode == 0
+            rc = subprocess.run(["doas", ROOT, "auth"], input=pw, text=True, capture_output=True, timeout=30).returncode
         except (OSError, subprocess.SubprocessError):
-            return False
+            return None
+        return True if rc == 0 else False if rc == 1 else None
 
     def bg(self, fn, *a):
         """fn(*a) in a thread, then changed()"""

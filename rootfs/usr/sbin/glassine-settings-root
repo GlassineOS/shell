@@ -4,7 +4,7 @@
 # ntp on|off : /etc/glassine/ntp-off stops glassine-clock sync
 # ddr LEVEL : DDR vote performance|balanced|saver (glassine-ddr: saved + applied)
 # gpu panel on|off : /etc/glassine/epd-gpu + glassine-epdd-desktop gpu=on|off now (drive frames)
-# gpu sway on|off : /etc/glassine/sway-gpu (sway renders with GLES, );
+# gpu sway on|off : /etc/glassine/sway-gpu (sway renders with GLES);
 # on clears the fallback mark; restarts a running sway session
 # rotation auto|0|90|180|270 : /etc/glassine/rotation (glassine-rotd re-reads it within 1 s):
 # auto, or locked to that turn (sway's clockwise degrees)
@@ -27,7 +27,7 @@
 # good = the password commands below work for this user
 # for 5 minutes. Exit 1 wrong. auth-check admin|password:
 # exit 0 if the command would run now, else 77.
-# Who may run what (lib/glassine/admin-auth.sh, ): anyone = apk-update,
+# Who may run what (lib/glassine/admin-auth.sh): anyone = apk-update,
 # apk-ack, pkg-changes, restart-desktop, rotation; admin = timezone, ntp, ddr, gpu,
 # freeze, uninstall; password = apk-add, apk-del, apk-upgrade.
 . /usr/lib/glassine/admin-auth.sh

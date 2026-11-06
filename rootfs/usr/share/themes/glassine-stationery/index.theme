@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=X-GNOME-Metatheme
+Name=Glassine Stationery
+Comment=The glassine-shell "stationery" theme for GTK3
+
+[X-GNOME-Metatheme]
+GtkTheme=glassine-stationery
+IconTheme=glassine-mono

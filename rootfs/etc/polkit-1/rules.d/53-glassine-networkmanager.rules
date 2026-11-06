@@ -1,0 +1,20 @@
+// NetworkManager for the desktop user (group wheel): glassine-settings adds, changes
+// and forgets Wi-Fi profiles with nmcli (`nmcli con mod … wifi-sec.psk` when
+// glassine-nm-agent's notice asks for a new password). Alpine's own rule (plugdev)
+// wants an "active" session, which polkit can't see here (no logind/elogind),
+// so without this every profile change would ask for admin auth.
+// Only what glassine-settings does: wheel may also add, change and delete connections
+// (settings.modify.*); hostname, reload, checkpoints, sleep, sharing and the rest
+// still ask. Every desktop user may use the networks already saved (connect,
+// scan, Wi-Fi on/off).
+var NM = "org.freedesktop.NetworkManager.";
+var WHEEL = [NM + "settings.modify.system", NM + "settings.modify.own"];
+polkit.addRule(function(action, subject) {
+    if (WHEEL.indexOf(action.id) >= 0 && subject.isInGroup("wheel"))
+        return polkit.Result.YES;
+    if ((action.id == NM + "network-control" ||
+         action.id == NM + "wifi.scan" ||
+         action.id == NM + "enable-disable-wifi") && (subject.isInGroup("desktop") || subject.isInGroup("wheel")))
+        return polkit.Result.YES;
+    return polkit.Result.NOT_HANDLED;
+});

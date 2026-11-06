@@ -1,0 +1,60 @@
+#!/usr/bin/python3
+"""glassine-bt-trust: a device that becomes paired is trusted.
+
+BlueZ refuses a connection that an untrusted device starts itself (a gamepad
+or keyboard reconnecting when turned on) unless an agent authorizes it, so a
+device paired without trust (blueman, bluetoothctl, the device's own pairing)
+connected once and then kept reconnecting and getting turned away.
+glassine-settings trusts what it pairs; this does the same for every other way.
+
+Only the moment a device turns Paired is acted on: a device the user set to
+"Connect automatically: off" in glassine-settings stays untrusted.
+  glassine-bt-trust [-v]     (the sway config starts it and restarts it if it dies)"""
+import sys
+
+import gi
+gi.require_version("Gio", "2.0")
+from gi.repository import Gio, GLib  # noqa: E402
+
+DEV = "org.bluez.Device1"
+VERBOSE = "-v" in sys.argv
+
+
+def log(*a):
+    print("glassine-bt-trust:", *a, file=sys.stderr, flush=True)
+
+
+def trust(bus, path, name):
+    try:
+        bus.call_sync("org.bluez", path, "org.freedesktop.DBus.Properties", "Set",
+                      GLib.Variant("(ssv)", (DEV, "Trusted", GLib.Variant("b", True))),
+                      None, Gio.DBusCallFlags.NONE, 5000, None)
+        log("trusted", name or path)
+    except GLib.Error as e:
+        log("could not trust", name or path + ":", e.message)
+
+
+def main():
+    bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+
+    def on_props(_c, _s, path, _i, _sig, params):
+        iface, changed, _inv = params.unpack()
+        if iface != DEV or not changed.get("Paired"):
+            return
+        try:
+            props = bus.call_sync("org.bluez", path, "org.freedesktop.DBus.Properties", "GetAll",
+                                  GLib.Variant("(s)", (DEV,)), None, Gio.DBusCallFlags.NONE, 5000, None).unpack()[0]
+        except GLib.Error:
+            return
+        if VERBOSE:
+            log("paired:", path, props.get("Alias"), "trusted" if props.get("Trusted") else "untrusted")
+        if not props.get("Trusted"):
+            trust(bus, path, props.get("Alias"))
+
+    bus.signal_subscribe("org.bluez", "org.freedesktop.DBus.Properties", "PropertiesChanged",
+                         None, None, Gio.DBusSignalFlags.NONE, on_props)
+    GLib.MainLoop().run()
+
+
+if __name__ == "__main__":
+    main()

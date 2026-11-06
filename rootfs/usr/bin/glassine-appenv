@@ -1,0 +1,43 @@
+#!/bin/sh
+# glassine-appenv PROFILE CMD [ARG...]: run CMD with an app render profile.
+# glassine-app-render writes it in front of an app's Exec lines.
+# gpu nothing: the session's environment (GSK ngl, FD_MESA_DEBUG from sway 0005)
+# short FD_MESA_DEBUG=sysmem (no flush): GTK4 faster than stock, its
+# GPU jobs shorter (GNOME Software 40 ms p75 vs 123 with the split);
+# no chunked submits (FD_CHUNK_* unset, L3 off): Chromium's default
+# (all three GPU hangs seen in a day of testing had L3 on, and L3
+# brought it nothing over short); no L4 either (FD_L4 unset)
+# l3 short + chunked submits (FD_CHUNK_US=2000, our system Mesa): fewer panel
+# misses beside a heavy app, some of its fps (opt-in since defaults v8)
+# cpu llvmpipe/cairo/Qt software: the GPU free for the panel, ~1 A53 core
+# while the app draws. Chromium/Electron take llvmpipe as no GPU (software)
+# glassine-appenv --print PROFILE: the profile's KEY=VALUE lines and !KEY for a
+# variable it unsets (glassine-app-render's Flatpak overrides use them: --env,
+# --unset-env). An unknown profile runs CMD unchanged.
+prof() {
+    case $1 in
+    gpu) ;;
+    short) printf '%s\n' FD_MESA_DEBUG=sysmem !FD_CHUNK_US !FD_CHUNK_COST !FD_L4 ;;
+    l3) printf '%s\n' FD_MESA_DEBUG=sysmem FD_CHUNK_US=2000 ;;
+    cpu) printf '%s\n' LIBGL_ALWAYS_SOFTWARE=1 GSK_RENDERER=cairo QT_QUICK_BACKEND=software ;;
+    *) return 1 ;;
+    esac
+}
+if [ "$1" = --print ]; then
+    prof "$2"
+    exit
+fi
+[ $# -ge 2 ] || { echo "usage: glassine-appenv gpu|short|l3|cpu CMD [ARG...]" >&2; exit 2; }
+p=$1
+shift
+if e=$(prof "$p"); then
+    for kv in $e; do
+        case $kv in
+        !*) unset "${kv#!}" ;;
+        *) export "$kv" ;;
+        esac
+    done
+else
+    echo "glassine-appenv: unknown profile '$p', running $1 unchanged" >&2
+fi
+exec "$@"
