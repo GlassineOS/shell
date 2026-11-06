@@ -381,13 +381,12 @@ def build(ui, be):
         add(B.Stepper("Idle before full refresh", "Clears ghosting after typing stops",
                       [(150, "150 ms"), (250, "250 ms"), (400, "400 ms"), (600, "600 ms"), (800, "800 ms"),
                        (1000, "1 s"), (1500, "1.5 s"), (2000, "2 s")], be.idle_ms, be.set_idle))
-        if be.on_sway:
-            add(B.Stepper("Wait for animations to settle", "Paints a short transition once, not its first frame",
-                          [(0, "Off"), (40, "40 ms"), (70, "70 ms"), (100, "100 ms"), (150, "150 ms")],
-                          be.debounce_ms, be.set_debounce))
-            if be.debounce_ms:
-                add(B.Toggle("Also with the keyboard up", "Letters you type appear a little later",
-                             be.debounce_osk, lambda: be.set_debounce_osk(not be.debounce_osk)))
+        add(B.Stepper("Wait for animations to settle", "Paints a short transition once, not its first frame",
+                      [(0, "Off"), (40, "40 ms"), (70, "70 ms"), (100, "100 ms"), (150, "150 ms")],
+                      be.debounce_ms, be.set_debounce))
+        if be.debounce_ms:
+            add(B.Toggle("Also with the keyboard up", "Letters you type appear a little later",
+                         be.debounce_osk, lambda: be.set_debounce_osk(not be.debounce_osk)))
         add(B.Toggle("Anti-ghosting", "Predicts and cancels the ghosting fast paints leave",
                      be.payback, lambda: be.set_payback(not be.payback)))
         add(B.Toggle("Rail hammer", "Black and white get a little extra drive when they land: less ghosting while scrolling",
@@ -402,19 +401,18 @@ def build(ui, be):
         add(B.Head("Rendering"))
         add(B.Toggle("Panel on the GPU", "Graphics chip draws the panel; less CPU", be.gpu_panel,
                      lambda: be.set_gpu_panel(not be.gpu_panel)))
-        if be.on_sway:                  # X keeps CPU compositing (no row: X is end of life)
-            armed = be.desk_is_armed()
-            if armed:
-                apps = [ui.app_name(a) for a in be.desk_closes]
-                sub = "Tap again to restart. " + ("Closes " + ", ".join(apps) if apps else "No apps open")
-            elif be.gpu_fallback and be.gpu_desk:
-                sub = "On the CPU since a GPU crash at %s. Back on the GPU after a reboot" % be.gpu_fallback
-            else:
-                sub = "Apps use the graphics chip. Restarts the desktop"
-            # armed or not is decided at the tap (a stale page must not switch on one tap)
-            add(B.Toggle("Desktop on the GPU", sub, be.gpu_desk,
-                         lambda: be.set_gpu_desk(not be.gpu_desk) if be.desk_is_armed() else be.arm_desk(),
-                         armed=armed, sub_ink=not armed and bool(be.gpu_fallback) and be.gpu_desk))
+        armed = be.desk_is_armed()
+        if armed:
+            apps = [ui.app_name(a) for a in be.desk_closes]
+            sub = "Tap again to restart. " + ("Closes " + ", ".join(apps) if apps else "No apps open")
+        elif be.gpu_fallback and be.gpu_desk:
+            sub = "On the CPU since a GPU crash at %s. Back on the GPU after a reboot" % be.gpu_fallback
+        else:
+            sub = "Apps use the graphics chip. Restarts the desktop"
+        # armed or not is decided at the tap (a stale page must not switch on one tap)
+        add(B.Toggle("Desktop on the GPU", sub, be.gpu_desk,
+                     lambda: be.set_gpu_desk(not be.gpu_desk) if be.desk_is_armed() else be.arm_desk(),
+                     armed=armed, sub_ink=not armed and bool(be.gpu_fallback) and be.gpu_desk))
         nr = sum(1 for a in be.apps if a.get("render", "gpu") != "gpu")
         add(B.Item("Apps' drawing", ("%d app%s not on the plain GPU" % (nr, "" if nr == 1 else "s")) if nr else "All on the GPU",
                    chev=True, fn=lambda: ui.go("render-apps")))
@@ -578,16 +576,15 @@ def build(ui, be):
         add(B.Head("On-screen keyboard layout"))
         add(B.Radio("German", "QWERTZ", be.osk == "german", lambda: be.set_osk("german")))
         add(B.Radio("US English", "QWERTY", be.osk == "us", lambda: be.set_osk("us")))
-        if be.on_sway:
-            same = "German" if be.osk == "german" else "US English"
-            add(B.Head("Hardware keyboard layout"))
-            add(B.Radio("As the on-screen keyboard", same, be.kbd == "", lambda: be.set_kbd("")))
-            for code, name, kind in KBD_LAYOUTS:
-                add(B.Radio(name, kind, be.kbd == code, lambda code=code: be.set_kbd(code)))
+        same = "German" if be.osk == "german" else "US English"
+        add(B.Head("Hardware keyboard layout"))
+        add(B.Radio("As the on-screen keyboard", same, be.kbd == "", lambda: be.set_kbd("")))
+        for code, name, kind in KBD_LAYOUTS:
+            add(B.Radio(name, kind, be.kbd == code, lambda code=code: be.set_kbd(code)))
         add(B.Head("Behaviour"))
         add(B.Toggle("Show on text focus", "Opens when a text field is tapped" +
-                     (", unless a keyboard is connected" if be.on_sway else ""), be.osk_auto, lambda: be.set_osk_auto(not be.osk_auto)))
-        if be.on_sway and be.shortcuts:
+                     ", unless a keyboard is connected", be.osk_auto, lambda: be.set_osk_auto(not be.osk_auto)))
+        if be.shortcuts:
             add(B.Head("Keyboard shortcuts", "With a connected keyboard"))
             for keys, label in be.shortcuts:
                 add(B.KV(label, keys))
@@ -604,16 +601,15 @@ def build(ui, be):
         else:
             add(B.Themes(tiles))
         add(B.Note("Applies to the top bar, popups and GTK apps. The screen refreshes once." if cmp else
-                   "The theme applies to the top bar, popups and every GTK app, under X and sway."))
+                   "The theme applies to the top bar, popups and every GTK app."))
         add(B.Head("Rotation", "Auto" if be.rot_auto else "Locked"))
         add(B.Toggle("Auto-rotate", "Follows the sensor. Tap an orientation to lock it" if be.rot_auto else
                      "Locked. The T marks the top of the screen", be.rot_auto, lambda: be.set_rot_auto(not be.rot_auto)))
         add(B.Rotation(be.rot_auto, be.rot_lock, be.rot_now, be.set_rot_lock))
-        if be.on_sway:
-            add(B.Head("Windows"))
-            add(B.Toggle("Open apps on their own screen", "An app opened from the drawer gets a new screen" if be.own_ws else
-                         "An app opened from the drawer joins the current screen (up to 4 windows)",
-                         be.own_ws, lambda: be.set_own_ws(not be.own_ws)))
+        add(B.Head("Windows"))
+        add(B.Toggle("Open apps on their own screen", "An app opened from the drawer gets a new screen" if be.own_ws else
+                     "An app opened from the drawer joins the current screen (up to 4 windows)",
+                     be.own_ws, lambda: be.set_own_ws(not be.own_ws)))
 
     elif p == "gestures":
         title = "Gestures"

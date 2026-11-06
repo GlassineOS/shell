@@ -2,10 +2,10 @@
 # The on-screen keyboard of the sway session (started by the sway config;
 # glassine-osk shows/hides it, glassine-swayd shows it for a focused text field): wvkbd,
 # hidden until asked, restarted while sway runs.
-# The look follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme), as
-# Onboard's does on X (/usr/share/onboard/themes/glassine-*): wvkbd-glassine is wvkbd
-# with ../wvkbd/0001-glassine-themable-keys.patch (key outlines, the gap, the label
-# of a pressed key, no press popup: one e-ink update less per key). A theme
+# The look follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme):
+# wvkbd-glassine is wvkbd with ../wvkbd/0001-glassine-themable-keys.patch (key outlines,
+# the gap, the label of a pressed key, no press popup: one e-ink update less per
+# key). A theme
 # change restarts it (shown again if it was). Stock wvkbd-mobintl (no patch):
 # the old look, white keys on black lines, a grey press.
 # Layers (the ⌨ key cycles them): ~/.config/glassine/osk-layers (glassine-settings →
@@ -21,7 +21,7 @@ while swaymsg -t get_version >/dev/null 2>&1; do
     rm -f "$R/glassine-osk.shown"
     t0=$(mtime)
     if command -v wvkbd-glassine >/dev/null; then
-        case "$(cat "$TF" 2>/dev/null)" in     # the theme's look (Onboard's glassine-* themes)
+        case "$(cat "$TF" 2>/dev/null)" in     # the theme's look
             editorial) set -- --fn "Source Serif 4 17" -R 0 --gap 2 --stroke-width 1 \
                 --bg ffffff --fg ffffff --fg-sp dedede --stroke 111111 --stroke-sp 111111 \
                 --press 111111 --press-sp 111111 --swipe 11111160 --swipe-sp 11111160 \

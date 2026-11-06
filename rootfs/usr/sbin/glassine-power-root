@@ -3,8 +3,6 @@
 # A power-off or restart from the menu is user-started: it may switch a staged
 # deployment (GlassineOS/boot glassine-switch-hook; absent on the plain layout).
 # Anyone: sleep, poweroff, reboot, android, recovery (no prompt).
-# An administrator: session (exit 77 otherwise, see lib/glassine/admin-auth.sh).
-. /usr/lib/glassine/admin-auth.sh
 user_shutdown() { command -v glassine-switch-hook >/dev/null && glassine-switch-hook --user-shutdown; return 0; }
 case "$1" in
 	poweroff) : > /run/glassine-poweroff; user_shutdown; exec poweroff ;;   # glassine-splash shows the power-off screen
@@ -12,6 +10,5 @@ case "$1" in
 	sleep)    exec kill -USR1 $(pidof glassine-powerd) ;;               # glassine-powerd sleeps as on the power key
 	android)  exec /usr/sbin/glassine-slot android ;;
 	recovery) exec /usr/sbin/glassine-reboot-clean recovery ;;   # p9 (TWRP or a mainline test image); its "Reboot" comes back here
-	session)  auth_need_admin; exec /usr/sbin/glassine-session-switch "$2" ;;      # x|sway; restarts the session
-	*) echo "usage: $0 sleep|poweroff|reboot|android|recovery|session [x|sway]" >&2; exit 2 ;;
+	*) echo "usage: $0 sleep|poweroff|reboot|android|recovery" >&2; exit 2 ;;
 esac

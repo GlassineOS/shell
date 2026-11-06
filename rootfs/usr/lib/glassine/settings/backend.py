@@ -31,7 +31,7 @@ EPDD_CLASSES = "/run/glassine-epdd-desktop.classes"     # the window classes gla
 SEEN_CLASSES = HOME + "/.cache/glassine/epdd-classes"   # those, across boots
 BGPRIO_CONF = "/etc/glassine/bgprio.conf"
 FAVOURITES = HOME + "/.config/glassine-shell/favourites"   # glassine-shell's launcher (re-read on change)
-FAV_DEFAULT = ("koreader", "firefox-esr", "com.github.xournalpp.xournalpp", "xfce4-terminal")   # as glassine-shell without the file
+FAV_DEFAULT = ("glassine-settings", "foot")   # as glassine-shell without the file: the apps the image ships
 MONO_ICONS = "/usr/share/icons/glassine-mono/scalable/apps/%s.svg"
 APP_DIRS = ("/usr/share/applications", "/usr/local/share/applications", HOME + "/.local/share/applications",
             "/var/lib/flatpak/exports/share/applications", HOME + "/.local/share/flatpak/exports/share/applications")
@@ -267,7 +267,7 @@ def desktop_apps():
             wmc = e.get("StartupWMClass", "").lower()
             if flatpak:
                 prog = ""                              # "flatpak run ID": the id says it
-                wmc = ""                               # (X's WM_CLASS: under sway glassine-epdd-desktop sees the app_id + the Flatpak id,
+                wmc = ""                               # (an X11 WM_CLASS: glassine-epdd-desktop sees the app_id + the Flatpak id,
                                                        # Chromium's "chromium-browser" line never matched)
             run_as = PROC_ALIAS.get(prog, prog)
             seen[did] = dict(id=did, name=e["Name"], icon=icon, match=wmc or did.lower(),
@@ -283,7 +283,7 @@ def desktop_apps():
 
 def seen_classes():
     """the window classes glassine-epdd-desktop matched its app lines against (EPDD_CLASSES:
-    this epdd's run; under sway the app_id + a Flatpak's id, on X "class instance"),
+    this epdd's run: the app_id + a Flatpak's id; an XWayland app's "class instance"),
     kept across boots in SEEN_CLASSES"""
     cur = [l for l in read(EPDD_CLASSES).splitlines() if l.strip() and not l.startswith(" ")]
     old = read(SEEN_CLASSES).splitlines()
@@ -303,7 +303,7 @@ def epdd_view(a, seen):
     that is one of the app's names), its line's MATCH is a word of that class and
     ident the class itself (exactly what glassine-epdd-desktop's strstr finds); unseen: the
     desktop file's guess (desktop_apps). The guess missed: Chromium's
-    StartupWMClass "chromium-browser" is X's, sway says org.chromium.chromium"""
+    StartupWMClass "chromium-browser" is the X11 class, sway says org.chromium.chromium"""
     did = a["id"].lower()
     names = set(a["ident"].split()) | {did, did.split(".")[-1]}
     hits = [c for c in seen if names & set(c.split())]
@@ -367,7 +367,7 @@ class Base:
         self.gestures = dict(GESTURE_DEFAULT)
         # rendering: panel = epdd's drive frames, desk = sway's renderer;
         # desk_armed: when the first tap of the desktop switch came (0 = not armed)
-        self.gpu_panel, self.gpu_desk, self.gpu_fallback, self.on_sway = False, False, "", False
+        self.gpu_panel, self.gpu_desk, self.gpu_fallback = False, False, ""
         self.desk_armed, self.desk_closes = 0, []         # desk_closes: app ids a restart closes
         # managed light: limits (%), the user's offsets, today's sun (local hours)
         self.managed = False
@@ -603,7 +603,7 @@ class Demo(Base):
                                   ("Mail", "mail"), ("Chess", "chess"), ("OpenMW", "sports_esports"), ("Transit", "directions_transit")]]
         self.managed, self.sun, self.located = True, (7.3, 18.95), True
         self.prof, self.prof_ok = "balanced", True
-        self.gpu_panel, self.gpu_desk, self.on_sway, self.gpu_fallback = True, True, True, "19:42"
+        self.gpu_panel, self.gpu_desk, self.gpu_fallback = True, True, "19:42"
         self.hostname = "glassine"
         self.profiles = [["Firefox ESR", "fast"], ["KOReader", "quality"], ["Terminal", "fast"], ["Notes", "auto"],
                          ["Stellarium", "quality"], ["Gnumeric", "auto"], ["Marble", "fast"], ["Calendar", "auto"]]
@@ -814,8 +814,7 @@ class Conf:
     """a key=value or @key=value file edited in place: comments, order and the
     other lines kept (group-writable files in root's /etc/glassine: no temp file +
     rename, the dir is not ours). Every edit holds an exclusive flock from the
-    read to the write (glassine-shell, glassine-eink-center and glassine-quick lock the same
-    file), and the write never truncates first: blocks reserved, then the new
+    read to the write (glassine-shell locks the same file), and the write never truncates first: blocks reserved, then the new
     bytes over the old, then the length cut. A reader never sees an empty file,
     and a full disk fails the edit before anything changes."""
 
@@ -1083,7 +1082,6 @@ class Real(Base):
         self.gpu_desk = os.path.exists(SWAY_GPU)
         fb = read(GPU_FALLBACK)
         self.gpu_fallback = fb.split(" ", 1)[0] if fb else ""
-        self.on_sway = os.environ.get("XDG_SESSION_TYPE") == "wayland"
         lay = read(OSK_LAYERS_USER) or read("/etc/glassine/osk-layers") or OSK_LAYERS["german"]
         self.osk = "us" if lay.split(",")[0] == "full" else "german"
         self.osk_auto = not os.path.exists(OSK_NO_AUTO)
@@ -1386,7 +1384,7 @@ class Real(Base):
         self.bg(lambda: self._prop(did, "org.bluez.Device1", "Trusted", GLib.Variant("b", on)))
 
     def discover(self):
-        """10 s of discovery, then the list is drawn once (P14-3)"""
+        """10 s of discovery, then the list is drawn once"""
         if self.bt_busy or not self.adapter:
             return
         self.bt_busy = True
@@ -1748,7 +1746,7 @@ class Real(Base):
                 "sleep": ("idle_sleep_min", val), "wifi_off": ("wifi_off_after_min", val)}[key]
         self._try(lambda: self.power.set(k, v))
 
-    # -- keyboard (glassine-wvkbd / glassine-swayd read these; Onboard on X)
+    # -- keyboard (glassine-wvkbd / glassine-swayd read these)
     def set_osk(self, layout):
         self.osk = layout
 
@@ -1784,8 +1782,6 @@ class Real(Base):
             else:
                 os.makedirs(os.path.dirname(OSK_NO_AUTO), exist_ok=True)
                 open(OSK_NO_AUTO, "w").close()
-            if not os.environ.get("WAYLAND_DISPLAY"):       # X: Onboard's own auto-show
-                run("gsettings", "set", "org.onboard.auto-show", "enabled", "true" if on else "false")
         self._try(go)
 
     def set_own_ws(self, on):

@@ -1,12 +1,12 @@
 /* glassine-shell-be.h — what glassine-shell's common part (glassine-shell.c: views, state,
  * gestures, requests) and its display backend share. The backend owns the
  * display connection: surfaces (the bar, the popup, the resize rail), the
- * window/workspace model and input. X: glassine-shell-x.c (xfwm4 + EWMH). */
+ * window/workspace model and input: glassine-shell-wl.c (layer-shell + sway IPC). */
 #ifndef GLASSINE_SHELL_BE_H
 #define GLASSINE_SHELL_BE_H
 #include "glassine-shell.h"
 
-typedef unsigned long WinId;            /* a client window (X: its Window) */
+typedef unsigned long WinId;            /* a client window (sway: its container id) */
 
 extern int verbose;
 #define LOG(...) do { if (verbose) { fprintf(stderr, "glassine-shell: " __VA_ARGS__); fputc('\n', stderr); } } while (0)
@@ -26,7 +26,6 @@ typedef struct {
     cairo_surface_t *img;
     uint32_t *prev;
     Hit hit[MAXHIT]; int nhit;
-    int keep; uint32_t *shot;           /* keep: the last render as shown (impostors) */
     void *be;                           /* the backend's */
 } Surf;
 extern Surf bar, pop, rail;
@@ -41,7 +40,6 @@ void be_surf_shape(Surf *s);
  * mask (w+7)/8 bytes a row: the opaque pixels' bits set */
 void surf_harden(Surf *s, unsigned char *mask);
 extern int be_align;                    /* surfaces at multiples of this (device px) */
-extern int be_impostors;                /* glassine-epdd-desktop takes impostors (X only) */
 void be_surf_map(Surf *s);              /* shown, on top */
 void be_surf_unmap(Surf *s);
 int be_grab_pointer(Surf *s);           /* all presses to s; 0: failed */
@@ -73,7 +71,7 @@ void be_read_desktop(void);             /* fills the above */
 App *be_app_of(WinId w);
 void be_title(WinId w, char *out, size_t len);
 /* the overview's still of workspace index d (what it showed when last seen,
- * device px of the work area); NULL: none (the X backend has none) */
+ * device px of the work area); NULL: none */
 cairo_surface_t *be_snap(long d);
 void be_snap_fresh(void);               /* before the overview opens: the visible screen's still, if old or none */
 int be_sheet_window(WinId w);           /* can get the window sheet: an app window or a dialog */
@@ -87,10 +85,10 @@ void be_new_screen(WinId w, int follow); /* a new screen right after w's own */
 void be_grab_holes(const int (*r)[4], int n);   /* device px: the catch-all lets these through (a divider under its buttons) */
 void be_pop_input(const int (*r)[4], int n);    /* device px: only these of the popup take input; n 0: all of it */
 void be_move_to_desk(WinId w, long d);  /* d < 0: a new first one; >= ndesk: a new last one; then go there */
-void be_winfit(const char *cmd);        /* a command to glassine-winfit */
+void be_tile(const char *cmd);        /* a tiling command to glassine-swayd */
 void be_theme_publish(const char *name);
-/* a launch placeholder for a (started as pid, 0 = unknown): sway only (glassine-swayd
- * hands its tile to the app's window); X: nothing */
+/* a launch placeholder for a (started as pid, 0 = unknown): glassine-swayd hands its
+ * tile to the app's window */
 void be_placeholder(const App *a, int pid);
 
 /* ---- the connection ----------------------------------------------------------------- */

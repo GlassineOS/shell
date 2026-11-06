@@ -69,7 +69,7 @@ case "$1" in
 		[ -e /run/glassine/booted ] || { echo "not booted from a deployment" >&2; exit 1; }
 		exec /usr/sbin/glassine-deploy packages --porcelain ;;
 	restart-desktop)
-		setsid rc-service glassine-x restart </dev/null >>/var/log/glassine-session.log 2>&1 & ;;
+		setsid rc-service glassine-session restart </dev/null >>/var/log/glassine-session.log 2>&1 & ;;
 	uninstall)
 		auth_need_admin
 		case "$2" in *[!A-Za-z0-9._-]*|""|-*) echo "bad app id: $2" >&2; exit 2 ;; esac
@@ -117,9 +117,8 @@ case "$1" in
 			[ -p /run/glassine-epdd-desktop.ctl ] && pidof glassine-epdd-desktop >/dev/null &&
 				timeout 2 sh -c "echo gpu=$3 > /run/glassine-epdd-desktop.ctl" || true
 		else
-			s=x; [ -r /etc/glassine/session ] && read -r s < /etc/glassine/session
 			# detached: the caller (glassine-settings) is an app of the session being restarted
-			[ "$s" = sway ] && { setsid rc-service glassine-x restart </dev/null >>/var/log/glassine-session.log 2>&1 & }
+			setsid rc-service glassine-session restart </dev/null >>/var/log/glassine-session.log 2>&1 &
 		fi ;;
 	freeze)
 		auth_need_admin

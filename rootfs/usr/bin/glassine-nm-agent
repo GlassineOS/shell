@@ -1,7 +1,7 @@
 #!/usr/bin/python3
-"""glassine-nm-agent: NetworkManager's secret agent for the sway session, P14-1). On X, nm-applet is the agent; sway
-has none, so a network whose password NetworkManager needs (a changed router
-password, a login for an 802.1X network) just failed without a word.
+"""glassine-nm-agent: NetworkManager's secret agent for the sway session. Without one, a network whose password
+NetworkManager needs (a changed router password, a login for an 802.1X
+network) just failed without a word.
 
 This agent never prompts and holds no request. When NetworkManager may ask
 the user (flag ALLOW_INTERACTION), it answers "no secrets" at once and posts

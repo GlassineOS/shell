@@ -1,6 +1,5 @@
-/* swayd-handles.c — the drag handles between tiles on sway (glassine-swayd; the X
- * twin is glassine-winfit's handle windows). sway leaves GAP (40 device px) between
- * tiles (`gaps inner 20` + `gaps outer -20` in the session config); every gap
+/* swayd-handles.c — the drag handles between tiles on sway (glassine-swayd). sway
+ * leaves GAP (40 device px) between tiles (`gaps inner 20` + `gaps outer -20` in the session config); every gap
  * of the visible workspace's layout gets a BOTTOM-layer surface: under every
  * window, so dialogs and fullscreen apps cover it, and above the wallpaper.
  *
@@ -10,12 +9,12 @@
  * a buffer of the split's whole range per step, all of it damaged); the windows are resized once, on release (every resize is an
  * e-ink repaint). The handle itself never moves during a drag: touch and
  * pointer positions stay relative to the surface they started on. The shell's
- * snap rail comes with it (glassine-shell `drag ...` / `dragend`, as from winfit).
+ * snap rail comes with it (glassine-shell `drag ...` / `dragend`).
  * A tap (no 16 px move) opens the shell's divider sheet (glassine-swayd). The look
- * follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme), as winfit's.
+ * follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme).
  *
- * The same connection watches the text-input focus for the on-screen keyboard
- * (Onboard's auto-show on X): an input method (zwp_input_method_v2, no keyboard
+ * The same connection watches the text-input focus for the on-screen keyboard:
+ * an input method (zwp_input_method_v2, no keyboard
  * grab, it never types) that sway activates when a text field (text-input-v3:
  * GTK, Firefox, Qt) gets the focus; hd_text_focus tells glassine-swayd. Terminals
  * (content purpose terminal: foot has it while focused) don't count. */
@@ -59,7 +58,7 @@ typedef struct {
 static Surf hs[MAXHD], gh;
 static int nhs;
 
-/* ---- the look: glassine-shell's theme (as glassine-winfit) ---------------------------- */
+/* ---- the look: glassine-shell's theme ----------------------------------------- */
 static const struct hstyle {
     const char *name;
     unsigned bg, drag, edge, grip, gripdrag, stitch, lip;   /* 0xRRGGBB, ~0u: none */
@@ -149,7 +148,7 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
         cairo_restore(c);
         cairo_fill(c);
         if (s->lip != ~0u) {            /* a grey crescent at the grip's foot: inside the
-                                         * grip, outside the grip shifted 4 px up (as X) */
+                                         * grip, outside the grip shifted 4 px up */
             cairo_save(c);
             cairo_save(c);
             cairo_translate(c, gx + gw / 2.0, gy + ghh / 2.0);
@@ -426,7 +425,7 @@ static void p_axis(void *data, struct wl_pointer *p, uint32_t time, uint32_t axi
 static const struct wl_pointer_listener pointer_l = { p_enter, p_leave, p_motion, p_button, p_axis };
 
 /* a capability can go and come back (the touchscreen's input device replaced,
- * e.g. glassine-touchd's "Glassine Touch" clone starting or stopping): the old object
+ * e.g. a clone device of the touchscreen starting or stopping): the old object
  * then gets no more events, so it is released and a new one taken */
 static void seat_caps(void *data, struct wl_seat *st, uint32_t caps)
 {

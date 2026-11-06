@@ -1,7 +1,7 @@
 #!/bin/sh
 # A deployment (and a kernel test boot: GlassineOS/boot runs every
-# health.d script for both) is healthy when the desktop of the configured session
-# (/etc/glassine/session; a session that fell back to X counts as unhealthy),
+# health.d script for both) is healthy when the sway session (or the first-run
+# setup) has not been marked failed this boot,
 # glassine-epdd-desktop, the panel link and the shell are up and have STAYED up: each process
 # must be running for at least GLASSINE_HEALTH_MIN_AGE seconds (default 60; the
 # checks run at >= 90-120 s uptime), so one that crashed and was restarted a
@@ -29,13 +29,13 @@ age() {
 if [ -e /run/glassine-setup.active ]; then
     # the first-run setup runs (glassine-session): its window instead of the shell
     desk="sway-glassine" shell=glassine-setup
-elif [ "$(cat /etc/glassine/session 2>/dev/null)" = sway ]; then
+else
     desk="sway-glassine glassine-swayd" shell=glassine-shell-wl
     # the session gave the bar up after repeated deaths (glassine-session-sway)
     for f in /run/user/*/glassine-shell-failed; do [ -e "$f" ] && bad="$bad shell-gave-up"; done
-else
-    desk="Xorg xfce4-session" shell=glassine-shell
 fi
+# sway died again and again this boot (glassine-session)
+[ -e /run/glassine-session-failed ] && bad="$bad session-failed"
 for p in glassine-epdd-desktop $desk $shell; do
     # or glassine-epdd-desktop-wl, a live-deployed build the session prefers when newer
     names=$p; [ "$p" = glassine-epdd-desktop ] && names="glassine-epdd-desktop glassine-epdd-desktop-wl"

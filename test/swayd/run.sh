@@ -95,7 +95,7 @@ n=$(grep -c "^win " /tmp/hints.log)
 bad=$(awk '$1=="win" && ($2<0 || $3<0 || $2+$4>1404 || $3+$5>1872) {print}' /tmp/hints.log | head -3)
 expect "hints: in portrait panel px" "$bad" ""
 grep -q "^win 0 0 1404 916$" /tmp/hints.log && echo "ok   hints: a top half (x2, above the 40 px gap) seen" || { echo "FAIL no top-half hint"; head /tmp/hints.log; fail=1; }
-# the app list for glassine-epdd-desktop's profiles (P13-9): app_id lower-cased, the focused one active
+# the app list for glassine-epdd-desktop's profiles: app_id lower-cased, the focused one active
 grep -qE "^app [0-9]+ [0-9]+ [0-9]+ [0-9]+ [a-f]$" /tmp/hints.log && echo "ok   apps: windows with their app_id" || { echo "FAIL no app lines"; fail=1; }
 expect "apps: the last list's active window" "$(grep '^active' /tmp/hints.log | tail -1)" "active $(swaymsg -t get_tree -r | python3 -c '
 import json,sys

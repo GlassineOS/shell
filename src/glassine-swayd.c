@@ -1,4 +1,4 @@
-/* glassine-swayd — what glassine-winfit does on X, for the sway session (*. Runs as, started by the sway config.
+/* glassine-swayd — the window model of the sway session. Runs as the user, started by the sway config.
  *
  * tiling a workspace's tiled app windows (floating ones -- dialogs --
  * and a fullscreen workspace aside), in their order (the newest
@@ -8,7 +8,7 @@
  * 3: one half whole, the other split across (the whole one
  * first or last: "split"; a new third window comes first)
  * 4: quarters: the first two on top, the other two below
- * Two levels as on X: the first | the rest (4: the first two |
+ * Two levels: the first | the rest (4: the first two |
  * the other two); each level stacked or side by side ("orient",
  * remembered per workspace; default stacked, then side by side).
  * With 4 the inner splits are always across the outer one and
@@ -19,10 +19,9 @@
  * workspaces at most APPS_PER_WS tiled app windows each: one beyond that
  * moves to the first workspace with room, or a new one, and the
  * view follows it. Sway drops an empty workspace it is not on;
- * the ones behind are renumbered down (numbered ones only), as
- * glassine-winfit leaves no gaps.
- * glassine-epdd-desktop window hints on its FIFO (on X it sees the windows map, move
- * and unmap): "win X Y W H" for each area where a window on the
+ * the ones behind are renumbered down (numbered ones only): no
+ * gaps.
+ * glassine-epdd-desktop window hints on its FIFO: "win X Y W H" for each area where a window on the
  * visible workspace appeared, went or moved, in portrait px
  * (turned back by glassine-rotd's /run/glassine-rotation);
  * "win new ..." (settle as after a MapNotify) for a new window
@@ -44,7 +43,7 @@
  * -20` in the sway config): drag = the split moves there (kept
  * per workspace across rebuilds), tap = glassine-shell's divider sheet.
  * commands datagrams on $XDG_RUNTIME_DIR/glassine-swayd (glassine-shell's divider
- * sheet, as _GLASSINE_WINFIT on X):
+ * sheet):
  * swap HEXID HEXID the two windows trade places
  * orient LEVEL 0|1 level 0 (the first | the rest) or 1
  * (the rest) stacked (0) / side by side (1)
@@ -127,7 +126,7 @@ static int rot_cw, out_w, out_h;        /* glassine-rotd's turn (clockwise, as s
                                          * output's logical size, device px: hints go out in portrait px */
 
 /* the name glassine-epdd-desktop matches its app profiles against (eink.conf), lower case:
- * the app_id; XWayland windows: "class instance" as on X; a Flatpak's ID is
+ * the app_id; XWayland windows: "class instance"; a Flatpak's ID is
  * appended (view_flatpak_id) */
 static void view_class(json_object *n, char *c, size_t len)
 {
@@ -1052,7 +1051,7 @@ void hd_tapped(const HandleDef *h)
     dividers_send("divider-tap");
 }
 
-/* the keyboard follows the text-input focus (Onboard's auto-show on X); it
+/* the keyboard follows the text-input focus; it
  * hides again only if it came up this way (the bar's button shows it for good).
  * ~/.config/glassine/osk-no-auto (glassine-settings → Keyboard) turns the auto-show off. */
 static int osk_auto(void)

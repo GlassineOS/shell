@@ -1,54 +1,50 @@
 /* glassine-shell — the e-ink desktop shell: the top bar and
- * its popups, drawn natively (Wayland + cairo + Pango), after the "E-ink Shell"
+ * its popups, drawn natively (cairo + Pango on layer-shell surfaces), after the "E-ink Shell"
  * design (three themes, one layout: see glassine-shell-theme.c).
  *
  * bar apps | one button per workspace (tap = go there, hold = the
  * workspaces) | the app in front | clock + notification counter,
- * Wi-Fi, battery, keyboard, refresh | quick settings. A dock
- * window with a strut.
+ * Wi-Fi, battery, keyboard, refresh | quick settings. A
+ * layer-shell surface with an exclusive zone.
  * launcher apps by category (hanging tabs), 9 per page, search; long press
  * on an app = its page in glassine-settings (Apps: overrides,
  * favourite; design )
  * workspaces one folder per workspace with its tiling and apps; tap = go
  * there; under each: move it left / right, remove it (tap twice:
- * its windows are closed, glassine-winfit drops the empty workspace)
+ * its windows are closed, glassine-swayd drops the empty workspace)
  * notices (tap on the clock) the notifications (glassine-shell-notify.c):
  * tap = open, x = dismiss, clear all
  * window the app in front: close, full screen, move to the previous /
  * next / a new workspace
- * divider (tap on a glassine-winfit handle) both windows + this split's
+ * divider (tap on a glassine-swayd handle) both windows + this split's
  * layout: swap, rows, side by side
  * quick Wi-Fi, Bluetooth, mute, refresh (hold one: its settings app);
  * front light, warmth, volume (hold a light label: the light
  * settings); e-ink mode for other apps; rotation (auto or one of
  * four, /etc/glassine/rotation via glassine-settings-root, glassine-rotd turns
- * the screen); the desktop session switch (tap twice). On a
- * landscape screen two columns.
+ * the screen). On a landscape screen two columns.
  * power (the button next to the settings gear) sleep, restart, power
  * off, restart into Android or TWRP: one tap (the popup is the
  * confirmation)
- * resizing while a glassine-winfit handle is dragged: only the bar moves (drawn
- * by glassine-winfit / glassine-epdd-desktop) and, for rows, the 1/3 1/2 2/3 snap
+ * resizing while a glassine-swayd handle is dragged: only the bar moves (drawn
+ * by glassine-swayd / glassine-epdd-desktop) and, for rows, the 1/3 1/2 2/3 snap
  * marks
  *
  * Why not GTK/Python (glassine-popupd): a tap has to become ink fast. Everything
  * here is one resident process; a popup is a cairo image in RAM that goes out
- * with a single XPutImage (only the rectangle that changed, so pressing a
- * button repaints that button only), mapped as an override-redirect window
- * with the image as its background pixmap: no Expose round trip, and
- * glassine-epdd-desktop paints a mapped override-redirect window fast (pol_popup). Touch
- * feedback is inversion of the pressed target (e-ink: one clean change, no
- * animation). Rounded cards are cut with an X shape (no compositor).
+ * as a wl_shm buffer, damaged only where it changed (pressing a button repaints
+ * that button only); glassine-epdd-desktop paints a new popup fast (pol_popup, sway's
+ * "popup" hint). Touch feedback is inversion of the pressed target (e-ink: one
+ * clean change, no animation).
  *
  * Theme: ~/.config/glassine-shell/theme (white | editorial | stationery), switched
  * live by "glassine-shell theme NAME" or a tap on the quick settings title. The name
- * is published as the root property _GLASSINE_SHELL_THEME: glassine-winfit draws its
- * divider handles to match.
+ * is published (be_theme_publish): glassine-swayd draws its divider handles to match.
  *
  * Requests (datagrams on $XDG_RUNTIME_DIR/glassine-shell, NUL-separated words):
  * toggle VIEW launcher | workspaces | window | quick | notices | power
- * divider X,Y,W,H VERT LEVEL A B FLIP_OK N TOPCOLS SUBCOLS (glassine-winfit)
- * drag VERT POS A0 ALEN C0 CLEN | dragend (glassine-winfit)
+ * divider-tap | dividers N,ORIENT0 x,y,w,h,vert,level,a,b... (glassine-swayd)
+ * drag VERT POS A0 ALEN C0 CLEN | dragend (glassine-swayd)
  * theme NAME | close
  * launch ID start the app as a launcher tap does (desktop id)
  * light up|down|warmer|cooler the front light one step, as the quick settings'
@@ -89,7 +85,7 @@ int SW, SH;
 static double LW, LH;
 static const Theme *T;
 #define NGFD 16                         /* GLib poll fds at most */
-#define GAP_DEV 40                      /* glassine-winfit handle thickness, device px */
+#define GAP_DEV 40                      /* the divider handle's thickness (glassine-swayd), device px */
 
 double now_ms(void)
 {
@@ -104,7 +100,7 @@ double now_ms(void)
 enum {
     A_NONE, A_BACKDROP,
     A_BAR_LAUNCH, A_BAR_WS, A_BAR_WIN, A_BAR_NOTIF, A_BAR_REFRESH, A_BAR_KBD, A_BAR_QS,
-    A_QS_TITLE, A_QS_TOGGLE, A_QS_SLABEL, A_QS_SLIDER, A_QS_FLUID, A_QS_SETTINGS, A_QS_POWER,
+    A_QS_TITLE, A_QS_TOGGLE, A_QS_SLABEL, A_QS_SLIDER, A_QS_FLUID, A_QS_SETTINGS,
     A_QS_PWR, A_QS_ROT, A_P_ACT, A_P_CANCEL,
     A_WS_GOTO, A_WS_RESTORE,
     A_BAR_OV, A_BAR_CHG, A_OV_X, A_OV_PICK, A_OV_PUT, A_OV_NEW, A_OV_CLOSEAPP, A_OV_CANCEL,
@@ -136,12 +132,7 @@ static void hit(double x, double y, double w, double h, int act, int arg, WinId 
 }
 
 /* the pressed target (inverted) */
-/* down: a press arrived and its release not yet. xfwm4 keeps a synchronous
- * click-to-focus grab on the bar (a managed dock) and replays the press to it;
- * for a touch-emulated click the replayed press gets lost and only the release
- * arrives -- a bar release without a press is the tap then. The bar
- * therefore also takes XI2 touch events: xfwm4's grab replays the touch to its
- * next listener, the bar, with the real position -- a touch press can be held
+/* down: a press arrived and its release not yet; a touch press can be held
  * (the workspace buttons) like a mouse press. */
 static struct { Surf *s; int act, arg; WinId win; double x, y, w, h; int consumed, down; double t;
                 } press;
@@ -247,15 +238,6 @@ static void surf_render(Surf *s, View v)
     cairo_destroy(cr);
     cairo_surface_flush(s->img);
     if (!s->dock) be_surf_shape(s);
-    if (s->keep) {                      /* before the press feedback below: what the view looks like */
-        const uint32_t *p = (const uint32_t *)cairo_image_surface_get_data(s->img);
-        int stride = cairo_image_surface_get_stride(s->img) / 4;
-        uint32_t *n = realloc(s->shot, (size_t)s->wd * s->ht * 4);
-        if (n) {
-            s->shot = n;
-            for (int y = 0; y < s->ht; y++) memcpy(n + (size_t)y * s->wd, p + (size_t)y * stride, (size_t)s->wd * 4);
-        }
-    }
     if (press.s == s && press.act != A_QS_SLIDER) {   /* touch feedback: the target inverted (a slider shows its knob instead) */
         uint32_t *p = (uint32_t *)cairo_image_surface_get_data(s->img);
         int stride = cairo_image_surface_get_stride(s->img) / 4;
@@ -347,6 +329,24 @@ static int in_list_file(const char *path, const char *id)
     return r;
 }
 
+/* a desktop file's OnlyShowIn/NotShowIn list ("A;B;") names one of the desktops in
+ * $XDG_CURRENT_DESKTOP ("sway", or several separated by ':') */
+static int desktop_listed(const char *list)
+{
+    const char *cur = getenv("XDG_CURRENT_DESKTOP");
+    char d[128];
+    snprintf(d, sizeof d, "%s", cur && *cur ? cur : "sway");
+    for (char *sv = NULL, *t = strtok_r(d, ":", &sv); t; t = strtok_r(NULL, ":", &sv)) {
+        size_t n = strlen(t);
+        for (const char *q = list; *q; ) {
+            size_t m = strcspn(q, ";");
+            if (m == n && !strncasecmp(q, t, n)) return 1;
+            q += m + (q[m] == ';');
+        }
+    }
+    return 0;
+}
+
 static void load_app(const char *dir, const char *fn)
 {
     char p[1024];
@@ -356,7 +356,7 @@ static void load_app(const char *dir, const char *fn)
     App a = { 0 };
     snprintf(a.id, sizeof a.id, "%.*s", (int)(strlen(fn) - 8), fn);
     char l[1024], cats[256] = "";
-    int in = 0, nodisp = 0, app = 0, notxfce = 0;
+    int in = 0, nodisp = 0, app = 0, notshown = 0;
     while (fgets(l, sizeof l, f)) {
         l[strcspn(l, "\r\n")] = 0;
         if (l[0] == '[') { in = !strcmp(l, "[Desktop Entry]"); continue; }
@@ -374,11 +374,11 @@ static void load_app(const char *dir, const char *fn)
         else if (!strcmp(l, "Terminal")) a.terminal = !strcmp(v, "true");
         else if (!strcmp(l, "NoDisplay") || !strcmp(l, "Hidden")) nodisp |= !strcmp(v, "true");
         else if (!strcmp(l, "Type")) app = !strcmp(v, "Application");
-        else if (!strcmp(l, "OnlyShowIn")) notxfce |= !strstr(v, "XFCE");
-        else if (!strcmp(l, "NotShowIn")) notxfce |= !!strstr(v, "XFCE");
+        else if (!strcmp(l, "OnlyShowIn")) notshown |= !desktop_listed(v);
+        else if (!strcmp(l, "NotShowIn")) notshown |= desktop_listed(v);
     }
     fclose(f);
-    if (!app || nodisp || notxfce || !a.name[0] || !a.exec[0] || hidden_ids(a.id)) return;
+    if (!app || nodisp || notshown || !a.name[0] || !a.exec[0] || hidden_ids(a.id)) return;
     for (int i = 0; i < napps; i++) if (!strcmp(apps[i].id, a.id)) return;     /* ~/.local first */
     /* the program: the first word, past glassine-app-render's wrapper ("glassine-appenv PROFILE CMD") */
     const char *ex = a.exec;
@@ -458,7 +458,8 @@ static void load_apps(void)
     qsort(apps, napps, sizeof *apps, app_cmp);
     char fp[512];
     state_path(fp, sizeof fp, ".config", "favourites");
-    static const char *const DEF_FAV[] = { "koreader", "firefox-esr", "com.github.xournalpp.xournalpp", "xfce4-terminal", NULL };
+    /* without the file: the apps the image itself ships */
+    static const char *const DEF_FAV[] = { "glassine-settings", "foot", NULL };
     for (int i = 0; i < napps; i++) {
         int r = in_list_file(fp, apps[i].id);
         if (r < 0) { r = 0; for (int k = 0; DEF_FAV[k]; k++) if (!strcmp(DEF_FAV[k], apps[i].id)) r = 1; }
@@ -467,7 +468,7 @@ static void load_apps(void)
     LOG("%d apps", napps);
 }
 
-/* the app of a window: its class/instance (X: WM_CLASS) against StartupWMClass,
+/* the app of a window: its app_id or class/instance (XWayland) against StartupWMClass,
  * the desktop id (or its last dotted part), the executable (as glassineui.Apps) */
 App *app_match(const char *cls, const char *inst)
 {
@@ -506,15 +507,15 @@ static Client *client(WinId w)
     return NULL;
 }
 
-static void winfit_cmd(const char *fmt, ...)
+static void tile_cmd(const char *fmt, ...)
 {
     char c[128];
     va_list ap;
     va_start(ap, fmt);
     vsnprintf(c, sizeof c, fmt, ap);
     va_end(ap);
-    be_winfit(c);
-    LOG("winfit: %s", c);
+    be_tile(c);
+    LOG("tile: %s", c);
 }
 
 /* ============================================================================
@@ -625,9 +626,7 @@ static struct {
     int managed, sched[2], off[2];      /* managed light: glassine-powerd's schedule now (%), the user's offsets */
     int glow;                           /* managed light: brightness >= 5 % ("Keep a night glow") */
     int rlo, rhi;                       /* e-ink fluidity: glassine-epdd-desktop's mmin/mmax (LV_* indices) */
-    int armed; double armed_t;          /* the session switch waiting for its second tap (SES_ARG) */
     int rot_auto, rot_lock, rot_cur;    /* rotation: auto?, the locked turn, the turn now (glassine-rotd) */
-    char closes[160];                   /* the session switch armed: the apps it closes */
     int opening; double opening_t;      /* a held toggle: "Opening ... settings" (OPENING_APP: a launcher app) */
     char opening_app[96];               /* ... that app's name */
     WinId mv;                           /* the overview: the app being moved (0: none) */
@@ -648,77 +647,10 @@ static struct {
     /* bar */
     int batt, charging, wifi_lvl;
     char clock[12];
-} st = { .armed = -1, .opening = -1, .ov_page = -1, .focus = -1 };
+} st = { .opening = -1, .ov_page = -1, .focus = -1 };
 enum { V_IDLE, V_QS, V_WS, V_LAUNCH, V_NOTIF, V_WIN, V_DIV, V_PWR };
 
-/* ---- impostors (glassine-epdd-desktop) ---------------------------------------------------
- * A popup reaches the panel ~250 ms after the tap the X way (the render,
- * XPutImage, the map, glassine-epdd-desktop's damage wait and read). But a view looks the
- * same each time it opens: its last rendered pixels (a file, written after each
- * render) go to glassine-epdd-desktop first
- * ("impostor X Y W H FILE" on its FIFO; raw a8r8g8b8, alpha 0 = not part of the
- * shaped window), which paints them at once. X's real rendering follows and
- * glassine-epdd-desktop repaints only what differs (a Wi-Fi state changed meanwhile); what X
- * never confirms it re-reads. Only views that open the same way every time:
- * quick settings, workspaces, the launcher on its first page. */
 #define EPDD_CTL "/run/glassine-epdd-desktop.ctl"
-static struct { int ok, x, y, w, h; uint64_t hash; } imp[V_DIV + 1];   /* ok: its file is written */
-
-static int imp_view(int v) { return be_impostors && (v == V_QS || v == V_WS || v == V_LAUNCH); }
-
-static void imp_forget(void)
-{
-    for (int v = 0; v <= V_DIV; v++) imp[v].ok = 0, imp[v].hash = 0;
-}
-
-static void imp_path(char *out, size_t n, int v)
-{
-    const char *rt = getenv("XDG_RUNTIME_DIR");
-    snprintf(out, n, "%s/glassine-imp-%d.raw", rt ? rt : "", v);
-}
-
-/* the pop surface's last render as view v's impostor, written to its file
- * here (after a render, off the tap's path): opening the view then costs one
- * FIFO line */
-static void imp_store(int v)
-{
-    if (!imp_view(v) || !pop.shot || !getenv("XDG_RUNTIME_DIR")) return;
-    double t0 = now_ms();
-    char path[128], tmp[140];
-    imp_path(path, sizeof path, v);
-    snprintf(tmp, sizeof tmp, "%s.tmp", path);
-    size_t n = (size_t)pop.wd * pop.ht * 4;
-    /* unchanged pixels, same place: the file stays (glassine-epdd-desktop keeps its grey
-     * conversion of a file until it changes) */
-    uint64_t hsh = 1469598103934665603ull ^ (uint64_t)pop.x << 48 ^ (uint64_t)pop.y << 32 ^ (uint64_t)pop.wd << 16 ^ pop.ht;
-    const uint64_t *q = (const uint64_t *)pop.shot;
-    for (size_t i = 0; i < n / 8; i++) hsh = (hsh ^ q[i]) * 1099511628211ull;
-    if (imp[v].ok && hsh == imp[v].hash) return;
-    int fd = open(tmp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0644);
-    if (fd < 0) return;
-    int ok = write(fd, pop.shot, n) == (ssize_t)n;
-    close(fd);
-    /* rename: glassine-epdd-desktop may be reading the previous one */
-    if (!ok || rename(tmp, path)) { unlink(tmp); imp[v].ok = 0; return; }
-    imp[v].ok = 1;
-    imp[v].hash = hsh;
-    imp[v].x = pop.x; imp[v].y = pop.y; imp[v].w = pop.wd; imp[v].h = pop.ht;
-    LOG("impostor view %d stored, %.1f ms", v, now_ms() - t0);
-}
-
-static void imp_send(int v)
-{
-    if (!imp_view(v) || !imp[v].ok) return;
-    char path[128], cmd[200];
-    imp_path(path, sizeof path, v);
-    int c = open(EPDD_CTL, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
-    if (c < 0) return;
-    int len = snprintf(cmd, sizeof cmd, "impostor %d %d %d %d %s\n", imp[v].x, imp[v].y, imp[v].w, imp[v].h, path);
-    if (write(c, cmd, len) != len) LOG("impostor: FIFO write failed");       /* one write: atomic (< PIPE_BUF) */
-    close(c);
-    LOG("impostor view %d %dx%d+%d+%d sent, t=%lld", v, imp[v].w, imp[v].h, imp[v].x, imp[v].y,
-        (long long)now_ms() % 1000000);
-}
 
 static void light_hw(int br, int ct)
 {
@@ -994,7 +926,6 @@ static void theme_publish(void)
 static void theme_set(const char *name, int save)
 {
     T = theme_find(name);
-    imp_forget();                       /* the old theme's pixels */
     if (save) {
         char p[512];
         state_path(p, sizeof p, ".config", "theme");
@@ -1003,7 +934,7 @@ static void theme_set(const char *name, int save)
     }
     theme_publish();
     LOG("theme %s", T->name);
-    /* the desktop follows: GTK3/GTK4 styles, UI font, Onboard (glassine-theme-apply) */
+    /* the desktop follows: GTK3/GTK4 styles, UI font (glassine-theme-apply) */
     char cmd[128];
     snprintf(cmd, sizeof cmd, "/usr/bin/glassine-theme-apply %s", T->name);
     run(cmd, NULL);
@@ -1265,7 +1196,6 @@ static const struct { const char *what, *name, *sub, *ic; } PWR[5] = {
     { "android", "Android", "Second system", "phone-symbolic" },
     { "recovery", "TWRP", "Recovery, for updates", "applications-engineering-symbolic" },
 };
-#define SES_ARG 4                       /* st.armed / A_QS_POWER arg of the session switch */
 #define ROT_CONF "/etc/glassine/rotation"    /* auto | lock N (glassine-rotd) */
 #define ROT_RUN "/run/glassine-rotation"     /* the turn now */
 static const char *const ROT_NAME[4] = { "Upright", "Turned right", "Upside down", "Turned left" };
@@ -1287,51 +1217,15 @@ static void rot_set(const char *v)
     snprintf(c, sizeof c, "doas /usr/sbin/glassine-settings-root rotation %s", v);
     run(c, NULL);
 }
-#define SWAY_BIN "/usr/bin/sway-glassine"
-/* the session switch: this session is sway when the backend runs under
- * Wayland; switching to sway needs the patched sway (the image kit) */
-static int on_sway(void) { return getenv("WAYLAND_DISPLAY") != NULL; }
-static int ses_switchable(void) { return on_sway() || !access(SWAY_BIN, X_OK); }
-/* the switch failed (it printed why; on success the session restarts first) */
-static void ses_done(const char *o)
-{
-    char m[400];
-    snprintf(m, sizeof m, "%s", o && *o ? o : "");
-    size_t l = strlen(m);
-    while (l && (m[l - 1] == '\n' || m[l - 1] == ' ')) m[--l] = 0;
-    if (l) notify_local("Desktop", "preferences-desktop-display-symbolic", "Could not switch the desktop", m);
-}
-/* the apps a session restart closes (P13-18: the confirmation names them) */
-static void ses_closes(char *out, size_t len)
-{
-    be_read_desktop();
-    out[0] = 0;
-    int n = 0;
-    for (int i = 0; i < ncl; i++) {
-        App *a = app_of(cl[i].w);
-        const char *nm = a && a->name[0] ? a->name : cl[i].name;
-        if (!nm[0]) continue;
-        int dup = 0;                    /* one name per app */
-        for (int j = 0; j < i && !dup; j++) {
-            App *b = app_of(cl[j].w);
-            dup = !strcmp(b && b->name[0] ? b->name : cl[j].name, nm);
-        }
-        if (dup) continue;
-        size_t l = strlen(out);
-        snprintf(out + l, len - l, "%s%s", n++ ? ", " : "Closes ", nm);
-    }
-    if (!n) snprintf(out, len, "No apps open");
-}
 /* held toggles open these (0-3: Wi-Fi, Bluetooth, Mute, Refresh; 4: a held
- * front light / warmth label): glassine-settings on its page, the old
- * tools if it is missing or fails */
-#define GLASSINE_SETTINGS(page, old) "/usr/bin/glassine-settings " page " || " old
+ * front light / warmth label): glassine-settings on its page */
+#define GLASSINE_SETTINGS(page) "/usr/bin/glassine-settings " page
 static const struct { const char *name, *cmd; } SETTINGS[5] = {
-    { "network", GLASSINE_SETTINGS("wifi", "nm-connection-editor") },
-    { "Bluetooth", GLASSINE_SETTINGS("bt", "blueman-manager") },
-    { "sound", GLASSINE_SETTINGS("sound", "pavucontrol") },
-    { "display", GLASSINE_SETTINGS("eink", "/usr/bin/glassine-eink-center") },
-    { "light", GLASSINE_SETTINGS("light", "/usr/bin/glassine-power-settings") },
+    { "network", GLASSINE_SETTINGS("wifi") },
+    { "Bluetooth", GLASSINE_SETTINGS("bt") },
+    { "sound", GLASSINE_SETTINGS("sound") },
+    { "display", GLASSINE_SETTINGS("eink") },
+    { "light", GLASSINE_SETTINGS("light") },
 };
 #define HOLD_MS 550
 #define OPENING_APP 5                   /* st.opening: a held launcher app (not a SETTINGS[] entry) */
@@ -1445,8 +1339,8 @@ static void view_qs(Gc *g)
     double hinth;
     text_w(g, &hf, hint, &hinth);
     double h_tog = 62 + 8 + lh, h_sl = 3 * (rowh + 2 + 46) + 2 * 4, h_mode = rowh + 8 + 64,
-           h_rot = rowh + 8 + 64, h_ses = ses_switchable() ? 18 + T->sepSoftW + 16 + 42 : 0;
-    double left = hh + 18 + h_tog + 10 + hinth + 18 + h_sl, right = h_mode + 18 + h_rot + h_ses;
+           h_rot = rowh + 8 + 64;
+    double left = hh + 18 + h_tog + 10 + hinth + 18 + h_sl, right = h_mode + 18 + h_rot;
     double H = 20 + (LAND ? (left > right ? left : right) : left + 18 + right) + 22;
     card_frame(g, X, Y, W, H);
 
@@ -1518,24 +1412,6 @@ static void view_qs(Gc *g)
 
     /* rotation */
     y += qs_rotation(g, x0, y, CW, rowh);
-    if (!h_ses) return;
-
-    /* the desktop session: what runs (armed: the apps that close) | Switch to ... (tap twice) */
-    y += 18;
-    hline(g, x0, y, CW, T->sepSoftW, T->sepSoftC, 0);
-    y += T->sepSoftW + 16;
-    int armed = st.armed == SES_ARG;
-    const char *s = armed ? "Tap again" : on_sway() ? "Switch to X" : "Switch to sway";
-    double ph, pw = text_w(g, &T->lbl, s, &ph), bw = pw + 40;
-    Box pb = armed ? T->sel : T->tray;     /* outlined: secondary */
-    for (int k = 0; k < 4; k++) pb.r[k] = T->pwr.r[k];
-    box(g, x0 + CW - bw, y, bw, 42, &pb);
-    lbl(g, s, x0 + CW - bw / 2, y + (42 - ph) / 2, 1, armed ? T->selFg : T->ink, NULL);
-    hit(x0 + CW - bw, y, bw, 42, A_QS_POWER, SES_ARG, 0);
-    const char *info = armed ? st.closes : on_sway() ? "Desktop: sway" : "Desktop: X (Xfce)";
-    double ih;
-    text_w(g, &T->lbl, info, &ih);
-    text(g, &T->lbl, info, x0, y + (42 - ih) / 2, 0, CW - bw - 14, armed ? T->ink : T->sub, NULL);
 }
 
 /* "Closes Firefox, Terminal and 3 more" (the Power popup's Restart) */
@@ -2562,11 +2438,6 @@ static void render_pop(void)
 {
     if (st.view == V_IDLE) { surf_hide(&pop); return; }
     surf_render(&pop, view_pop);
-    /* the launcher opens on its first page: only that is its impostor */
-    if (pop.mapped && (st.view != V_LAUNCH || (!st.page && !st.cat && !st.searching && !st.hpg[0] && !st.hpg[1] && !st.am[0]))) {
-        be_flush();                     /* the real pixels to the display first, then the file */
-        imp_store(st.view);
-    }
     if (!pop.grabbed && pop.mapped && !st.searching) {
         /* everything to the popup: a tap outside closes it, the bar still works */
         if (be_grab_pointer(&pop))
@@ -2592,11 +2463,8 @@ static void search_end(void)
 
 static double refresh_due, press_long_due;
 
-/* the bar's gestures. What the bar gets of a touch depends on xfwm4's grab
- * (see press): the core press may be lost, the XI2 touch may end at once
- * (xfwm4 turned it into pointer events), the core release may come on top.
- * Only the XI2 raw events on the root, which no grab touches, tell when the
- * finger really goes down and up: a raw press starts a gesture (seq), the bar
+/* the bar's gestures. The backend reports when the finger really goes down and
+ * up (ev_raw) besides the press and release: a raw press starts a gesture (seq), the bar
  * acts at most once per gesture, and a workspace button acts only at the raw
  * lift -- HOLD_MS after a raw press still down, a gesture that pressed a
  * workspace button is a hold: the workspaces open, no tap follows. */
@@ -2659,11 +2527,9 @@ static void set_view(int v)
 {
     if (v == st.view) v = V_IDLE;       /* the bar buttons toggle */
     if (v == V_WS && !pop.mapped) be_snap_fresh();  /* the visible screen's still, before the popup covers it */
-    if (v != V_IDLE && !pop.mapped) imp_send(v);    /* first: glassine-epdd-desktop paints it while we render */
     search_end();
     if (pop.grabbed) { be_ungrab_pointer(); pop.grabbed = 0; }
     st.view = v;
-    st.armed = -1;
     st.opening = -1;
     if (v != V_WS) st.mv = 0, st.ov_page = -1;
     st.focus = -1;
@@ -2681,10 +2547,8 @@ static void set_view(int v)
     render_bar();
     render_pop();
     div_input();
-    if (on_sway()) {                    /* Escape, Tab, Enter (a keyboard's; the panel has none) */
-        if (v != V_IDLE) be_grab_keyboard(&pop);
-        else be_ungrab_keyboard();
-    }
+    if (v != V_IDLE) be_grab_keyboard(&pop);   /* Escape, Tab, Enter (a keyboard's; the panel has none) */
+    else be_ungrab_keyboard();
 }
 
 /* run `cmd` detached (as run(cmd, NULL)); returns the pid of the sh that runs
@@ -2824,7 +2688,7 @@ static void launch_app(App *a)
     }
     cmd[n] = 0;
     char full[800];
-    if (a->terminal) snprintf(full, sizeof full, "xfce4-terminal -x %s", cmd);
+    if (a->terminal) snprintf(full, sizeof full, "foot %s", cmd);
     else snprintf(full, sizeof full, "%s", cmd);
     be_placeholder(a, run_launch(full));
     /* recent: this one first */
@@ -2978,20 +2842,6 @@ static void act(const Hit *h, double rx)
         render_pop();
         break;
     case A_QS_SLABEL: break;             /* hold only */
-    case A_QS_POWER:                    /* the session switch: tap twice */
-        if (st.armed == h->arg && now_ms() - st.armed_t < 4000) {
-            char c[128];
-            set_view(V_IDLE);
-            /* restarts the session, this shell included; its errors -> a notice */
-            snprintf(c, sizeof c, "doas /usr/sbin/glassine-power-root session %s 2>&1 >/dev/null", on_sway() ? "x" : "sway");
-            run(c, ses_done);
-        } else {
-            ses_closes(st.closes, sizeof st.closes);
-            st.armed = h->arg;
-            st.armed_t = now_ms();
-            render_pop();
-        }
-        break;
     case A_QS_PWR: set_view(V_PWR); break;
     case A_P_CANCEL: set_view(V_IDLE); break;
     case A_P_ACT: {                     /* one tap: the popup is the confirmation */
@@ -3025,9 +2875,7 @@ static void act(const Hit *h, double rx)
     case A_OV_CANCEL: st.mv = 0; st.ov_page = -1; render_pop(); break;
     case A_OV_PUT: {
         static const char *const SD[4] = { "up", "down", "left", "right" };
-        const Client *t = client(h->win);
-        if (on_sway()) winfit_cmd("place %lx %lx %s", st.mv, h->win, SD[h->arg]);
-        else if (t) be_set_desk(st.mv, t->desk);    /* (X: no sides) */
+        tile_cmd("place %lx %lx %s", st.mv, h->win, SD[h->arg]);
         st.mv = 0; st.ov_page = -1;
         render_pop();
         break;
@@ -3056,7 +2904,7 @@ static void act(const Hit *h, double rx)
             st.searching = 1;
             st.query[0] = 0;
             st.page = 0;
-            if (pop.grabbed) { be_ungrab_pointer(); pop.grabbed = 0; }   /* Onboard gets its taps */
+            if (pop.grabbed) { be_ungrab_pointer(); pop.grabbed = 0; }   /* the keyboard gets its taps */
             be_grab_keyboard(&pop);
             osk(1);
         } else search_end();
@@ -3103,11 +2951,11 @@ static void act(const Hit *h, double rx)
     case A_WIN_MOVE: st.mv = h->win; st.ov_page = -1; st.view = V_IDLE; set_view(V_WS); break;
     case A_DIV_SWAP: {                  /* the buttons stay: several swaps take one tap each */
         const typeof(st.dv[0]) *d = &st.dv[h->arg];
-        if (d->level == 0 && st.dv_n > 2 && on_sway()) winfit_cmd("swaphalves %lx", d->a);
-        else winfit_cmd("swap %lx %lx", d->a, d->b);
+        if (d->level == 0 && st.dv_n > 2) tile_cmd("swaphalves %lx", d->a);
+        else tile_cmd("swap %lx %lx", d->a, d->b);
         break;
     }
-    case A_DIV_DIR: winfit_cmd("orient 0 %d", !st.dv_o); break;
+    case A_DIV_DIR: tile_cmd("orient 0 %d", !st.dv_o); break;
     }
 }
 
@@ -3183,9 +3031,7 @@ static void held(int a, int arg)
     }
 }
 
-/* a right click = a long press: glassine-touchd turns a finger held still for
- * long_ms into one (and drops the touch -- the shell never sees a finger
- * being held); a mouse's right button does the same */
+/* a right click (a mouse's right button) = a long press */
 void ev_long_press(int rx_dev, int ry_dev)
 {
     double x = rx_dev / S, y = ry_dev / S;
@@ -3254,11 +3100,6 @@ void ev_pointer(int down, int rx_dev, int ry_dev)
     press_long_due = 0;
     LOG("release %.0f,%.0f %s: hit %d/%d win %lx, pressed %d/%d win %lx%s", x, y, s == &bar ? "bar" : "pop",
         h ? h->act : -1, h ? h->arg : -1, h ? h->win : 0, pact, parg, pwin, consumed ? " consumed" : wasdown ? "" : " (no press)");
-    if (!wasdown && s == &bar && h) {               /* the press went to xfwm4's grab */
-        Hit c = *h;
-        bar_act(&c, x);
-        return;
-    }
     if (ps) { if (ps == &bar) render_bar(); else if (ps->mapped) render_pop(); }
     if (pact == A_BACKDROP) {
         if (!h && s == &pop && st.view != V_IDLE) set_view(V_IDLE);
@@ -3343,7 +3184,7 @@ void ev_key(int k, const char *b, int n)
         return;
     }
     size_t l = strlen(st.query);
-    if (k == SK_ESC) { search_end(); if (on_sway()) be_grab_keyboard(&pop); }
+    if (k == SK_ESC) { search_end(); be_grab_keyboard(&pop); }
     else if (k == SK_BACKSPACE) { if (l) { while (l && (st.query[l - 1] & 0xc0) == 0x80) l--; if (l) l--; st.query[l] = 0; } }
     else if (k == SK_ENTER) {
         App *list[512];
@@ -3386,15 +3227,6 @@ static void request(char *msg, int len)
     } else if (!strcmp(w[0], "theme") && n > 1) {
         theme_set(w[1], 1);
         render_all();
-    } else if (!strcmp(w[0], "divider") && n >= 10) {   /* X (glassine-winfit): the one tapped */
-        int x, y, ww, hh;
-        if (sscanf(w[1], "%d,%d,%d,%d", &x, &y, &ww, &hh) != 4) return;
-        st.dv[0].x = x; st.dv[0].y = y; st.dv[0].w = ww; st.dv[0].h = hh;
-        st.dv[0].vert = atoi(w[2]); st.dv[0].level = atoi(w[3]);
-        st.dv[0].a = strtoul(w[4], NULL, 16); st.dv[0].b = strtoul(w[5], NULL, 16);
-        st.ndv = 1; st.dv_n = 2; st.dv_o = st.dv[0].vert;
-        st.view = V_IDLE;
-        set_view(V_DIV);
     } else if ((!strcmp(w[0], "divider-tap") || !strcmp(w[0], "dividers")) && n >= 2) {
         /* glassine-swayd: "N,ORIENT0" then "x,y,w,h,vert,level,a,b" per divider */
         st.ndv = 0;
@@ -3509,7 +3341,6 @@ int main(int argc, char **argv)
     signal(SIGINT, on_term);
     signal(SIGPIPE, SIG_IGN);
     bar.dock = 1;
-    pop.keep = 1;                       /* its renders are kept for impostors */
     be_read_desktop();
     read_status();
     t0 = now_ms();
@@ -3547,7 +3378,6 @@ int main(int argc, char **argv)
         double due = status_due < clock_due ? status_due : clock_due;
         if (refresh_due && refresh_due < due) due = refresh_due;
         if (press_long_due && press_long_due < due) due = press_long_due;
-        if (st.armed >= 0 && st.armed_t + 4000 < due) due = st.armed_t + 4000;
         if (st.opening >= 0 && st.opening_t + 1000 < due) due = st.opening_t + 1000;
         if (ws_hold_due && ws_hold_due < due) due = ws_hold_due;
         struct pollfd pf[10 + NGFD] = { { be_fd(), POLLIN, 0 }, { sfd, POLLIN, 0 } };
@@ -3594,7 +3424,6 @@ int main(int argc, char **argv)
             held(press.act, press.arg);
         }
         if (st.opening >= 0 && t >= st.opening_t + 1000) set_view(V_IDLE);
-        if (st.armed >= 0 && t >= st.armed_t + 4000) { st.armed = -1; render_pop(); }
         if (ws_hold_due && t >= ws_hold_due) ws_hold_check();
         if (t >= status_due || wall % 60 == 0 || strcmp(st.clock, "") == 0) {
             char old[sizeof st.clock];
