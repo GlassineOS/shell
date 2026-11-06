@@ -93,8 +93,8 @@ later with one partial refresh of that rectangle only; nothing else moves.
 **Widgets**
 - **FR-020**: A widget is a folder holding a manifest (data) and a render script; optionally a settings script.
   Home never runs code to list, describe or add a widget.
-- **FR-021**: The manifest declares name, icon, sizes (the first is the default), the files it reads, the network
-  hosts it may reach (none by default), when it refreshes (when a listed file changes and/or an interval of at
+- **FR-021**: The manifest declares name, icon, sizes (the first is the default), the files it reads, when it
+  refreshes (when a listed file changes and/or an interval of at
   least 15 minutes) and its settings with their defaults.
 - **FR-022**: The render script returns a description built from seven primitives only: title (one line, at most
   one), text (one line, optionally soft), progress (0–1 with its number), list (up to 4 rows, more are cut),
@@ -103,7 +103,7 @@ later with one partial refresh of that rectangle only; nothing else moves.
 - **FR-023**: Home runs a widget when a listed file changes, on its interval, and once when Home appears. It
   compares the output and redraws only cards whose output changed, together, as one partial refresh.
 - **FR-024**: A run gets 200 ms and 4 MB. It can read only the files its manifest lists (and a KOReader book's
-  metadata beside a listed book), and no network unless hosts are listed. Data files are read as data: a data
+  metadata beside a listed book). Widgets have no network access at all. Data files are read as data: a data
   file can't run code or reach anything. Over the limits or on an error, Home keeps the last good output and the
   meta line says so; three failures in a row pause the widget until the gallery is opened.
 - **FR-025**: Widgets come from three places: built into Home, brought by apps (system-wide), and the user's own
@@ -118,7 +118,7 @@ later with one partial refresh of that rectangle only; nothing else moves.
   run's budget loads the source, scales it to exactly the slot, turns it grey and dithers it with the E-ink
   dithering setting, in the background, starting right after the run even while Home is hidden. A slot not yet
   ready shows a dashed frame with its alt text. Results are cached by source, its date or ETag, slot size and
-  dithering. Sources: a listed file, an ebook's cover, an app's icon, an https URL on a listed host. Over 20 MB or
+  dithering. Sources are local only: a listed file, an ebook's cover, an app's icon. Over 20 MB or
   broken: the frame and alt text stay.
 
 **Arranging**
@@ -151,14 +151,13 @@ Device-neutral (grid and sizes follow the screen's logical size). No device risk
 
 - Host: packing tests (adding, resizing, moving, spilling, closing pages) in both orientations.
 - Host: sandbox tests: a widget can't read an unlisted file, follow a link out of its reads, run code from a
-  data file, open the network, exceed 200 ms or 4 MB; three failures pause it.
+  data file, reach the network, exceed 200 ms or 4 MB; three failures pause it.
 - Host: renders of every `home.*` board state in three voices and both orientations.
 - Hardware (supervised): Home from the bar, open an app, Arrange, add a widget, Continue reading with a real book.
 
 ## Out of scope
 
-- Network widgets beyond the https image source and the listed-hosts rule (no general HTTP API in v1:
-  [NEEDS CLARIFICATION: does v1 give scripts an HTTP fetch for listed hosts, e.g. weather?]).
+- Network access of any kind for widgets: no HTTP fetch, no remote images (decided 2026-11-06).
 - Android apps' own widgets.
 
 ## Success criteria
