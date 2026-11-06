@@ -46,7 +46,7 @@ expect "3 windows: newest on top, the rest side by side" "$(geo)" "A 1 361 478 3
 term Q
 expect "4 windows: quarters, the newest two on top" "$(geo)" "A 1 361 478 341 458 | B 1 0 478 341 458 | C 1 361 0 341 458 | Q 1 0 0 341 458"
 sleep 0.5
-expect "4 windows: 3 handles (the outer split + one per pair)" "$(grep 'handle [0-9]: level' /tmp/swayd.log | tail -3 | sed 's/.*handle \([0-9]\): level \([01]\) \([a-z]*\).*/\1\2\3/' | tr '\n' ' ')" "00horizontal 11vertical 21vertical "
+expect "4 windows: 3 handles (the outer split + one per pair, levels 1 and 2)" "$(grep 'handle [0-9]: level' /tmp/swayd.log | tail -3 | sed 's/.*handle \([0-9]\): level \([012]\) \([a-z]*\).*/\1\2\3/' | tr '\n' ' ')" "00horizontal 11vertical 22vertical "
 cmd "orient 0 1"
 expect "4 windows turned: still quarters, pairs side by side" "$(geo)" "A 1 361 478 341 458 | B 1 361 0 341 458 | C 1 0 478 341 458 | Q 1 0 0 341 458"
 cmd "orient 0 0"

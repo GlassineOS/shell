@@ -6,10 +6,13 @@
 typedef struct {
     int x, y, w, h;                     /* the gap between the tiles */
     int vert;                           /* a vertical bar: the tiles side by side */
-    int level;                          /* 0: the newest | the rest, 1: the rest split */
+    int level;                          /* 0: the main line (between the halves), 1: the inner line of
+                                         * half 0, 2: the inner line of half 1 */
     long a, b;                          /* the con_ids on both sides (b: the first of the rest) */
     int lo, hi;                         /* the bar's allowed start positions (y, or x if vert) */
     int a0, alen;                       /* the split's range along the drag axis */
+    int snap;                           /* one more snap position (the other inner line's bar start), -1: none */
+    double pos;                         /* the line's position as a fraction of its range (r or ri) */
 } HandleDef;
 
 /* connect to $WAYLAND_DISPLAY: the fd to poll, -1 without layer-shell (no handles) */
@@ -23,6 +26,10 @@ int hd_dispatch(void);
 void hd_flush(void);
 /* the shell's theme changed ($XDG_RUNTIME_DIR/glassine-shell.theme): redraw */
 void hd_theme_changed(void);
+
+/* where a drag to bar start p (device px) lands: kept in lo..hi, snapped to 1/3, 1/2,
+ * 2/3 of the range and to d->snap */
+int hd_snap(const HandleDef *d, int p);
 
 /* from swayd-handles.c to glassine-swayd: a handle was dragged to pos (the bar's start,
  * device px) / tapped */
