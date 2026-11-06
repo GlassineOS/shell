@@ -1,0 +1,19 @@
+#!/sbin/openrc-run
+# The desktop: glassine-session runs the first-run setup when something is missing,
+# then the user's sway session, and starts it again when it dies. supervise-daemon
+# restarts glassine-session itself.
+# A device adds what its panel needs before the session through
+# /etc/conf.d/glassine-session (rc_need, rc_after).
+description="GlassineOS desktop session"
+command=/usr/sbin/glassine-session
+supervisor=supervise-daemon
+respawn_delay=5
+respawn_max=3
+output_log=/var/log/glassine-session.log
+error_log=/var/log/glassine-session.log
+
+depend() {
+	need dbus
+	use udev NetworkManager bluetooth
+	after bootmisc
+}
