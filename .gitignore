@@ -1,5 +1,7 @@
 /glassine-shell-wl
 /glassine-swayd
+/glassine-bgprio
+/glassine-zpark
 /test/*/out*/
 __pycache__/
 /specs/*/*

@@ -1,0 +1,24 @@
+#!/sbin/openrc-run
+# Compressed swap in RAM with a spill to the user data partition, for the apps
+# glassine-bgprio parks (see /usr/sbin/glassine-zram; settings in /etc/glassine/zram).
+# Userdata is mounted by the initramfs before init runs; without it zram runs in
+# RAM only.
+description="zram swap with a spill to the user data partition"
+
+depend() {
+	need localmount
+	after bootmisc
+	before glassine-session
+}
+
+start() {
+	ebegin "Starting zram swap"
+	/usr/sbin/glassine-zram start
+	eend $?
+}
+
+stop() {
+	ebegin "Stopping zram swap"
+	/usr/sbin/glassine-zram stop
+	eend 0
+}
