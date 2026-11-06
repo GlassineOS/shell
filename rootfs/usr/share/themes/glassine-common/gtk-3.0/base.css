@@ -1,0 +1,124 @@
+/* glassine GTK3 base: Adwaita, re-coloured and flattened for e-ink in the glassine-shell
+ * themes (glassine-white / glassine-editorial / glassine-stationery each define the @glassine_*
+ * colours, import this, then set their shapes). Hard edges only: no
+ * transitions, no blurred shadows, no hover states (there is no hover on touch);
+ * pressed and checked invert, like the shell. */
+@import url("resource:///org/gtk/libgtk/theme/Adwaita/gtk-contained.css");
+
+/* the colours apps may look up */
+@define-color theme_bg_color @glassine_bg;
+@define-color theme_fg_color @glassine_fg;
+@define-color theme_base_color @glassine_view;
+@define-color theme_text_color @glassine_fg;
+@define-color theme_selected_bg_color @glassine_sel;
+@define-color theme_selected_fg_color @glassine_sel_fg;
+@define-color insensitive_fg_color @glassine_sub;
+@define-color borders @glassine_soft;
+
+* { transition: none; animation: none; -gtk-icon-shadow: none; text-shadow: none; outline-color: @glassine_fg; }
+
+window, .background, dialog, messagedialog, .csd.popup decoration, popover.background, menu, .menu, .context-menu,
+tooltip.background, tooltip decoration {
+    background-color: @glassine_bg; background-image: none; color: @glassine_fg;
+}
+tooltip.background { border: 1px solid @glassine_fg; }
+tooltip * { color: @glassine_fg; }
+decoration, .csd decoration, dialog decoration, messagedialog decoration { box-shadow: 0 0 0 1px @glassine_fg; }
+
+.view, iconview, textview text, treeview.view, list, row, placessidebar, .sidebar, terminal-window, scrolledwindow viewport {
+    background-color: @glassine_view; color: @glassine_fg;
+}
+*:selected, .view:selected, iconview:selected, treeview.view:selected, row:selected, list row:selected,
+text selection, entry selection, label selection, textview text selection, flowboxchild:selected {
+    background-color: @glassine_sel; color: @glassine_sel_fg;
+}
+*:disabled, label:disabled, *:disabled label { color: @glassine_sub; }
+.dim-label, label.separator, .subtitle { color: @glassine_sub; opacity: 1; }
+separator, .separator { background-color: @glassine_soft; min-width: 1px; min-height: 1px; }
+frame > border, .frame, scrolledwindow.frame, treeview header button { border-color: @glassine_soft; }
+treeview header button { background: @glassine_bg; box-shadow: none; }
+
+/* the bars at the top of a window: like the shell's bar */
+headerbar, .titlebar, menubar, toolbar.primary-toolbar, .primary-toolbar {
+    background: @glassine_head_bg; background-image: none; color: @glassine_head_fg; box-shadow: none;
+    border-color: @glassine_line;
+}
+headerbar:backdrop, .titlebar:backdrop { background: @glassine_head_bg; color: @glassine_head_fg; }
+headerbar label, headerbar .title, headerbar .subtitle, menubar > menuitem { color: @glassine_head_fg; }
+menubar > menuitem:hover { background: @glassine_sel; color: @glassine_sel_fg; box-shadow: none; }
+
+/* buttons */
+button, button.text-button, button.image-button, combobox button, spinbutton button, .linked > button {
+    background: @glassine_btn; background-image: none; color: @glassine_btn_fg; border-color: @glassine_btn_line;
+    box-shadow: none;
+}
+button:hover, button:backdrop { background: @glassine_btn; background-image: none; color: @glassine_btn_fg; box-shadow: none; }
+button:active, button:checked, button:active:hover, button:checked:hover, button.suggested-action,
+button.destructive-action, button.default {
+    background: @glassine_sel; background-image: none; color: @glassine_sel_fg; border-color: @glassine_sel;
+}
+button.suggested-action:disabled, button.destructive-action:disabled { background: @glassine_btn; color: @glassine_sub; border-color: @glassine_btn_line; }
+button:disabled { background: @glassine_btn; color: @glassine_sub; }
+button.flat, headerbar button, .titlebar button, toolbar button, button.sidebar-button, .inline-toolbar button {
+    background: transparent; border-color: transparent; color: inherit;
+}
+button.flat:active, button.flat:checked, headerbar button:active, headerbar button:checked,
+toolbar button:active, toolbar button:checked {
+    background: @glassine_sel; color: @glassine_sel_fg; border-color: @glassine_sel;
+}
+
+/* text fields */
+entry, spinbutton:not(.vertical), textview.entry {
+    background: @glassine_view; background-image: none; color: @glassine_fg; border-color: @glassine_line; box-shadow: none;
+}
+entry:focus, spinbutton:focus:not(.vertical) { border-color: @glassine_fg; box-shadow: inset 0 0 0 1px @glassine_fg; }
+entry:disabled { background: @glassine_bg; color: @glassine_sub; }
+
+/* checks, radios, switches */
+check, radio {
+    background: @glassine_view; background-image: none; border: 1px solid @glassine_fg; color: @glassine_sel_fg; box-shadow: none;
+}
+check:checked, radio:checked, check:indeterminate, radio:indeterminate { background: @glassine_sel; border-color: @glassine_sel; }
+switch { background: @glassine_btn; background-image: none; border: 1px solid @glassine_line; box-shadow: none; color: transparent; }
+switch:checked { background: @glassine_sel; border-color: @glassine_sel; }
+switch slider, switch:hover slider {
+    background: @glassine_view; background-image: none; border: 1px solid @glassine_fg; box-shadow: none;
+}
+
+/* sliders, progress */
+scale trough, progressbar trough, levelbar trough { background: @glassine_soft; background-image: none; border: none; box-shadow: none; }
+scale highlight, progressbar progress, levelbar block.filled { background: @glassine_fg; background-image: none; border: none; }
+scale slider, scale slider:hover {
+    background: @glassine_view; background-image: none; border: 1px solid @glassine_fg; box-shadow: none;
+}
+
+/* tabs */
+notebook > header { background: @glassine_bg; border-color: @glassine_line; }
+notebook > header tab { color: @glassine_sub; box-shadow: none; }
+notebook > header tab:checked { color: @glassine_fg; box-shadow: inset 0 -3px @glassine_fg; }
+notebook > stack:not(:only-child) { background: @glassine_view; }
+
+/* menus, popovers */
+menu menuitem, .menu menuitem, .context-menu menuitem { color: @glassine_fg; }
+menu menuitem:hover, .menu menuitem:hover, .context-menu menuitem:hover, popover modelbutton:hover,
+popover.menu modelbutton:hover { background: @glassine_sel; color: @glassine_sel_fg; }
+popover.background { border: 1px solid @glassine_fg; box-shadow: none; }
+
+/* scrollbars: a plain bar, no fading */
+scrollbar { background: transparent; border: none; }
+scrollbar slider { background: @glassine_sub; border: none; min-width: 6px; min-height: 6px; }
+
+/* Plain windows: with a compositing manager announced, client-side
+ * decorations grow a transparent shadow margin and rounded corners; glassine-epdd-desktop no
+ * longer announces one, and GTK then marks windows solid-csd (a 4 px padded
+ * frame for resize handles). None of either on e-ink: square, borderless,
+ * opaque windows. */
+decoration, .csd decoration, .solid-csd decoration, .ssd decoration, dialog decoration,
+messagedialog decoration, .csd.popup decoration, tooltip decoration, .maximized decoration {
+    box-shadow: none; border-radius: 0; margin: 0; border: none;
+}
+window.solid-csd, .solid-csd decoration { padding: 0; }
+window, window.csd, window.solid-csd, .titlebar, headerbar, .csd .titlebar, .csd headerbar,
+menu, .menu, .context-menu, tooltip, tooltip.background, messagedialog.csd, dialog.csd {
+    border-radius: 0;
+}

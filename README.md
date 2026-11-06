@@ -7,6 +7,9 @@ The desktop around the apps on an e-ink device running sway:
 - **`glassine-settings`:** the touch settings app (Python, GTK3, cairo), with its root helper.
 - **`glassine-setup`:** the first-run setup, with its root helper.
 - **The session:** `glassine-session`, `glassine-session-sway`, the sway config and key bindings, the on-screen keyboard wrappers and the `glassine-mono` icons.
+- **Session services:** `glassine-pipewire` (PipeWire with the saved volume), `glassine-bt-trust` (trusts devices paired outside the settings), `glassine-ink-discover` (finds pen canvases over AT-SPI), `glassine-appenv` (per-app render profiles).
+- **Themes:** the `glassine-white`, `glassine-editorial` and `glassine-stationery` GTK 3 themes and their libadwaita CSS (`usr/share/glassine/gtk4`, applied by `glassine-theme-apply`).
+- **System files the session needs:** the doas and polkit rules for its helpers and Wi-Fi, `glassine-checkpass` (admin password check), the xdg-desktop-portal backends for sway, the package-index refresh on connect and a boot health check.
 
 **This repository isn't used for builds yet.** Images still come from the private lab tree, and this tree is exported from it. Until the cutover, a change made here has to go back to the lab by hand, or the next export overwrites it.
 

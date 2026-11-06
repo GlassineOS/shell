@@ -2629,7 +2629,7 @@ static void light_read(void)
     if (st.managed) light_managed_now();
 }
 
-/* "light up|down|warmer|cooler" (the brightness keys, ): one 10 % step
+/* "light up|down|warmer|cooler" (the brightness keys): one 10 % step
  * of what the quick settings' slider shows, saved as a slider tap saves it (a
  * managed light: the user's offset from the schedule, which glassine-powerd follows) */
 static void light_step(const char *how)

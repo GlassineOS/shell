@@ -61,7 +61,7 @@ exec dbus-update-activation-environment WAYLAND_DISPLAY XDG_CURRENT_DESKTOP XDG_
 # ... and the apps' FD_MESA_DEBUG: sway hands its children GLASSINE_APP_FD_MESA_DEBUG
 # (0005, the split), the bus has none of its own: D-Bus-activated apps
 # (Nautilus) drew without it, 19.6 ms GPU per scroll frame vs 4.6
-# (L2, ). Its own line: GLES only, an unset name stays out
+# (L2). Its own line: GLES only, an unset name stays out
 exec sh -c '[ -n "$FD_MESA_DEBUG" ] && exec dbus-update-activation-environment FD_MESA_DEBUG'
 # (the chunked submits' settings likewise, /etc/glassine/gpu-app-l3)
 exec sh -c '[ -n "$FD_CHUNK_US" ] && exec dbus-update-activation-environment FD_CHUNK_US FD_CHUNK_COST'

@@ -1,0 +1,37 @@
+#!/bin/sh
+# A deployment (and a kernel test boot: GlassineOS/boot runs every
+# health.d script for both) is healthy when the desktop of the session in use,
+# glassine-epdd-desktop, the panel link and the shell are up and have STAYED up: each process
+# must be running for at least GLASSINE_HEALTH_MIN_AGE seconds (default 60; the
+# checks run at >= 90-120 s uptime), so one that crashed and was restarted a
+# moment ago fails. Network is no criterion (a device can be offline).
+# Non-zero exit = unhealthy, the first output line = the reason. Device packages
+# add their own checks (the panel's driver, for example) to the same directory.
+MIN=${GLASSINE_HEALTH_MIN_AGE:-60}
+HZ=$(getconf CLK_TCK 2>/dev/null) || HZ=100
+up=$(cut -d. -f1 /proc/uptime)
+bad=""
+# age NAME: seconds since the oldest process NAME started (empty: none runs)
+age() {
+    p=$(pgrep -o -x "$1") || return 1
+    st=$(sed 's/.*) //' /proc/$p/stat 2>/dev/null | cut -d' ' -f20) || return 1
+    echo $((up - st / HZ))
+}
+if [ -e /run/glassine-setup.active ]; then
+    # the first-run setup runs (glassine-session): its window instead of the shell
+    desk="sway-glassine" shell=glassine-setup
+elif [ "$(cat /etc/glassine/session 2>/dev/null)" = sway ]; then
+    desk="sway-glassine glassine-swayd" shell=glassine-shell-wl
+    # the session gave the bar up after repeated deaths (glassine-session-sway)
+    for f in /run/user/*/glassine-shell-failed; do [ -e "$f" ] && bad="$bad shell-gave-up"; done
+else
+    desk="Xorg xfce4-session" shell=glassine-shell
+fi
+for p in glassine-epdd-desktop $desk $shell; do
+    a=$(age "$p") || { bad="$bad $p"; continue; }
+    [ "$a" -ge "$MIN" ] || bad="$bad $p(restarted ${a}s ago)"
+done
+# the panel link: glassine-epdd-desktop's guard never tripped
+grep -q "DEAD LINK" /var/log/glassine-epdd-desktop.log 2>/dev/null && bad="$bad panel-link"
+[ -z "$bad" ] && exit 0
+echo "${bad# }"; exit 1

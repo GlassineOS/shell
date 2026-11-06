@@ -1,0 +1,27 @@
+/* glassine-editorial: white newsprint, ink outlines, pill buttons, underlined
+ * fields, a double rule under the header (glassine-shell "editorial") */
+@define-color glassine_bg #ffffff;
+@define-color glassine_fg #111111;
+@define-color glassine_sub #555555;
+@define-color glassine_view #ffffff;
+@define-color glassine_btn transparent;
+@define-color glassine_btn_fg #111111;
+@define-color glassine_btn_line #111111;
+@define-color glassine_line #111111;
+@define-color glassine_soft #b5b5b5;
+@define-color glassine_sel #111111;
+@define-color glassine_sel_fg #ffffff;
+@define-color glassine_head_bg #ffffff;
+@define-color glassine_head_fg #111111;
+@import url("../../glassine-common/gtk-3.0/base.css");
+
+button, combobox button { border-radius: 999px; }
+.linked > button { border-radius: 0; }
+entry, spinbutton:not(.vertical) { border-radius: 0; border-width: 0 0 1px 0; background: transparent; }
+entry:focus, spinbutton:focus:not(.vertical) { box-shadow: inset 0 -1px @glassine_fg; }
+headerbar, .titlebar, menubar { border-bottom: 3px double @glassine_line; }
+switch { border-radius: 999px; }
+switch slider { border-radius: 999px; }
+notebook > header tab:checked { box-shadow: inset 0 -2px @glassine_fg; }
+row { border-bottom: 1px solid @glassine_soft; }
+popover.background, menu, .menu { border-radius: 0; }

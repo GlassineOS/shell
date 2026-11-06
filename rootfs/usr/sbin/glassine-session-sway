@@ -72,7 +72,7 @@ command -v seatd >/dev/null || { echo "glassine-session-sway: seatd missing (apk
 
 rc-service -q glassine-touchd stop 2>/dev/null
 
-# The fast defaults ("fastest known-good state", ), set once
+# The fast defaults ("fastest known-good state"), set once
 # per defaults version (/etc/glassine/defaults-N): GLES sway, GPU drive frames,
 # high-priority epdd contexts, the apps-only job split, the grey output, and
 # the stagger (ctl 3, pay 3) in eink.conf (the run boost until v6). Once only: a switch
@@ -336,7 +336,7 @@ start_sway() {
     # sway itself split left popups unfinished in the panel, so
     # sway runs stock and hands GLASSINE_APP_FD_MESA_DEBUG to what it starts
     # (our sway 0005)
-    # The apps' default (defaults v8, ) = the short profile: sysmem, no split, no chunking
+    # The apps' default (defaults v8) = the short profile: sysmem, no split, no chunking
     # (the fastest: the r103 runs). No noblit since r103's glassine-0003 (blit-upload: the
     # A509's 2D blitter is off in our Mesa). FLATPAK_GL_DRIVERS: Flatpak apps load our Mesa
     # too (the GL extension, r103's A509 fixes; no fps cost vs the runtime's): it goes into

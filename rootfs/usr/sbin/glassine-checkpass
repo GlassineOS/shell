@@ -1,0 +1,51 @@
+#!/usr/bin/python3 -I
+"""glassine-checkpass: is the password on stdin the one of an administrator (a member
+of group wheel, or root while root has a password)? Exit 0 yes, 1 no, 2 can't tell.
+Root only (it reads /etc/shadow). Python's crypt module is gone since 3.13: this
+calls libc's crypt. SHADOW and GROUP are for the host test."""
+import ctypes
+import hmac
+import os
+import sys
+
+
+def admins(group):
+    names = ["root"]
+    with open(group) as f:
+        for line in f:
+            p = line.rstrip("\n").split(":")
+            if len(p) >= 4 and p[0] == "wheel":
+                names += [n for n in p[3].split(",") if n]
+    return names
+
+
+def hashes(shadow, names):
+    with open(shadow) as f:
+        for line in f:
+            p = line.split(":")
+            # "!…", "*" and "" are locked accounts or no password: nothing to match
+            if len(p) >= 2 and p[0] in names and p[1].startswith("$"):
+                yield p[1].encode()
+
+
+def main():
+    pw = sys.stdin.buffer.read(4097).rstrip(b"\n")
+    if not pw or len(pw) > 4096 or b"\0" in pw:
+        return 1
+    libc = ctypes.CDLL(None)
+    libc.crypt.restype = ctypes.c_char_p
+    libc.crypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+    try:
+        hs = list(hashes(os.environ.get("SHADOW", "/etc/shadow"),
+                         admins(os.environ.get("GROUP", "/etc/group"))))
+    except OSError as e:
+        print("glassine-checkpass: %s" % e, file=sys.stderr)
+        return 2
+    ok = False
+    for h in hs:
+        c = libc.crypt(pw, h)
+        ok |= c is not None and hmac.compare_digest(c, h)
+    return 0 if ok else 1
+
+
+sys.exit(main())
