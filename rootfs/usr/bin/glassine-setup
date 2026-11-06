@@ -4,9 +4,9 @@
                                 nothing = the setup has nothing to ask"""
 import os
 import sys
-# the packages beside this script (…/bin -> …/lib: the device, or a checkout); drawing comes from glassine-settings
-LIB = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib")
-sys.path[:0] = [os.path.join(LIB, "glassine"), os.path.join(LIB, "glassine")]
+# the package beside this script (…/bin -> …/lib/glassine: the device, or a checkout); the voices
+# and the drawing are GlassineOS/ui's (glassine_ui, installed as a Python package)
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "lib", "glassine"))
 if sys.argv[1:2] == ["--needs"]:
     from setup.needs import needs  # noqa: E402
     print("\n".join(needs()))

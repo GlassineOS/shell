@@ -2,6 +2,7 @@
 # (see test.sh) inside the glassine-settingstest container: /src = repo (ro), /out = results
 set -u
 P=/src
+export PYTHONPATH=/ui/python      # GlassineOS/ui: glassine_ui (the voices, the drawing)
 mkdir -p /out/fonts /out/shots
 [ "$(ls /out/fonts | wc -l)" -ge 6 ] || sh $P/fonts/fetch-fonts.sh /out/fonts
 mkdir -p /usr/share/fonts/glassine && cp /out/fonts/* /usr/share/fonts/glassine/ && fc-cache -f >/dev/null

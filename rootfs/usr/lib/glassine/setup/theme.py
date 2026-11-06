@@ -1,11 +1,11 @@
 """glassine-setup's three voices in the E-ink scheme (EinkSetup). The
-values come from theme_gen.py, generated from the design (test/settings/gen-setup-theme.py);
+values are GlassineOS/ui's voice data (glassine_ui.voices: scheme, setup);
 this adds what the design computes in code: the eyebrow line, the step numerals' colours.
 Only E-ink: one pen, no paper/night schemes."""
-from .theme_gen import GEN
+from glassine_ui import voices
 
-VOICES = ("white", "editorial", "stationery")
-NAMES = {"white": "White", "editorial": "Editorial", "stationery": "Stationery"}
+VOICES = voices.NAMES
+NAMES = {v: voices.title(v) for v in VOICES}
 ROMAN = ["I", "II", "III", "IV", "V", "VI", "VII", "VIII"]
 
 
@@ -17,8 +17,8 @@ def _resolve(v, il):
 
 
 def voice(v):
-    g = GEN[v if v in GEN else "white"]
-    k, il = dict(g["k"]), g["il"]
+    g = voices.voice(v)
+    k, il = dict(g["setup"]), g["scheme"]
     for key in ("stepOn", "stepDone", "stepTodo", "sel", "segOn"):
         k[key] = {a: _resolve(b, il) for a, b in k[key].items()}
     k["il"] = il

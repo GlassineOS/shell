@@ -1,6 +1,7 @@
 /* glassine-shell — the e-ink desktop shell: the top bar and
  * its popups, drawn natively (cairo + Pango on layer-shell surfaces), after the "E-ink Shell"
- * design (three themes, one layout: see glassine-shell-theme.c).
+ * design (three voices, one layout: the voices and the drawing are GlassineOS/ui's,
+ * glassine-ui.h).
  *
  * bar Home (shows or hides Home, glassine-swayd's: pressed while it
  * is shown) | the screen button: "n/N" in a small screen frame,
@@ -980,7 +981,7 @@ static void theme_publish(void)
 
 static void theme_set(const char *name, int save)
 {
-    T = theme_find(name);
+    T = ui_voice_find(name);
     if (save) {
         char p[512];
         state_path(p, sizeof p, ".config", "theme");
@@ -1018,8 +1019,8 @@ static void sheets_icon(Gc *g, double cx, double cy, double px, const char *num,
     if (num && *num) {
         TFont nf = { "IBM Plex Mono", 600, 0, (float)((strlen(num) > 1 ? 8.5 : 10) * u) };
         double th;
-        text_w(g, &nf, num, &th);
-        text(g, &nf, num, x0 + 14.5 * u, y0 + 9.5 * u - th / 2, 1, 0, c, NULL);
+        ui_text_w(g, &nf, num, &th);
+        ui_text(g, &nf, num, x0 + 14.5 * u, y0 + 9.5 * u - th / 2, 1, 0, c, NULL);
     }
 }
 
@@ -1125,8 +1126,8 @@ static const Client *scr_full(const Rc *R, int n)
 
 static void app_icon(Gc *g, const Client *c, double px, double cx, double cy, col fg)
 {
-    if (!(c && c->icon[0] && icon(g, c->icon, px, cx, cy, fg)))
-        icon(g, "application-x-executable-symbolic", px, cx, cy, fg);
+    if (!(c && c->icon[0] && ui_icon(g, c->icon, px, cx, cy, fg)))
+        ui_icon(g, "application-x-executable-symbolic", px, cx, cy, fg);
 }
 
 /* the bar's small screen: a frame with a thick top edge (1.5 px sides, 5 px top, radius 4) */
@@ -1158,7 +1159,7 @@ static void screen_frame(Gc *g, double x, double y, double w, double h, col c)
 static const Box *plate(Gc *g, double x, double y, double w, double h, int on, col *fg)
 {
     const Box *b = on ? &T->plateOn : &T->plateOff;
-    box(g, x, y, w, h, b);
+    ui_box(g, x, y, w, h, b);
     *fg = on ? T->plateOnFg : T->barFg;
     return b;
 }
@@ -1174,45 +1175,45 @@ static void view_bar(Gc *g)
 {
     double H = BH, cy = H / 2;
     bound(0, 0, LW, H + T->barShadowH, 0);
-    fill_rect(g, 0, 0, LW, H, T->barBg);
-    if (T->barShadowH) fill_rect(g, 0, H, LW, T->barShadowH, T->barShadowC);
-    if (T->barDouble) { hline(g, 0, H - 3, LW, 1, T->barBorderC, 0); hline(g, 0, H - 1, LW, 1, T->barBorderC, 0); }
-    else if (T->barBorderW) hline(g, 0, H - T->barBorderW, LW, T->barBorderW, T->barBorderC, 0);
+    ui_fill_rect(g, 0, 0, LW, H, T->barBg);
+    if (T->barShadowH) ui_fill_rect(g, 0, H, LW, T->barShadowH, T->barShadowC);
+    if (T->barDouble) { ui_hline(g, 0, H - 3, LW, 1, T->barBorderC, 0); ui_hline(g, 0, H - 1, LW, 1, T->barBorderC, 0); }
+    else if (T->barBorderW) ui_hline(g, 0, H - T->barBorderW, LW, T->barBorderW, T->barBorderC, 0);
     if (T->stitch) {
-        hline(g, 6, 5 - .75, LW - 12, 1.5, T->stitchColor, 1);
-        hline(g, 6, H - 5 - .75, LW - 12, 1.5, T->stitchColor, 1);
+        ui_hline(g, 6, 5 - .75, LW - 12, 1.5, T->stitchColor, 1);
+        ui_hline(g, 6, H - 5 - .75, LW - 12, 1.5, T->stitchColor, 1);
     }
     col fg;
     double x = 10;
     /* Home (spec 001 FR-001): pressed while Home is shown */
     plate(g, x, cy - 18, 42, 36, st.home_vis, &fg);
-    icon(g, "go-home-symbolic", 24, x + 21, cy, fg);
+    ui_icon(g, "go-home-symbolic", 24, x + 21, cy, fg);
     hit(x, 0, 42, H, A_BAR_HOME, 0, 0);
     x += 42 + 6;
 
     double xr = LW - 10;
     xr -= 42;
     plate(g, xr, cy - 18, 42, 36, st.view == V_QS, &fg);
-    icon(g, "preferences-system-symbolic", 22, xr + 21, cy, fg);
+    ui_icon(g, "preferences-system-symbolic", 22, xr + 21, cy, fg);
     hit(xr, 0, 42, H, A_BAR_QS, 0, 0);
     xr -= 6 + 38;
-    icon(g, "view-refresh-symbolic", 22, xr + 19, cy, T->barFg);
+    ui_icon(g, "view-refresh-symbolic", 22, xr + 19, cy, T->barFg);
     hit(xr, 0, 38, H, A_BAR_REFRESH, 0, 0);
     xr -= 2 + 38;
-    icon(g, "input-keyboard-symbolic", 22, xr + 19, cy, T->barFg);
+    ui_icon(g, "input-keyboard-symbolic", 22, xr + 19, cy, T->barFg);
     hit(xr, 0, 38, H, A_BAR_KBD, 0, 0);
     xr -= 6;
     if (st.batt >= 0) {
         char pct[8];
         snprintf(pct, sizeof pct, "%d%%", st.batt);
-        double th, tw = text_w(g, &T->numFont, pct, &th);
+        double th, tw = ui_text_w(g, &T->numFont, pct, &th);
         xr -= tw;
-        text(g, &T->numFont, pct, xr, cy - th / 2, 0, 0, T->barFg, NULL);
+        ui_text(g, &T->numFont, pct, xr, cy - th / 2, 0, 0, T->barFg, NULL);
         xr -= 5 + 26;
         if (g->paint) {
-            stroke_rrect(g, xr, cy - 6, 24, 12, 2, 1.5, T->barFg, 0);
-            fill_rect(g, xr + 3, cy - 3, 18 * st.batt / 100.0, 6, T->barFg);
-            fill_rect(g, xr + 24, cy - 2.5, 2, 5, T->barFg);
+            ui_stroke_rrect(g, xr, cy - 6, 24, 12, 2, 1.5, T->barFg, 0);
+            ui_fill_rect(g, xr + 3, cy - 3, 18 * st.batt / 100.0, 6, T->barFg);
+            ui_fill_rect(g, xr + 24, cy - 2.5, 2, 5, T->barFg);
             if (st.charging) {          /* a bolt over the cell, cut out of the fill */
                 cairo_t *cr = g->cr;
                 cairo_move_to(cr, xr + 13, cy - 7); cairo_line_to(cr, xr + 8, cy + 1); cairo_line_to(cr, xr + 12, cy + 1);
@@ -1228,41 +1229,41 @@ static void view_bar(Gc *g)
         xr -= 6;
     }
     xr -= 24;
-    icon(g, wifi_icon(), 20, xr + 12, cy, T->barFg);
+    ui_icon(g, wifi_icon(), 20, xr + 12, cy, T->barFg);
     xr -= 6;
     /* a system change runs (shell.change-running): its step count, in a dashed
      * outline; the tap opens Packages */
     if (st.chg_label[0]) {
         TFont cf = { "IBM Plex Mono", 500, 0, 12 };
-        double ch, cw = text_w(g, &cf, st.chg_label, &ch), w = 9 + 20 + 6 + cw + 9;
+        double ch, cw = ui_text_w(g, &cf, st.chg_label, &ch), w = 9 + 20 + 6 + cw + 9;
         xr -= w;
-        stroke_rrect(g, xr + .75, cy - 18 + .75, w - 1.5, 34.5, T->plateOff.r[0], 1.5, T->barFg, 1);
-        icon(g, "package-x-generic-symbolic", 20, xr + 9 + 10, cy, T->barFg);
-        text(g, &cf, st.chg_label, xr + 9 + 20 + 6, cy - ch / 2, 0, 0, T->barFg, NULL);
+        ui_stroke_rrect(g, xr + .75, cy - 18 + .75, w - 1.5, 34.5, T->plateOff.r[0], 1.5, T->barFg, 1);
+        ui_icon(g, "package-x-generic-symbolic", 20, xr + 9 + 10, cy, T->barFg);
+        ui_text(g, &cf, st.chg_label, xr + 9 + 20 + 6, cy - ch / 2, 0, 0, T->barFg, NULL);
         hit(xr, 0, w, H, A_BAR_CHG, 0, 0);
         xr -= 6;
     }
     /* the clock + the notification counter: a plate, the notices open from it */
-    double th, tw = text_w(g, &T->numFont, st.clock, &th);
+    double th, tw = ui_text_w(g, &T->numFont, st.clock, &th);
     char cnt[8] = "";
     TFont bf = { "IBM Plex Mono", 600, 0, 11 };   /* the design: the counter is Plex Mono in every theme */
     double bw = 0, bh;
     if (nnotes) {
         snprintf(cnt, sizeof cnt, nnotes > 99 ? "99+" : "%d", nnotes);
-        bw = text_w(g, &bf, cnt, &bh) + 8;
+        bw = ui_text_w(g, &bf, cnt, &bh) + 8;
         if (bw < 18) bw = 18;
     }
     double nw = 8 + tw + (nnotes ? 6 + bw : 0) + 8;
     xr -= nw;
     plate(g, xr, cy - 18, nw, 36, st.view == V_NOTIF, &fg);
-    text(g, &T->numFont, st.clock, xr + 8, cy - th / 2, 0, 0, fg, NULL);
+    ui_text(g, &T->numFont, st.clock, xr + 8, cy - th / 2, 0, 0, fg, NULL);
     if (nnotes) {
         /* inverted pill: the plate's ink, cut out in the bar's (or the on plate's) ground */
         int on = st.view == V_NOTIF;
         col cut = on ? (T->plateOn.bg ? T->plateOn.bg : T->screenBg) : T->barBg;
         double px = xr + 8 + tw + 6;
-        rrect(g, px, cy - 9, bw, 18, 9, fg);
-        text(g, &bf, cnt, px + bw / 2, cy - bh / 2, 1, 0, cut, NULL);
+        ui_rrect(g, px, cy - 9, bw, 18, 9, fg);
+        ui_text(g, &bf, cnt, px + bw / 2, cy - bh / 2, 1, 0, cut, NULL);
     }
     hit(xr, 0, nw, H, A_BAR_NOTIF, 0, 0);
     xr -= 6;
@@ -1280,13 +1281,13 @@ static void view_bar(Gc *g)
         int n = hole ? 0 : scr_rects(curdesk, R, 1);
         char lab[24];
         snprintf(lab, sizeof lab, "%ld/%ld", num, cnt);
-        TFont nf = font_px(&T->numFont, 13);
-        double nh, nw = text_w(g, &nf, lab, &nh), fw = 6 + nw + 6 + 3, FH = 26;
+        TFont nf = ui_font_px(&T->numFont, 13);
+        double nh, nw = ui_text_w(g, &nf, lab, &nh), fw = 6 + nw + 6 + 3, FH = 26;
         double tot = fw + (n ? 8 + n * 20 + (n - 1) * 5 : 0);
         double sx = x + (pw - tot) / 2;
         if (sx < x + 10) sx = x + 10;
         screen_frame(g, sx, cy - FH / 2, fw, FH, fg);
-        text(g, &nf, lab, sx + fw / 2, cy - FH / 2 + 5 + (FH - 5 - 1.5 - nh) / 2, 1, 0, fg, NULL);
+        ui_text(g, &nf, lab, sx + fw / 2, cy - FH / 2 + 5 + (FH - 5 - 1.5 - nh) / 2, 1, 0, fg, NULL);
         sx += fw + 8;
         for (int i = 0; i < n && sx + 20 <= x + pw - 10; i++) {
             app_icon(g, R[i].c, 20, sx + 10, cy, fg);
@@ -1299,7 +1300,7 @@ static void view_bar(Gc *g)
 /* a label in the theme's label style */
 static double lbl(Gc *g, const char *s, double x, double y, int align, col c, double *h)
 {
-    return text(g, &T->lbl, s, x, y, align, 0, c, h);
+    return ui_text(g, &T->lbl, s, x, y, align, 0, c, h);
 }
 
 /* an icon button (bw x bh) centred in a cw-wide cell, its label below */
@@ -1307,11 +1308,11 @@ static double cell(Gc *g, double x, double y, double cw, double bw, double bh, d
                    const char *ic, double ipx, const char *label, int act, int arg, WinId win)
 {
     double bx = x + (cw - bw) / 2;
-    box(g, bx, y, bw, bh, b);
+    ui_box(g, bx, y, bw, bh, b);
     if (ic && !strcmp(ic, GLASSINE_ICON_SHEETS)) sheets_icon(g, bx + bw / 2, y + bh / 2, ipx, "", fg);
-    else if (ic) icon(g, ic, ipx, bx + bw / 2, y + bh / 2, fg);
+    else if (ic) ui_icon(g, ic, ipx, bx + bw / 2, y + bh / 2, fg);
     double lh;
-    text_w(g, &T->lbl, label, &lh);
+    ui_text_w(g, &T->lbl, label, &lh);
     lbl(g, label, x + cw / 2, y + bh + gap, 1, act ? T->ink : T->sub, NULL);
     if (act) hit(x, y, cw, bh + gap + lh, act, arg, win);
     return bh + gap + lh;
@@ -1320,8 +1321,8 @@ static double cell(Gc *g, double x, double y, double cw, double bw, double bh, d
 static void card_frame(Gc *g, double x, double y, double w, double h)
 {
     bound(x, y, w, h, 10);
-    box(g, x, y, w, h, &T->card);
-    if (T->emboss) stroke_rrect(g, x + 6, y + 6, w - 12, h - 12, 2, 1, IL_RULE, 0);
+    ui_box(g, x, y, w, h, &T->card);
+    if (T->emboss) ui_stroke_rrect(g, x + 6, y + 6, w - 12, h - 12, 2, 1, IL_RULE, 0);
 }
 
 /* ---- quick settings ---------------------------------------------------------- */
@@ -1376,12 +1377,12 @@ static double qs_rotation(Gc *g, double x0, double y, double CW, double rowh)
     int cur = st.rot_auto ? st.rot_cur : st.rot_lock;
     snprintf(v, sizeof v, "%s · %s", st.rot_auto ? "Auto" : "Locked", ROT_NAME[cur / 90]);
     lbl(g, "Rotation", x0, y, 0, T->lblC, NULL);
-    text(g, &T->numFont, v, x0 + CW, y, 2, 0, T->ink, NULL);
+    ui_text(g, &T->numFont, v, x0 + CW, y, 2, 0, T->ink, NULL);
     y += rowh + 8;
     const double GAP = 8, RH = 64, bw = (CW - 4 * GAP) / 5;
-    TFont af = font_px(&T->dateFont, 12);
+    TFont af = ui_font_px(&T->dateFont, 12);
     double ah;
-    text_w(g, &af, "Auto", &ah);
+    ui_text_w(g, &af, "Auto", &ah);
     /* toggle fills and shadows on the button's corners */
     Box ton = T->togOn, toff = T->tog;
     memcpy(ton.r, T->btn.r, sizeof ton.r);
@@ -1389,34 +1390,34 @@ static double qs_rotation(Gc *g, double x0, double y, double CW, double rowh)
     {   /* Auto */
         const Box *b = st.rot_auto ? &ton : &toff;
         col fg = st.rot_auto ? T->togOnFg : T->ink;
-        box(g, x0, y, bw, RH, b);
+        ui_box(g, x0, y, bw, RH, b);
         double top = y + (RH - 24 - 4 - ah) / 2;
-        icon(g, "rotation-allowed-symbolic", 24, x0 + bw / 2, top + 12, fg);
-        text(g, &af, "Auto", x0 + bw / 2, top + 24 + 4, 1, bw, fg, NULL);
+        ui_icon(g, "rotation-allowed-symbolic", 24, x0 + bw / 2, top + 12, fg);
+        ui_text(g, &af, "Auto", x0 + bw / 2, top + 24 + 4, 1, bw, fg, NULL);
         hit(x0, y, bw, RH, A_QS_ROT, 4, 0);
     }
     for (int k = 0; k < 4; k++) {
         double bx = x0 + (k + 1) * (bw + GAP);
         int sel = !st.rot_auto && st.rot_lock == k * 90;
         col fg = sel ? T->togOnFg : T->ink;
-        box(g, bx, y, bw, RH, sel ? &ton : &toff);
+        ui_box(g, bx, y, bw, RH, sel ? &ton : &toff);
         if (st.rot_auto && st.rot_cur == k * 90) {   /* what the sensor turned it to */
             /* concentric with the tile's corners (its radius less the inset) */
             double m = (bw < RH ? bw : RH) / 2, r = toff.r[0] == HALF || toff.r[0] > m ? m : toff.r[0];
-            stroke_rrect(g, bx + 5, y + 5, bw - 10, RH - 10, r > 5 ? r - 5 : 0, 1.5, T->ink, 1);
+            ui_stroke_rrect(g, bx + 5, y + 5, bw - 10, RH - 10, r > 5 ? r - 5 : 0, 1.5, T->ink, 1);
         }
         /* the device: 24 x 33, its button below; the T points to the screen's top */
         double gx = bx + bw / 2, gy = y + RH / 2 - 2.5;
-        stroke_rrect(g, gx - 12, gy - 16.5, 24, 33, 4, 1.5, fg, 0);
-        rrect(g, gx - 4.5, gy + 16.5 - 6, 9, 2.5, 1, fg);
+        ui_stroke_rrect(g, gx - 12, gy - 16.5, 24, 33, 4, 1.5, fg, 0);
+        ui_rrect(g, gx - 4.5, gy + 16.5 - 6, 9, 2.5, 1, fg);
         static const int UX[4] = { 0, 1, 0, -1 }, UY[4] = { -1, 0, 1, 0 };
         double ux = UX[k], uy = UY[k];
         if (uy) {   /* bar horizontal, stem vertical */
-            rrect(g, gx - 4.5, gy + uy * 4.5 - 1, 9, 2, 0, fg);
-            rrect(g, gx - 1, gy - 4.5, 2, 9, 0, fg);
+            ui_rrect(g, gx - 4.5, gy + uy * 4.5 - 1, 9, 2, 0, fg);
+            ui_rrect(g, gx - 1, gy - 4.5, 2, 9, 0, fg);
         } else {
-            rrect(g, gx + ux * 4.5 - 1, gy - 4.5, 2, 9, 0, fg);
-            rrect(g, gx - 4.5, gy - 1, 9, 2, 0, fg);
+            ui_rrect(g, gx + ux * 4.5 - 1, gy - 4.5, 2, 9, 0, fg);
+            ui_rrect(g, gx - 4.5, gy - 1, 9, 2, 0, fg);
         }
         hit(bx, y, bw, RH, A_QS_ROT, k, 0);
     }
@@ -1428,20 +1429,20 @@ static double qs_fluidity(Gc *g, double x0, double y, double CW, double rowh)
 {
     int cur = fluid_of(st.rhi);
     lbl(g, "E-ink fluidity", x0, y, 0, T->lblC, NULL);
-    text(g, &T->numFont, FLUID[cur].name, x0 + CW, y, 2, 0, T->ink, NULL);
+    ui_text(g, &T->numFont, FLUID[cur].name, x0 + CW, y, 2, 0, T->ink, NULL);
     y += rowh + 8;
     const double GAP = 8, RH = 64, bw = (CW - 3 * GAP) / 4;
-    TFont af = font_px(&T->dateFont, 12);
+    TFont af = ui_font_px(&T->dateFont, 12);
     double ah;
-    text_w(g, &af, "Balanced", &ah);
+    ui_text_w(g, &af, "Balanced", &ah);
     for (int k = 0; k < 4; k++) {
         double bx = x0 + k * (bw + GAP);
         int sel = k == cur;
         col fg = sel ? T->togOnFg : T->ink;
-        box(g, bx, y, bw, RH, sel ? &T->togOn : &T->tog);
+        ui_box(g, bx, y, bw, RH, sel ? &T->togOn : &T->tog);
         double top = y + (RH - 24 - 4 - ah) / 2;
-        icon(g, FLUID[k].ic, 24, bx + bw / 2, top + 12, fg);
-        text(g, &af, FLUID[k].name, bx + bw / 2, top + 24 + 4, 1, bw, fg, NULL);
+        ui_icon(g, FLUID[k].ic, 24, bx + bw / 2, top + 12, fg);
+        ui_text(g, &af, FLUID[k].name, bx + bw / 2, top + 24 + 4, 1, bw, fg, NULL);
         hit(bx, y, bw, RH, A_QS_FLUID, k, 0);
     }
     return rowh + 8 + RH;
@@ -1459,20 +1460,20 @@ static void view_qs(Gc *g)
     char date[64];
     time_t t = time(NULL);
     strftime(date, sizeof date, "%A, %-d %B", localtime(&t));
-    text_w(g, &T->headFont, T->qsTitle, &th);
-    text_w(g, &T->dateFont, date, &dh);
+    ui_text_w(g, &T->headFont, T->qsTitle, &th);
+    ui_text_w(g, &T->dateFont, date, &dh);
     if (st.opening == OPENING_ALL) snprintf(date, sizeof date, "Opening Settings…");
-    text_w(g, &T->dateFont, date, &dh);
+    ui_text_w(g, &T->dateFont, date, &dh);
     double hh = (th + 2 + dh > 48 ? th + 2 + dh : 48) + 10 + T->headRuleW, lh, nh;
-    text_w(g, &T->lbl, "Ag", &lh);
-    text_w(g, &T->numFont, "0", &nh);
+    ui_text_w(g, &T->lbl, "Ag", &lh);
+    ui_text_w(g, &T->numFont, "0", &nh);
     double rowh = lh > nh ? lh : nh;
-    TFont hf = font_px(&T->dateFont, 13);
+    TFont hf = ui_font_px(&T->dateFont, 13);
     char hint[64];
     if (st.opening >= 0 && st.opening <= 4) snprintf(hint, sizeof hint, "Opening %s settings…", SETTINGS[st.opening].name);
     else snprintf(hint, sizeof hint, "Hold an icon for its settings");
     double hinth;
-    text_w(g, &hf, hint, &hinth);
+    ui_text_w(g, &hf, hint, &hinth);
     double h_tog = 62 + 8 + lh, h_sl = 3 * (rowh + 2 + 46) + 2 * 4, h_mode = rowh + 8 + 64,
            h_rot = rowh + 8 + 64;
     double left = hh + 18 + h_tog + 10 + hinth + 18 + h_sl, right = h_mode + 18 + h_rot;
@@ -1483,16 +1484,16 @@ static void view_qs(Gc *g)
     double x0 = X + PX;
     /* the title over the date; power and settings buttons right */
     double cy = y + (hh - 10 - T->headRuleW) / 2;
-    text(g, &T->headFont, T->qsTitle, x0, cy - (th + 2 + dh) / 2, 0, CW - 116, T->ink, NULL);
+    ui_text(g, &T->headFont, T->qsTitle, x0, cy - (th + 2 + dh) / 2, 0, CW - 116, T->ink, NULL);
     hit(x0, y, CW / 2, hh, A_QS_TITLE, 0, 0);
-    text(g, &T->dateFont, date, x0, cy - (th + 2 + dh) / 2 + th + 2, 0, CW - 116, T->sub, NULL);
-    box(g, x0 + CW - 48 - 10 - 48, cy - 24, 48, 48, &T->btn);
-    icon(g, "system-shutdown-symbolic", 26, x0 + CW - 48 - 10 - 24, cy, T->ink);
+    ui_text(g, &T->dateFont, date, x0, cy - (th + 2 + dh) / 2 + th + 2, 0, CW - 116, T->sub, NULL);
+    ui_box(g, x0 + CW - 48 - 10 - 48, cy - 24, 48, 48, &T->btn);
+    ui_icon(g, "system-shutdown-symbolic", 26, x0 + CW - 48 - 10 - 24, cy, T->ink);
     hit(x0 + CW - 48 - 10 - 52, y, 52, hh, A_QS_PWR, 0, 0);
-    box(g, x0 + CW - 48, cy - 24, 48, 48, &T->btn);
-    if (!icon(g, "preferences-system", 26, x0 + CW - 24, cy, T->ink)) icon(g, "emblem-system-symbolic", 26, x0 + CW - 24, cy, T->ink);
+    ui_box(g, x0 + CW - 48, cy - 24, 48, 48, &T->btn);
+    if (!ui_icon(g, "preferences-system", 26, x0 + CW - 24, cy, T->ink)) ui_icon(g, "emblem-system-symbolic", 26, x0 + CW - 24, cy, T->ink);
     hit(x0 + CW - 52, y, 52, hh, A_QS_SETTINGS, 0, 0);
-    hline(g, x0, y + hh - T->headRuleW, CW, T->headRuleW, T->headRuleC, 0);
+    ui_hline(g, x0, y + hh - T->headRuleW, CW, T->headRuleW, T->headRuleC, 0);
     y += hh + 18;
 
     /* toggles */
@@ -1504,7 +1505,7 @@ static void view_qs(Gc *g)
         cell(g, x0 + i * (76 + sp), y, 76, 62, 62, 8, on[i] ? &T->togOn : &T->tog, on[i] ? T->togOnFg : ok[i] ? T->ink : T->sub,
              ti[i], 26, tl[i], ok[i] ? A_QS_TOGGLE : A_NONE, i, 0);
     y += h_tog + 10;
-    text(g, &hf, hint, x0 + CW / 2, y, 1, 0, T->sub, NULL);
+    ui_text(g, &hf, hint, x0 + CW / 2, y, 1, 0, T->sub, NULL);
     y += hinth + 18;
 
     /* sliders */
@@ -1519,21 +1520,21 @@ static void view_qs(Gc *g)
         snprintf(lb, sizeof lb, "%s%s", sl[i], man ? " · managed" : "");
         if (man) snprintf(v, sizeof v, o ? "%d · %s%d" : "%d", sv[i], o > 0 ? "+" : "−", abs(o));
         lbl(g, lb, x0, y, 0, sok[i] ? T->ink : T->sub, NULL);
-        text(g, &T->numFont, sok[i] ? v : "–", x0 + CW, y, 2, 0, T->ink, NULL);
+        ui_text(g, &T->numFont, sok[i] ? v : "–", x0 + CW, y, 2, 0, T->ink, NULL);
         if (i < 2) hit(x0, y - 6, CW, rowh + 6, A_QS_SLABEL, i, 0);     /* hold: the light settings */
         y += rowh + 2;
         double w = CW * (man ? 50 + o : sv[i]) / 100.0;
         Box gr = { .bg = T->grooveBg, .r = { T->grooveR, T->grooveR, T->grooveR, T->grooveR }, .nring = T->ngrooveRing };
         memcpy(gr.ring, T->grooveRing, sizeof T->grooveRing);
-        box(g, x0, y + T->grooveTop, CW, T->grooveH, &gr);
-        if (man) rrect(g, x0 + CW / 2 - 1, y + 8, 2, 30, 0, T->ink);         /* the schedule mark */
+        ui_box(g, x0, y + T->grooveTop, CW, T->grooveH, &gr);
+        if (man) ui_rrect(g, x0 + CW / 2 - 1, y + 8, 2, 30, 0, T->ink);         /* the schedule mark */
         if (sok[i]) {
             if (man) {
-                if (o) rrect(g, x0 + CW * (o < 0 ? 50 + o : 50) / 100.0, y + T->fillTop, CW * abs(o) / 100.0, T->fillH, T->grooveR, T->ink);
+                if (o) ui_rrect(g, x0 + CW * (o < 0 ? 50 + o : 50) / 100.0, y + T->fillTop, CW * abs(o) / 100.0, T->fillH, T->grooveR, T->ink);
             } else
-                rrect(g, x0, y + T->fillTop, w, T->fillH, T->grooveR, T->ink);
+                ui_rrect(g, x0, y + T->fillTop, w, T->fillH, T->grooveR, T->ink);
             Box kn = { .bg = T->knobBg, .bw = T->knobBw, .bc = T->knobBc, .r = { T->knobR, T->knobR, T->knobR, T->knobR } };
-            box(g, x0 + w + T->knobML, y + T->knobTop, T->knobW, T->knobH, &kn);
+            ui_box(g, x0 + w + T->knobML, y + T->knobTop, T->knobW, T->knobH, &kn);
             hit(x0 - 10, y, CW + 20, 46, A_QS_SLIDER, i, 0);
             slider_geo[i].x = x0; slider_geo[i].w = CW;
         }
@@ -1574,18 +1575,18 @@ static void view_power(Gc *g)
     const double W = 440, X = (LW - W) / 2, Y = LW > LH ? BH + 24 : 110, PX = 26, CW = W - 2 * PX;
     double th, mh, lh;
     const char *msg = "Open apps will be closed for restart and power off";
-    text_w(g, &T->headFont, "Power", &th);
-    double mw = text_w(g, &T->dateFont, msg, &mh);
+    ui_text_w(g, &T->headFont, "Power", &th);
+    double mw = ui_text_w(g, &T->dateFont, msg, &mh);
     (void)mw;
-    text_w(g, &T->lbl, "Ag", &lh);
+    ui_text_w(g, &T->lbl, "Ag", &lh);
     char closes[160];
     pwr_closes(closes, sizeof closes);
-    TFont sf = font_px(&T->dateFont, 12), nf = font_px(&T->nameFont, 15);
+    TFont sf = ui_font_px(&T->dateFont, 12), nf = ui_font_px(&T->nameFont, 15);
     double rowH[3], h_rows = 0;
     for (int i = 0; i < 3; i++) {
         double nh, sh;
-        text_w(g, &T->nameFont, PWR[i].name, &nh);
-        text_w(g, &T->dateFont, PWR[i].sub ? PWR[i].sub : closes, &sh);
+        ui_text_w(g, &T->nameFont, PWR[i].name, &nh);
+        ui_text_w(g, &T->dateFont, PWR[i].sub ? PWR[i].sub : closes, &sh);
         double c = 6 + nh + 4 + sh + 6;
         rowH[i] = c > 68 ? c : 68;
         h_rows += rowH[i];
@@ -1594,23 +1595,23 @@ static void view_power(Gc *g)
     double H = 20 + hh + 18 + h_rows + 18 + lh + 8 + 64 + 18 + 48 + 22;
     card_frame(g, X, Y, W, H);
     double x0 = X + PX, y = Y + 20;
-    text(g, &T->headFont, "Power", x0, y, 0, CW, T->ink, NULL);
-    text(g, &T->dateFont, msg, x0, y + th + 2, 0, CW, T->sub, NULL);
-    hline(g, x0, y + hh - T->headRuleW, CW, T->headRuleW, T->headRuleC, 0);
+    ui_text(g, &T->headFont, "Power", x0, y, 0, CW, T->ink, NULL);
+    ui_text(g, &T->dateFont, msg, x0, y + th + 2, 0, CW, T->sub, NULL);
+    ui_hline(g, x0, y + hh - T->headRuleW, CW, T->headRuleW, T->headRuleC, 0);
     y += hh + 18;
     for (int i = 0; i < 3; i++) {
         double rh = rowH[i], cy = y + rh / 2, nh, sh;
         const Box *b = i == 2 ? &T->pwr : &T->btn;
         col fg = i == 2 ? T->pwrFg : T->ink;
-        box(g, x0, cy - 24, 48, 48, b);
-        icon(g, PWR[i].ic, 24, x0 + 24, cy, fg);
+        ui_box(g, x0, cy - 24, 48, 48, b);
+        ui_icon(g, PWR[i].ic, 24, x0 + 24, cy, fg);
         const char *sub = PWR[i].sub ? PWR[i].sub : closes;
-        text_w(g, &T->nameFont, PWR[i].name, &nh);
-        text_w(g, &T->dateFont, sub, &sh);
+        ui_text_w(g, &T->nameFont, PWR[i].name, &nh);
+        ui_text_w(g, &T->dateFont, sub, &sh);
         double ty = cy - (nh + 4 + sh) / 2;
-        text(g, &T->nameFont, PWR[i].name, x0 + 64, ty, 0, CW - 64, T->ink, NULL);
-        text(g, &T->dateFont, sub, x0 + 64, ty + nh + 4, 0, CW - 64, T->sub, NULL);
-        hline(g, x0, y + rh - T->sepW, CW, T->sepW, T->sepC, T->sepDashed);
+        ui_text(g, &T->nameFont, PWR[i].name, x0 + 64, ty, 0, CW - 64, T->ink, NULL);
+        ui_text(g, &T->dateFont, sub, x0 + 64, ty + nh + 4, 0, CW - 64, T->sub, NULL);
+        ui_hline(g, x0, y + rh - T->sepW, CW, T->sepW, T->sepC, T->sepDashed);
         hit(x0, y, CW, rh, A_P_ACT, i, 0);
         y += rh;
     }
@@ -1621,19 +1622,19 @@ static void view_power(Gc *g)
     for (int k = 0; k < 2; k++) {
         const int i = 3 + k;
         double bx = x0 + k * (cw + 10), nh, sh;
-        box(g, bx, y, cw, 64, &T->btn);
-        icon(g, PWR[i].ic, 22, bx + 12 + 11, y + 32, T->ink);
-        text_w(g, &nf, PWR[i].name, &nh);
-        text_w(g, &sf, PWR[i].sub, &sh);
+        ui_box(g, bx, y, cw, 64, &T->btn);
+        ui_icon(g, PWR[i].ic, 22, bx + 12 + 11, y + 32, T->ink);
+        ui_text_w(g, &nf, PWR[i].name, &nh);
+        ui_text_w(g, &sf, PWR[i].sub, &sh);
         double ty = y + (64 - nh - 2 - sh) / 2;
-        text(g, &nf, PWR[i].name, bx + 12 + 22 + 10, ty, 0, cw - 56, T->ink, NULL);
-        text(g, &sf, PWR[i].sub, bx + 12 + 22 + 10, ty + nh + 2, 0, cw - 56, T->sub, NULL);
+        ui_text(g, &nf, PWR[i].name, bx + 12 + 22 + 10, ty, 0, cw - 56, T->ink, NULL);
+        ui_text(g, &sf, PWR[i].sub, bx + 12 + 22 + 10, ty + nh + 2, 0, cw - 56, T->sub, NULL);
         hit(bx, y, cw, 64, A_P_ACT, i, 0);
     }
     y += 64 + 18;
-    box(g, x0, y, CW, 48, &T->btn);
+    ui_box(g, x0, y, CW, 48, &T->btn);
     double ch;
-    text_w(g, &T->lbl, "Cancel", &ch);
+    ui_text_w(g, &T->lbl, "Cancel", &ch);
     lbl(g, "Cancel", x0 + CW / 2, y + (48 - ch) / 2, 1, T->ink, NULL);
     hit(x0, y, CW, 48, A_P_CANCEL, 0, 0);
 }
@@ -1651,19 +1652,19 @@ static double ws_minimized(Gc *g, double x, double y, double w, col fg, int pain
     const double CH = 44, GAP = 10;
     double lh = 0;
     if (paint) lbl(g, "Minimized · tap to bring back", x, y, 0, fg, &lh);
-    else text_w(g, &T->lbl, "Minimized · tap to bring back", &lh);
+    else ui_text_w(g, &T->lbl, "Minimized · tap to bring back", &lh);
     double cx = x, cy = y + lh + 10;
     for (int k = 0; k < ncl; k++) {
         if (cl[k].desk >= 0) continue;
-        double nh, nw = text_w(g, &T->folderFont, cl[k].name, &nh);
+        double nh, nw = ui_text_w(g, &T->folderFont, cl[k].name, &nh);
         if (nw > w - 60) nw = w - 60;
         double cw = 12 + (cl[k].icon[0] ? 26 : 0) + nw + 14;
         if (cx > x && cx + cw > x + w) { cx = x; cy += CH + GAP; }
         if (paint) {
-            stroke_rrect(g, cx, cy, cw, CH, CH / 2, 1.5, fg, 0);
+            ui_stroke_rrect(g, cx, cy, cw, CH, CH / 2, 1.5, fg, 0);
             double ix = 0;
-            if (cl[k].icon[0] && icon(g, cl[k].icon, 20, cx + 12 + 10, cy + CH / 2, fg)) ix = 26;
-            text(g, &T->folderFont, cl[k].name, cx + 12 + ix, cy + (CH - nh) / 2, 0, nw, fg, NULL);
+            if (cl[k].icon[0] && ui_icon(g, cl[k].icon, 20, cx + 12 + 10, cy + CH / 2, fg)) ix = 26;
+            ui_text(g, &T->folderFont, cl[k].name, cx + 12 + ix, cy + (CH - nh) / 2, 0, nw, fg, NULL);
             hit(cx, cy, cw, CH, A_WS_RESTORE, k, cl[k].w);
         }
         cx += cw + GAP;
@@ -1724,12 +1725,12 @@ static void ov_turn_page(int dir)
  * full-screen app: the whole preview) */
 static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
 {
-    fill_rect(g, x, y, w, h, T->ink);   /* the gaps between the tiles: ink (design) */
+    ui_fill_rect(g, x, y, w, h, T->ink);   /* the gaps between the tiles: ink (design) */
     cairo_surface_t *snap = g->paint ? be_snap(d) : NULL;
     if (snap) {                         /* an A8 mask: 255 = ink */
         cairo_t *cr = g->cr;
         int sw = cairo_image_surface_get_width(snap), sh = cairo_image_surface_get_height(snap);
-        fill_rect(g, x, y, w, h, RGB(0xffffff));
+        ui_fill_rect(g, x, y, w, h, RGB(0xffffff));
         cairo_save(cr);
         cairo_rectangle(cr, x, y, w, h);
         cairo_clip(cr);
@@ -1745,7 +1746,7 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
     }
     Rc R[16];
     int n = scr_rects(d, R, 0);
-    if (!n || scr_full(R, n)) { fill_rect(g, x, y, w, h, RGB(0xffffff)); return; }
+    if (!n || scr_full(R, n)) { ui_fill_rect(g, x, y, w, h, RGB(0xffffff)); return; }
     for (int i = 0; i < n; i++) {
         const Client *c = R[i].c;
         if (!c || warea[2] <= 0 || warea[3] <= 0) continue;
@@ -1756,15 +1757,15 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
         if (rx + rw > x + w) rw = x + w - rx;
         if (ry + rh > y + h) rh = y + h - ry;
         if (rw < 4 || rh < 4) continue;
-        fill_rect(g, rx, ry, rw, rh, RGB(0xffffff));
+        ui_fill_rect(g, rx, ry, rw, rh, RGB(0xffffff));
     }
 }
 
 /* a 48 px button with an app's icon; ring: the heavy edge of a full-screen app */
 static void ov_icon_btn(Gc *g, const Client *c, double x, double y, int hi, int ring, int act)
 {
-    box(g, x, y, 48, 48, hi ? &T->sel : &T->btn);
-    if (ring) stroke_rrect(g, x + 1.25, y + 1.25, 45.5, 45.5, T->btn.r[0] > 1.25 ? T->btn.r[0] - 1.25 : 0, 2.5, T->ink, 0);
+    ui_box(g, x, y, 48, 48, hi ? &T->sel : &T->btn);
+    if (ring) ui_stroke_rrect(g, x + 1.25, y + 1.25, 45.5, 45.5, T->btn.r[0] > 1.25 ? T->btn.r[0] - 1.25 : 0, 2.5, T->ink, 0);
     app_icon(g, c, 24, x + 24, y + 24, hi ? T->selFg : T->ink);
     if (act) hit(x, y, 48, 48, act, 0, c->w);
 }
@@ -1876,10 +1877,10 @@ static int ov_actions(const Client *m, const Rc *R, int n, const Tgt *tg, int nt
 /* the glyph of New screen (the design's add_to_queue): a screen with a plus */
 static void newscreen_glyph(Gc *g, double cx, double cy, col c)
 {
-    stroke_rrect(g, cx - 10, cy - 8, 20, 14, 1.5, 1.75, c, 0);
-    fill_rect(g, cx - 5, cy + 9, 10, 1.75, c);
-    fill_rect(g, cx - 4, cy - 1.875, 8, 1.75, c);
-    fill_rect(g, cx - .875, cy - 5, 1.75, 8, c);
+    ui_stroke_rrect(g, cx - 10, cy - 8, 20, 14, 1.5, 1.75, c, 0);
+    ui_fill_rect(g, cx - 5, cy + 9, 10, 1.75, c);
+    ui_fill_rect(g, cx - 4, cy - 1.875, 8, 1.75, c);
+    ui_fill_rect(g, cx - .875, cy - 5, 1.75, 8, c);
 }
 
 static void view_ov(Gc *g)
@@ -1903,40 +1904,40 @@ static void view_ov(Gc *g)
     snprintf(pl, sizeof pl, "%d/%d", page + 1, np);
 
     /* the header: the title, the line, the pager, close (undo while moving: FR-017) */
-    double th, tw = text_w(g, &T->headFont, T->oTitle, &th), dh;
-    text_w(g, &T->dateFont, sub, &dh);
+    double th, tw = ui_text_w(g, &T->headFont, T->oTitle, &th), dh;
+    ui_text_w(g, &T->dateFont, sub, &dh);
     double rowh = 52;
     card_frame(g, X, Y, W, H);
     double x0 = X + PX, y = Y + 10, cy = y + rowh / 2;
-    text(g, &T->headFont, T->oTitle, x0, cy - th / 2, 0, 0, T->ink, NULL);
+    ui_text(g, &T->headFont, T->oTitle, x0, cy - th / 2, 0, 0, T->ink, NULL);
     double xr = x0 + CW - 48;
-    box(g, xr, cy - 24, 48, 48, &T->btn);
-    icon(g, mc ? "edit-undo-symbolic" : "window-close-symbolic", 24, xr + 24, cy, T->ink);
+    ui_box(g, xr, cy - 24, 48, 48, &T->btn);
+    ui_icon(g, mc ? "edit-undo-symbolic" : "window-close-symbolic", 24, xr + 24, cy, T->ink);
     hit(xr, cy - 24, 48, 48, mc ? A_OV_CANCEL : A_OV_X, 0, 0);
     if (np > 1) {
         double px = xr - 10 - 48;
         pg_btn(g, px, cy - 24, 48, 1, page < np - 1, A_OV_NEXT, 0);
         double ph;
-        text_w(g, &T->pageFont, pl, &ph);
-        text(g, &T->pageFont, pl, px - 4 - 15, cy - ph / 2, 1, 0, T->ink, NULL);
+        ui_text_w(g, &T->pageFont, pl, &ph);
+        ui_text(g, &T->pageFont, pl, px - 4 - 15, cy - ph / 2, 1, 0, T->ink, NULL);
         pg_btn(g, px - 4 - 30 - 4 - 48, cy - 24, 48, 0, page > 0, A_OV_PREV, 0);
         xr = px - 4 - 30 - 4 - 48;
     }
-    text(g, &T->dateFont, sub, x0 + tw + 10, cy - dh / 2, 0, xr - 10 - (x0 + tw + 10), T->sub, NULL);
+    ui_text(g, &T->dateFont, sub, x0 + tw + 10, cy - dh / 2, 0, xr - 10 - (x0 + tw + 10), T->sub, NULL);
     y += rowh + 6;
-    hline(g, x0, y, CW, T->headRuleW, T->headRuleC, 0);
+    ui_hline(g, x0, y, CW, T->headRuleW, T->headRuleC, 0);
     y += T->headRuleW + 10;
 
-    TFont hf = font_px(&T->dateFont, 13);
+    TFont hf = ui_font_px(&T->dateFont, 13);
     double hh;
-    text_w(g, &hf, hint, &hh);
+    ui_text_w(g, &hf, hint, &hh);
     double mh = mc ? 0 : ws_minimized(g, 0, 0, CW, T->ink, 0);
     double gridY = y, gridH = Y + H - 10 - hh - 10 - (mh ? mh + 10 : 0) - gridY;
     hit(X, gridY, W, gridH, A_NONE, 0, 0);  /* the gaps: no backdrop close (a swipe starts there) */
 
     const double CG = 14, RG = 12, RAIL = 48, RGAP = 6, ACTS = 48;
     double cw = (CW - CG) / 2, rh = (gridH - RG) / 2, nh;
-    text_w(g, &T->appNameFont, "Ag", &nh);
+    ui_text_w(g, &T->appNameFont, "Ag", &nh);
     double titleH = nh > 20 ? nh : 20;
     double asp = warea[3] > 0 ? (double)warea[2] / warea[3] : .75;
     double pw = cw - 2 * (RAIL + RGAP), ph = pw / asp, phmax = rh - titleH - 6 - 6 - ACTS;
@@ -1955,14 +1956,14 @@ static void view_ov(Gc *g)
         snprintf(num, sizeof num, "%ld", d + 1);
         TFont tf = T->appNameFont;
         if (isCur && !mc) tf.weight = 700;
-        double nw = text(g, &T->pageFont, num, cx + 2, ry + (titleH - nh) / 2, 0, 0, T->ink, NULL);
-        text(g, &tf, title, cx + 2 + nw + 6, ry + (titleH - nh) / 2, 0, cw - 4 - nw - 6, T->ink, NULL);
+        double nw = ui_text(g, &T->pageFont, num, cx + 2, ry + (titleH - nh) / 2, 0, 0, T->ink, NULL);
+        ui_text(g, &tf, title, cx + 2 + nw + 6, ry + (titleH - nh) / 2, 0, cw - 4 - nw - 6, T->ink, NULL);
         double py = ry + titleH + 6, px = cx + (cw - pw) / 2;
         /* the preview */
         ov_thumb(g, d, px, py, pw, ph);
-        if (mc) fill_rect(g, px, py, pw, ph, 0xd1ffffff);    /* faded: design 0.18 */
-        stroke_rrect(g, px - .75, py - .75, pw + 1.5, ph + 1.5, 0, 1.5, T->ink, 0);
-        if (isCur) stroke_rrect(g, px - 5.25, py - 5.25, pw + 10.5, ph + 10.5, 0, 2.5, T->ink, 0);   /* the double frame */
+        if (mc) ui_fill_rect(g, px, py, pw, ph, 0xd1ffffff);    /* faded: design 0.18 */
+        ui_stroke_rrect(g, px - .75, py - .75, pw + 1.5, ph + 1.5, 0, 1.5, T->ink, 0);
+        if (isCur) ui_stroke_rrect(g, px - 5.25, py - 5.25, pw + 10.5, ph + 10.5, 0, 2.5, T->ink, 0);   /* the double frame */
         if (!mc) {
             hit(px, py, pw, ph, A_WS_GOTO, (int)d, 0);
             /* the four slots: TL, TR, BL, BR; a window takes the first quarter it covers */
@@ -1989,8 +1990,8 @@ static void view_ov(Gc *g)
             int on[3] = { d > 0, ndesk > 1, d < ndesk - 1 }, A[3] = { A_SCR_PREV, A_SCR_CLOSE, A_SCR_NEXT };
             for (int b = 0; b < 3; b++) {
                 double bxx = bx + b * (48 + 8);
-                box(g, bxx, by, 48, 48, &T->btn);
-                icon(g, SI[b], 22, bxx + 24, by + 24, on[b] ? T->ink : IL_DIM);
+                ui_box(g, bxx, by, 48, 48, &T->btn);
+                ui_icon(g, SI[b], 22, bxx + 24, by + 24, on[b] ? T->ink : IL_DIM);
                 if (on[b]) hit(bxx, by, 48, 48, A[b], (int)d, 0);
             }
         } else {
@@ -2007,9 +2008,9 @@ static void view_ov(Gc *g)
             for (int t = 0; t < nt; t++) {
                 static const char *const AI[4] = { "go-up-symbolic", "go-down-symbolic", "go-previous-symbolic", "go-next-symbolic" };
                 double tx = px + tg[t].x - 24, ty = py + tg[t].y - 24;
-                rrect(g, tx, ty, 48, 48, T->btn.r[0], IL_HL);
-                stroke_rrect(g, tx + 1, ty + 1, 46, 46, T->btn.r[0] > 1 ? T->btn.r[0] - 1 : 0, 2, T->ink, 1);
-                icon(g, AI[tg[t].side], 26, tx + 24, ty + 24, T->ink);
+                ui_rrect(g, tx, ty, 48, 48, T->btn.r[0], IL_HL);
+                ui_stroke_rrect(g, tx + 1, ty + 1, 46, 46, T->btn.r[0] > 1 ? T->btn.r[0] - 1 : 0, 2, T->ink, 1);
+                ui_icon(g, AI[tg[t].side], 26, tx + 24, ty + 24, T->ink);
                 hit(tx, ty, 48, 48, A_OV_PUT, tg[t].side, tg[t].k);
             }
             if (isSrc) {
@@ -2019,20 +2020,20 @@ static void view_ov(Gc *g)
                 b.bw = 1.5; b.bc = T->ink;
                 for (int a = 0; a < na; a++) {
                     double ax = px + oa[a].x - 22, ay = py + oa[a].y - 22;
-                    box(g, ax, ay, 44, 44, &b);
-                    if (oa[a].act == A_OV_CLOSEAPP) icon(g, "window-close-symbolic", 24, ax + 22, ay + 22, T->ink);
+                    ui_box(g, ax, ay, 44, 44, &b);
+                    if (oa[a].act == A_OV_CLOSEAPP) ui_icon(g, "window-close-symbolic", 24, ax + 22, ay + 22, T->ink);
                     else if (oa[a].act == A_OV_FULL)
-                        icon(g, mc->maxed ? "view-restore-symbolic" : "view-fullscreen-symbolic", 24, ax + 22, ay + 22, T->ink);
+                        ui_icon(g, mc->maxed ? "view-restore-symbolic" : "view-fullscreen-symbolic", 24, ax + 22, ay + 22, T->ink);
                     else newscreen_glyph(g, ax + 22, ay + 22, T->ink);
                     hit(ax, ay, 44, 44, oa[a].act, 0, mc->w);
                 }
             }
-            if (nofit) fill_rect(g, cx, ry, cw, rh, 0x8cffffff);   /* design: opacity .45 */
+            if (nofit) ui_fill_rect(g, cx, ry, cw, rh, 0x8cffffff);   /* design: opacity .45 */
         }
     }
     double yb = gridY + gridH + 10;
     if (mh) { ws_minimized(g, x0, yb, CW, T->ink, 1); yb += mh + 10; }
-    text(g, &hf, hint, x0 + CW / 2, yb, 1, CW, T->sub, NULL);
+    ui_text(g, &hf, hint, x0 + CW / 2, yb, 1, CW, T->sub, NULL);
 }
 
 static App *notice_app(const char *entry, const char *app)
@@ -2076,21 +2077,21 @@ static void view_notif(Gc *g)
 {
     const double X = 12, Y = BH + 12, W = LW - 24, PX = 22, CW = W - 2 * PX;
     double th, lh, ch;
-    text_w(g, &T->headFont, T->nTitle, &th);
-    text_w(g, &T->lbl, "Ag", &lh);
+    ui_text_w(g, &T->headFont, T->nTitle, &th);
+    ui_text_w(g, &T->lbl, "Ag", &lh);
     double hh = (th > 44 ? th : 44) + 10 + T->headRuleW;
-    TFont hf = font_px(&T->dateFont, 13);
+    TFont hf = ui_font_px(&T->dateFont, 13);
     double fh, eh;
-    text_w(g, &hf, "Tap a notice to open it", &fh);
-    text_w(g, &T->dateFont, "Nothing new", &eh);
+    ui_text_w(g, &hf, "Tap a notice to open it", &fh);
+    ui_text_w(g, &T->dateFont, "Nothing new", &eh);
     /* the notices that fit on the screen, newest first */
     double tx = PX + 44 + 14, tw = CW - 44 - 14 - 14 - 44, room = LH - Y - 12 - (18 + hh + 10 + fh + 14);
     double ih[MAXNOTE];
     int shown = 0;
     double list_h = 0;
     for (int i = 0; i < nnotes; i++) {
-        double nh = notes[i].title[0] ? text_wrap(g, &T->nTitleFont, notes[i].title, 0, 0, tw, 2, 0, 0) : 0;
-        double bh = notes[i].body[0] ? text_wrap(g, &T->nBodyFont, notes[i].body, 0, 0, tw, 4, T->nBodyLh, 0) : 0;
+        double nh = notes[i].title[0] ? ui_text_wrap(g, &T->nTitleFont, notes[i].title, 0, 0, tw, 2, 0, 0) : 0;
+        double bh = notes[i].body[0] ? ui_text_wrap(g, &T->nBodyFont, notes[i].body, 0, 0, tw, 4, T->nBodyLh, 0) : 0;
         double c = lh + 3 + nh + (bh ? 3 + bh : 0);
         ih[i] = 14 + (c > 44 ? c : 44) + 14;
         if (list_h + ih[i] > room) break;
@@ -2102,44 +2103,44 @@ static void view_notif(Gc *g)
     card_frame(g, X, Y, W, H);
 
     double x0 = X + PX, y = Y + 18;
-    text(g, &T->headFont, T->nTitle, x0, y + (hh - 10 - T->headRuleW - th) / 2, 0, 0, T->ink, NULL);
+    ui_text(g, &T->headFont, T->nTitle, x0, y + (hh - 10 - T->headRuleW - th) / 2, 0, 0, T->ink, NULL);
     /* clear all */
     col cf = nnotes ? T->ink : IL_DIM;
     double cw = lbl(g, "Clear all", 0, 0, 0, 0, &ch);
     double cx = x0 + CW - cw, cy = y + (hh - 10 - T->headRuleW) / 2;
     lbl(g, "Clear all", cx, cy - ch / 2, 0, cf, NULL);
-    icon(g, "edit-clear-all-symbolic", 20, cx - 6 - 10, cy, cf);
+    ui_icon(g, "edit-clear-all-symbolic", 20, cx - 6 - 10, cy, cf);
     if (nnotes) hit(cx - 6 - 20 - 8, y, cw + 34 + 8, hh - T->headRuleW, A_N_CLEAR, 0, 0);
-    hline(g, x0, y + hh - T->headRuleW, CW, T->headRuleW, T->headRuleC, 0);
+    ui_hline(g, x0, y + hh - T->headRuleW, CW, T->headRuleW, T->headRuleC, 0);
     y += hh;
     for (int i = 0; i < shown; i++) {
         const Notice *n = &notes[i];
         double iy = y + 14;
-        box(g, x0, iy, 44, 44, &T->btn);
-        if (!icon(g, notice_icon(n), 22, x0 + 22, iy + 22, T->ink))
-            icon(g, "dialog-information-symbolic", 22, x0 + 22, iy + 22, T->ink);
+        ui_box(g, x0, iy, 44, 44, &T->btn);
+        if (!ui_icon(g, notice_icon(n), 22, x0 + 22, iy + 22, T->ink))
+            ui_icon(g, "dialog-information-symbolic", 22, x0 + 22, iy + 22, T->ink);
         char when[32], meta[160];
         notice_when(n->t, when, sizeof when);
         App *na = notice_app(n->entry, n->app);
         snprintf(meta, sizeof meta, "%s · %s", na ? na->name : n->app[0] ? n->app : "Notice", when);
         lbl(g, meta, x0 + tx - PX, iy, 0, T->lblC, NULL);
         double ty = iy + lh + 3;
-        if (n->title[0]) ty += text_wrap(g, &T->nTitleFont, n->title, x0 + tx - PX, ty, tw, 2, 0, T->ink) + 3;
-        if (n->body[0]) text_wrap(g, &T->nBodyFont, n->body, x0 + tx - PX, ty, tw, 4, T->nBodyLh, T->ink);
+        if (n->title[0]) ty += ui_text_wrap(g, &T->nTitleFont, n->title, x0 + tx - PX, ty, tw, 2, 0, T->ink) + 3;
+        if (n->body[0]) ui_text_wrap(g, &T->nBodyFont, n->body, x0 + tx - PX, ty, tw, 4, T->nBodyLh, T->ink);
         hit(x0, y, CW - 44 - 7, ih[i], A_N_OPEN, (int)n->id, 0);
-        icon(g, "window-close-symbolic", 22, x0 + CW - 22, iy + 22, T->ink);
+        ui_icon(g, "window-close-symbolic", 22, x0 + CW - 22, iy + 22, T->ink);
         hit(x0 + CW - 44 - 7, y, 44 + 7, ih[i], A_N_DISMISS, (int)n->id, 0);
         y += ih[i];
-        if (i < shown - 1) hline(g, x0, y - T->sepW, CW, T->sepW, T->sepC, T->sepDashed);
+        if (i < shown - 1) ui_hline(g, x0, y - T->sepW, CW, T->sepW, T->sepC, T->sepDashed);
     }
     if (!nnotes) {
-        text(g, &T->dateFont, "Nothing new", x0 + CW / 2, y + 34, 1, 0, T->sub, NULL);
+        ui_text(g, &T->dateFont, "Nothing new", x0 + CW / 2, y + 34, 1, 0, T->sub, NULL);
         y += list_h;
     }
     char foot[64];
     if (shown < nnotes) snprintf(foot, sizeof foot, "%d more · tap a notice to open it", nnotes - shown);
     else snprintf(foot, sizeof foot, "Tap a notice to open it");
-    text(g, &hf, foot, x0 + CW / 2, y + 10, 1, 0, T->sub, NULL);
+    ui_text(g, &hf, foot, x0 + CW / 2, y + 10, 1, 0, T->sub, NULL);
 }
 
 /* ---- apps ------------------------------------------------------------------- */
@@ -2158,8 +2159,8 @@ static const char *cat_icon(const char *cat)
 /* a ‹ › pager button */
 static void pg_btn(Gc *g, double x, double y, double sz, int next, int on, int act, int arg)
 {
-    box(g, x, y, sz, sz, &T->btn);
-    icon(g, next ? "go-next-symbolic" : "go-previous-symbolic", 24, x + sz / 2, y + sz / 2, on ? T->ink : IL_DIM);
+    ui_box(g, x, y, sz, sz, &T->btn);
+    ui_icon(g, next ? "go-next-symbolic" : "go-previous-symbolic", 24, x + sz / 2, y + sz / 2, on ? T->ink : IL_DIM);
     if (on) hit(x - 6, y - 6, sz + 12, sz + 12, act, arg, 0);
 }
 
@@ -2169,12 +2170,12 @@ static void pictogram(Gc *g, int kind, double cx, double cy, col c)
     double lw = 1.5;
     switch (kind) {
     case 0: /* rows */
-        stroke_rrect(g, cx - 12, cy - 13, 24, 12, 2, lw, c, 0);
-        stroke_rrect(g, cx - 12, cy + 1, 24, 12, 2, lw, c, 0);
+        ui_stroke_rrect(g, cx - 12, cy - 13, 24, 12, 2, lw, c, 0);
+        ui_stroke_rrect(g, cx - 12, cy + 1, 24, 12, 2, lw, c, 0);
         break;
     case 1: /* side */
-        stroke_rrect(g, cx - 13, cy - 12, 12, 24, 2, lw, c, 0);
-        stroke_rrect(g, cx + 1, cy - 12, 12, 24, 2, lw, c, 0);
+        ui_stroke_rrect(g, cx - 13, cy - 12, 12, 24, 2, lw, c, 0);
+        ui_stroke_rrect(g, cx + 1, cy - 12, 12, 24, 2, lw, c, 0);
         break;
     }
 }
@@ -2205,13 +2206,13 @@ static void cross_glyph(Gc *g, double cx, double cy, int horiz, col c)
 {
     double x = cx - 13, y = cy - 13;
     if (horiz) {
-        rrect(g, x, y + 11.5, 26, 3, 1.5, c);
-        rrect(g, x + 8, y + 1, 1.5, 8, .75, c);
-        rrect(g, x + 16.5, y + 17, 1.5, 8, .75, c);
+        ui_rrect(g, x, y + 11.5, 26, 3, 1.5, c);
+        ui_rrect(g, x + 8, y + 1, 1.5, 8, .75, c);
+        ui_rrect(g, x + 16.5, y + 17, 1.5, 8, .75, c);
     } else {
-        rrect(g, x + 11.5, y, 3, 26, 1.5, c);
-        rrect(g, x + 1, y + 8, 8, 1.5, .75, c);
-        rrect(g, x + 17, y + 16.5, 8, 1.5, .75, c);
+        ui_rrect(g, x + 11.5, y, 3, 26, 1.5, c);
+        ui_rrect(g, x + 1, y + 8, 8, 1.5, .75, c);
+        ui_rrect(g, x + 17, y + 16.5, 8, 1.5, .75, c);
     }
 }
 
@@ -2222,7 +2223,7 @@ static void div_btn(Gc *g, double x, double y, double sz, int round_, int act, i
     b.bw = 1.5; b.bc = T->ink;
     if (round_) for (int k = 0; k < 4; k++) b.r[k] = HALF;
     bound(x, y, sz, sz, 4);
-    box(g, x, y, sz, sz, &b);
+    ui_box(g, x, y, sz, sz, &b);
     hit(x, y, sz, sz, act, arg, w);
 }
 
@@ -2304,7 +2305,7 @@ static void view_pop(Gc *g)
         for (int i = 0; i < pop.nhit; i++) {
             const Hit *h = &pop.hit[i];
             if (h->act == A_NONE) continue;
-            if (k++ == st.focus) { stroke_rrect(g, h->x - 3, h->y - 3, h->w + 6, h->h + 6, 3, 2, T->ink, 0); break; }
+            if (k++ == st.focus) { ui_stroke_rrect(g, h->x - 3, h->y - 3, h->w + 6, h->h + 6, 3, 2, T->ink, 0); break; }
         }
     }
 }
@@ -2317,12 +2318,12 @@ static void view_rail(Gc *g)
     const char *L[3] = { T->frac ? "⅓" : "1/3", T->frac ? "½" : "1/2", T->frac ? "⅔" : "2/3" };
     double f[3] = { 1 / 3.0, .5, 2 / 3.0 };
     bound(rx - 60, top + 16, 66, len - 32, 0);
-    rrect(g, rx, top + 16, 6, len - 32, 3, T->ink);
+    ui_rrect(g, rx, top + 16, 6, len - 32, 3, T->ink);
     for (int i = 0; i < 3; i++) {
-        double y = top + f[i] * len, th, tw = text_w(g, &T->snapFont, L[i], &th);
-        fill_rect(g, rx - 10 - tw - 6, y - th / 2, tw + 6, th, T->screenBg);
-        text(g, &T->snapFont, L[i], rx - 13, y - th / 2, 2, 0, T->ink, NULL);
-        fill_rect(g, rx, y - .75, 6, 1.5, T->screenBg);
+        double y = top + f[i] * len, th, tw = ui_text_w(g, &T->snapFont, L[i], &th);
+        ui_fill_rect(g, rx - 10 - tw - 6, y - th / 2, tw + 6, th, T->screenBg);
+        ui_text(g, &T->snapFont, L[i], rx - 13, y - th / 2, 2, 0, T->ink, NULL);
+        ui_fill_rect(g, rx, y - .75, 6, 1.5, T->screenBg);
     }
 }
 
@@ -2552,12 +2553,12 @@ void ev_placeholder_draw(cairo_t *cr, int w, int h, const App *a)
     cairo_save(cr);
     cairo_scale(cr, S, S);
     double lw = w / S, lh = h / S, th = 0;
-    fill_rect(&g, 0, 0, lw, lh, T->screenBg);
+    ui_fill_rect(&g, 0, 0, lw, lh, T->screenBg);
     double cy = lh / 2 - 30;
-    if (!icon(&g, a->icon, 64, lw / 2, cy, T->ink)) icon(&g, cat_icon(a->cat), 64, lw / 2, cy, T->ink);
-    text_w(&g, &T->headFont, a->name, &th);
-    text(&g, &T->headFont, a->name, lw / 2, cy + 48, 1, lw - 40, T->ink, NULL);
-    text(&g, &T->lbl, "starting …", lw / 2, cy + 48 + th + 8, 1, lw - 40, T->sub, NULL);
+    if (!ui_icon(&g, a->icon, 64, lw / 2, cy, T->ink)) ui_icon(&g, cat_icon(a->cat), 64, lw / 2, cy, T->ink);
+    ui_text_w(&g, &T->headFont, a->name, &th);
+    ui_text(&g, &T->headFont, a->name, lw / 2, cy + 48, 1, lw - 40, T->ink, NULL);
+    ui_text(&g, &T->lbl, "starting …", lw / 2, cy + 48 + th + 8, 1, lw - 40, T->sub, NULL);
     cairo_restore(cr);
 }
 
@@ -2697,8 +2698,8 @@ static void act(const Hit *h, double rx)
     case A_BACKDROP: set_view(V_IDLE); break;
     case A_QS_TITLE: {
         int i = 0;
-        while (i < nthemes && themes[i] != T) i++;
-        theme_set(themes[(i + 1) % nthemes]->name, 1);
+        while (i < ui_nvoices && ui_voices[i] != T) i++;
+        theme_set(ui_voices[(i + 1) % ui_nvoices]->name, 1);
         render_all();
         break;
     }
@@ -3143,7 +3144,7 @@ int main(int argc, char **argv)
         char p[512];
         state_path(p, sizeof p, ".config", "theme");
         FILE *f = fopen(p, "w");
-        if (f) { fprintf(f, "%s\n", theme_find(argv[2])->name); fclose(f); }
+        if (f) { fprintf(f, "%s\n", ui_voice_find(argv[2])->name); fclose(f); }
         send_request(2, argv + 1);
         return 0;
     }
@@ -3164,7 +3165,7 @@ int main(int argc, char **argv)
     theme_set(tn, 0);
 
     double t0 = now_ms();
-    draw_init();
+    ui_draw_init();
     LOG("draw init %.0f ms", now_ms() - t0);
 
     struct sockaddr_un sa = { .sun_family = AF_UNIX };

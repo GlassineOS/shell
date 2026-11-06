@@ -5,7 +5,7 @@ Nothing is written until Install (Wi-Fi excepted: the packs need it, the design'
 Connect joins at once). E-ink only: the Look step offers the three voices, no pen or
 scheme.
 
-Drawing reuses glassine-settings' paint.py (CSS-like boxes, Pango text, symbolic icons).
+Drawing and the voices are GlassineOS/ui's (glassine_ui: CSS-like boxes, Pango text, symbolic icons).
 Every paint is a panel update, so the window redraws once per change.
 
     glassine-setup [--demo]                     the app (--demo: sample data, nothing applied)
@@ -21,7 +21,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
-from settings import paint as P  # noqa: E402
+from glassine_ui import paint as P  # noqa: E402
 
 from . import data as D  # noqa: E402
 from . import needs as needs_mod  # noqa: E402

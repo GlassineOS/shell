@@ -19,6 +19,7 @@ OUT=${1:-$D/out}
 mkdir -p "$OUT"
 rm -rf "$OUT/head" && mkdir -p "$OUT/head"
 git -C "$R" archive HEAD src | tar -x -C "$OUT/head"
+UI=$(sh "$R/test/ui.sh")          # GlassineOS/ui: the voices and the drawing (test/ui.sh)
 docker build -q -t glassine-shelltest "$D" >/dev/null
 docker run --rm -e THEMES="${THEMES:-white editorial stationery}" -e ORIENTS="${ORIENTS:-portrait landscape}" \
-    -e SWAYD="${SWAYD:-live}" -v "$R":/r:ro -v "$OUT":/out glassine-shelltest sh /r/test/shell/run.sh
+    -e SWAYD="${SWAYD:-live}" -v "$R":/r:ro -v "$UI":/ui:ro -v "$OUT":/out glassine-shelltest sh /r/test/shell/run.sh
