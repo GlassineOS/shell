@@ -11,9 +11,10 @@
  * Two levels: the first | the rest (4: the first two |
  * the other two); each level stacked or side by side ("orient",
  * remembered per workspace; default stacked, then side by side).
- * With 4 the inner splits are always across the outer one and
- * share one boundary (design one split each
- * way), so the quarters line up. Rebuilt whenever a workspace's
+ * With 3-4 the inner splits are always across the outer one.
+ * Each line has its own position (spec 001 FR-021): r between
+ * the halves, ri[0] and ri[1] inside half 0 and half 1 (Keep.frac;
+ * a 2x2 screen's inner lines line up only when equal). Rebuilt whenever a workspace's
  * windows change, in one sway command list (one transaction:
  * one panel update).
  * workspaces at most APPS_PER_WS tiled app windows each: one beyond that
@@ -40,16 +41,38 @@
  * moves nothing else.
  * handles a drag handle in each gap between the visible workspace's
  * tiles (swayd-handles.c; needs `gaps inner 20` + `gaps outer
- * -20` in the sway config): drag = the split moves there (kept
- * per workspace across rebuilds), tap = glassine-shell's divider sheet.
+ * -20` in the sway config), level 0 the main line, 1/2 the inner
+ * line of half 0/1: drag = that line moves there (kept per
+ * workspace across rebuilds; an inner line of a 2x2 screen snaps
+ * to the other), tap = glassine-shell's divider buttons. The shell
+ * gets "dividers N,ORIENT0 x,y,w,h,vert,level,a,b,pos ...".
+ * Home an app (app_id: home_app) kept in the scratchpad, shown
+ * floating over the work area under the bar. Empty screen (spec
+ * 001 FR-040): the last window on the focused screen closes -> the
+ * screen stays under Home; Home hidden any other way than by an app
+ * opening there -> that screen goes (not the only one). The shell
+ * gets "home VISIBLE HOLE" on every change.
  * commands datagrams on $XDG_RUNTIME_DIR/glassine-swayd (glassine-shell's divider
- * sheet):
+ * buttons, the overview, Home):
  * swap HEXID HEXID the two windows trade places
+ * swapin HEXID the two windows of its split half trade, ri mirrors
+ * cross HEXID a 2x2 screen: the other axis runs through, every
+ * window keeps its quarter (FR-023)
+ * direction HEXID a 2-window screen: rows <-> side by side
+ * full HEXID toggle: floating over its screen's work area (the
+ * bar stays; not sway's fullscreen), the others tiled underneath
+ * scrmove N -1|1 screen N trades places with the one before/after
+ * scrclose N every app on screen N closes, the screen goes (not the last)
+ * home show|hide|toggle
+ * next new|here|hole the next new window goes to a new screen after the
+ * current one / beside the apps on the current one / into the
+ * empty screen; used once, forgotten after 10 s
  * orient LEVEL 0|1 level 0 (the first | the rest) or 1
  * (the rest) stacked (0) / side by side (1)
  * swaphalves HEXID that window's screen: the halves trade places
  * place HEXID HEXID up|down|left|right the first window to that
- * side of the second, on the second's screen
+ * side of the second, on the second's screen (its own too: worked
+ * out without it; a move that changes nothing is refused)
  * turn HEXID the workspace of that window: both levels
  * the other way (the overview's Turn)
  * swapdir left|right|up|down the focused window trades places
