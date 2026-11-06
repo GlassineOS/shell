@@ -46,6 +46,8 @@ for a in terminal:Terminal:utilities-terminal-symbolic notes:Notes:accessories-t
         > $HOME/.local/share/applications/$id.desktop
 done
 # a launch target that opens no window (its placeholder closes by itself)
+# a second copy started by `launch ID new` (its own app id: findable in the tree)
+printf '[Desktop Entry]\nType=Application\nName=Extra\nExec=foot -a extra sleep 600\nIcon=utilities-terminal-symbolic\n' > $HOME/.local/share/applications/extra.desktop
 printf '[Desktop Entry]\nType=Application\nName=Quiet\nExec=true\nIcon=utilities-terminal-symbolic\n' > $HOME/.local/share/applications/quiet.desktop
 
 cat > /tmp/sway-$O.conf <<C
@@ -86,10 +88,10 @@ for th in $THEMES; do
     sm -q "workspace number 3"; shot $P-bar-3apps
     send home 1 5; shot $P-bar-hole
     send home 0 0
-    sm -q "[app_id=reader] fullscreen enable"; sm -q "workspace number 2"; sleep 0.8
+    swayd full $READER; sm -q "workspace number 2"; sleep 0.8
     tap bar screen; shot $P-overview-browse
     tap pop ov-close
-    sm -q "[app_id=reader] fullscreen disable"; sleep 0.8
+    swayd full $READER; sleep 0.8
     N=$(tree narrow 3) && { tap bar screen; tap pop ov-pick - $N; shot $P-move-narrow; key Escape; key Escape; }
     W=$(tree wide 2 || tree wide 3) && { tap bar screen; tap pop ov-pick - $W; shot $P-move-wide; key Escape; key Escape; }
     [ "$O" = landscape ] && { tap bar screen; tap pop ov-pick - $NOTES; shot $P-move-landscape; key Escape; key Escape; }
@@ -157,10 +159,12 @@ send divider-tap $(tree div 2)
 expect "divider, 2 windows: Swap + Direction, no crossing" "$(view) $(nh pop div-swap) $(nh pop div-dir) $(nh pop div-cross)" "4 1 1 0"
 key Escape
 sm -q "workspace number 3"; sleep 0.8
-D3=$(tree div 3)
+D3T=$(tree div 3)
+for LV in 1 2; do
+D3=$(echo "$D3T" | awk -F, -v lv=$LV 'NR > 1 && $6 != 0 { $6 = lv } { print }' OFS=,)
 send divider-tap $D3
-expect "divider, 3 windows: a Swap on each divider, no Direction" "$(nh pop div-swap) $(nh pop div-dir) $(nh pop div-cross)" "2 0 0"
-expect "divider, 3 windows: the main Swap a quarter along, away from the inner line" "$(python3 - $HITS/pop $D3 <<'PY'
+expect "divider, 3 windows (inner line level $LV): a Swap on each divider, no Direction" "$(nh pop div-swap) $(nh pop div-dir) $(nh pop div-cross)" "2 0 0"
+expect "divider, 3 windows (inner line level $LV): the main Swap a quarter along, away from the inner line" "$(python3 - $HITS/pop $D3 <<'PY'
 import sys
 L=[l.split() for l in open(sys.argv[1])]
 d=[w.split(",") for w in sys.argv[3:]]
@@ -174,7 +178,11 @@ c=(iy-y)/h if vert else (ix-x)/w
 print("ok" if abs(f-(.75 if c<.5 else .25))<.03 else "f=%.2f c=%.2f"%(f,c))
 PY
 )" "ok"
+J=$(grep '^div-swap' $HITS/pop | awk '{print $2}' | while read i; do echo "$D3" | sed -n "$((i + 2))p" | cut -d, -f6 | grep -q "^$LV$" && echo $i; done | head -1)
+A3=$(echo "$D3" | awk -F, -v lv=$LV 'NR > 1 && $6 == lv { print $7 }')
+mark; tap pop div-swap $J; sent "divider, 3 windows (inner line level $LV): its Swap sends swapin" "swapin $A3"
 key Escape
+done
 sm -q "workspace number 4"; sleep 0.8
 D4=$(tree div 4)
 send divider-tap $D4
@@ -232,6 +240,20 @@ mark; tap pop ov-put; sent "move: an arrow: place (the moving app beside another
 key Escape; sleep 0.5
 mark; $B/glassine-shell-wl launch quiet new; sleep 1; sent "launch ID new: next new before the app" "next new"
 mark; $B/glassine-shell-wl launch quiet here; sleep 1; sent "launch ID here: next here" "next here"
+mark; $B/glassine-shell-wl launch extra new; sleep 3
+sent "launch ID new: next new reaches glassine-swayd" "next new"
+expect "launch ID new: next new is sent before the placeholder is made" "$(grep -o 'tile: next new\|placeholder for Extra' $L | tail -2 | cut -c1-4 | tr '\n' ' ')" "tile plac "
+expect "launch ID new: the new window gets a screen of its own" "$(swaymsg -t get_tree -r | python3 -c '
+import json,sys
+def walk(n,ws=None):
+    if n.get("type")=="workspace": ws=n
+    if n.get("app_id")=="extra": print(sum(1 for _ in views(ws)))
+    for c in n.get("nodes",[])+n.get("floating_nodes",[]): walk(c,ws)
+def views(n):
+    if n.get("app_id") or n.get("window_properties"): yield n
+    for c in n.get("nodes",[]): yield from views(c)
+walk(json.load(sys.stdin))')" "1"
+sm -q "[app_id=extra] kill"; sleep 1
 send home 1 3
 mark; $B/glassine-shell-wl launch quiet new; sleep 1; sent "launch with an empty screen under Home: next hole" "next hole"
 send home 0 0
