@@ -10,7 +10,7 @@
 A screen holds one to four windows. Until now the top bar opened a screen menu with per-window actions,
 Overview had a separate button, and the four windows of a 2 × 2 screen shared one inner line. The design
 moves every app and screen action into Overview, opened from the bar's screen button, and keeps the layout
-on the dividers, each with its own position. Home becomes its own app (spec 002); this spec covers how the
+on the dividers, each with its own position. Home becomes its own app (`GlassineOS/home` spec 001); this spec covers how the
 shell shows and hides it and what happens to a screen whose last app closes.
 
 ## User scenarios
@@ -131,7 +131,9 @@ or opening an app hides it.
 - **FR-024**: The buttons stay until a divider is tapped again, something else is tapped or Escape is pressed.
 
 **Home and empty screens**
-- **FR-030**: Home is shown full screen over the current screen when the Home button is tapped, the Home gesture
+- **FR-029**: The home app is a setting of the session: Home by default, any app may take its place. Everything below
+  that says Home means the home app.
+- **FR-030**: Home is shown over the whole current screen, under the bar, when the Home button is tapped, the Home gesture
   runs (four fingers up), or the last app on the current screen closes. The bar stays above it.
 - **FR-031**: Home hides when an app opens, when the Home button is tapped again, or on Escape.
 - **FR-040**: When the last app on the current screen closes, that screen stays, empty, under Home. Opening an app
@@ -152,7 +154,7 @@ or opening an app hides it.
 |---|---|---|---|
 | Window-model commands (the shell to the window model: place, swap, swap within a half, crossing, direction, full screen, new screen, move and close screens) | owned | 2 | this repository, README "Runtime interfaces" |
 | Divider list (the window model to the shell: each divider's place, kind main/inner and half) | owned | 2 | this repository, README "Runtime interfaces" |
-| Home show/hide and "fill the empty screen" | owned, shared with spec 002 | 1 | spec 002 |
+| The home-app rule (which app, show, hide, fill the empty screen) and launching apps | owned | 1 | this spec; consumed by `GlassineOS/home` |
 
 ## Device scope and risk
 
@@ -167,7 +169,7 @@ Device-neutral. No device risk: nothing flashes or touches boot, recovery or use
 
 ## Out of scope
 
-- Home's own content (spec 002).
+- Home's own content (`GlassineOS/home` spec 001).
 - Settings and Packages (already built).
 
 ## Success criteria
