@@ -11,7 +11,6 @@ stop() { pkill -f "^$1 " 2>/dev/null; sleep 0.3; }
 check() { GLASSINE_HEALTH_MIN_AGE=${MIN:-0} sh $H > /tmp/out 2>&1; }
 says() { grep -q -- "$1" /tmp/out; }
 
-echo sway > /etc/glassine/session
 for p in /usr/sbin/glassine-epdd-desktop /usr/bin/sway-glassine /usr/bin/glassine-swayd /usr/bin/glassine-shell-wl; do start $p; done
 ok "sway session, all running by absolute path: healthy" "check"
 ok "fresh processes fail the minimum age" "MIN=60 check; [ \$? = 1 ] && says 'glassine-epdd-desktop(restarted'"
@@ -24,6 +23,9 @@ stop /usr/sbin/glassine-epdd-desktop-wl; start /usr/sbin/glassine-epdd-desktop
 mkdir -p /run/user/1000; : > /run/user/1000/glassine-shell-failed
 ok "the bar given up: unhealthy" "! check && says shell-gave-up"
 rm /run/user/1000/glassine-shell-failed
+: > /run/glassine-session-failed
+ok "the session given up: unhealthy" "! check && says session-failed"
+rm /run/glassine-session-failed
 echo 'epd: DEAD LINK (x): link + rails down, hv_on 1, failure 1/5' > /var/log/glassine-epdd-desktop.log
 ok "one recovered DEAD LINK: healthy" "check"
 echo 'epd: DEAD LINK (x): link + rails down, hv_on 1, failure 5/5: GIVING UP, the panel is no longer driven' >> /var/log/glassine-epdd-desktop.log

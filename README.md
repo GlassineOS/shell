@@ -27,7 +27,7 @@ make check      # compiles, then the host tests in Docker
 Other repositories use these, so renaming one means changing them in the same release:
 
 - `/run/glassine-epdd-desktop.ctl`, `/run/glassine-epdd-desktop.classes`, `/run/glassine-rotation`, `/run/glassine-light`, `/run/glassine-bgprio.sock`
-- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `session`, `launch-boost`, `grid-hidden` and the session's renderer flags
+- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden` and the session's renderer flags
 - `$XDG_RUNTIME_DIR/glassine-swayd`, `~/.config/glassine-shell/theme`
 - `glassine-shell-wl`, started by the sway config through `glassine-shell-wl-run`
 

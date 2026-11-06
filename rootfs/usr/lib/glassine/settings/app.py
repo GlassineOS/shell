@@ -7,7 +7,7 @@ One GTK window draws everything itself (cairo + Pango, the design's values):
 pages instead of scrolling, taps act on release, no animations. The theme is
 glassine-shell's ($XDG_RUNTIME_DIR/glassine-shell.theme, followed live). A secured Wi-Fi
 network's password is typed on the card's own keyboard (the design's), so it
-works without an input method on X and sway.
+works without an input method.
 
   glassine-settings [PAGE]            open (or raise) at a topic: wifi bt sound eink
                                  apps power keyboard appearance time storage about

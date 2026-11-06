@@ -1,6 +1,6 @@
 #!/bin/sh
 # The sway session (, started and
-# watched by glassine-session (3 quick deaths -> X for the rest of the boot):
+# watched by glassine-session (3 quick deaths: the boot is marked failed, sway again):
 # glassine-epdd-desktop (root, frames from sway: GLASSINE_EPDD_SRC=wl) + seatd (root; gives the
 # desktop user's sway the input devices) + sway-glassine (the patched sway with
 # the glassine-epd output backend) as $GLASSINE_USER. Exits when any of the three dies:
@@ -8,7 +8,7 @@
 # which glassine-session takes as failed at once. glassine-bgprio -sway rides along.
 # /etc/glassine/sway-dry: glassine-epdd-desktop without the panel's high voltage (dry run: the
 # whole pipeline runs, the panel doesn't change) -- for first tests
-# /etc/glassine/epd-gpu: drive frames on the GPU, as on X
+# /etc/glassine/epd-gpu: drive frames on the GPU
 # /etc/glassine/sway-gpu: sway renders with GLES (GBM dma-bufs, read
 # by glassine-epdd-desktop's GPU ingest), else pixman. A GLES sway that dies is restarted
 # here at once with pixman (glassine-epdd-desktop and seatd keep running, the death is not
@@ -36,9 +36,7 @@
 # freeze -> long press -> freeze loop ends after two rounds; a GLES session
 # that lasts GLES_GOOD_S resets the count
 # Touch: sway reads the touchscreen itself (apps handle tap, drag and long
-# press; the 3-finger swipe is in sway, 0002-glassine-touch-gestures.patch), so
-# glassine-touchd (X's hold-back + right click) is stopped for this session and
-# started again when it ends (glassine-session also starts it before X).
+# press; the 3-finger swipe is in sway, 0002-glassine-touch-gestures.patch).
 U=${GLASSINE_USER:-user}
 SWAY=/usr/bin/sway-glassine
 EPID= SEPID= SPID=
@@ -53,7 +51,6 @@ cleanup() {
     [ -n "$EPID" ] && kill $EPID 2>/dev/null
     sleep 1
     wait
-    rc-service -q glassine-touchd start 2>/dev/null
     rm -f /var/lib/glassine/gles-running
 }
 trap 'cleanup; exit 0' TERM INT
@@ -69,8 +66,6 @@ done
 echo $$ > /run/glassine/session-sway.pid
 [ -x $SWAY ] || { echo "glassine-session-sway: $SWAY missing"; exit 1; }
 command -v seatd >/dev/null || { echo "glassine-session-sway: seatd missing (apk add seatd)"; exit 1; }
-
-rc-service -q glassine-touchd stop 2>/dev/null
 
 # The fast defaults ("fastest known-good state"), set once
 # per defaults version (/etc/glassine/defaults-N): GLES sway, GPU drive frames,
@@ -215,8 +210,8 @@ B=$(/usr/sbin/glassine-ddr epdd-opts 2>/dev/null) && export GLASSINE_EPDD="${GLA
 [ -e /etc/glassine/sway-dry ] && export GLASSINE_EPDD_HV=0
 [ -e /etc/glassine/epd-gpu ] && export GLASSINE_EPDD_GPU=1
 echo "glassine-session-sway: $(date) glassine-epdd-desktop (wl$([ -e /etc/glassine/sway-dry ] && echo ', dry run'))"
-# glassine-epdd-desktop-wl: a build live-deployed beside the image's glassine-epdd-desktop (sway/deploy-live.sh;
-# the X session's binary stays untouched), used while it is newer than the
+# glassine-epdd-desktop-wl: a build live-deployed beside the image's glassine-epdd-desktop,
+# used while it is newer than the
 # image's (the kit's glassine-epdd-desktop has the Wayland source too, and replaces an old -wl)
 EPDD=/usr/sbin/glassine-epdd-desktop; [ -x $EPDD-wl ] && [ $EPDD-wl -nt $EPDD ] && EPDD=$EPDD-wl
 [ -s /var/log/glassine-epdd-desktop.log ] && mv -f /var/log/glassine-epdd-desktop.log /var/log/glassine-epdd-desktop.log.1
@@ -238,8 +233,8 @@ mkdir -p /run/glassine-ink && chown "$U" /run/glassine-ink && chmod 755 /run/gla
 GAVEUP=/run/user/$UID_/glassine-shell-failed
 rm -f $GAVEUP
 # WLR_BACKENDS=libinput: input only; the one output is the glassine-epd backend
-# (GLASSINE_EPD=1, added by the patch). pixman: all-CPU, as the X session.
-# dbus-run-session, not dbus-launch --exit-with-session (as on X): without
+# (GLASSINE_EPD=1, added by the patch). pixman: all-CPU.
+# dbus-run-session, not dbus-launch --exit-with-session: without
 # $DISPLAY that watches stdin, which is /dev/null under supervise-daemon, so the
 # session bus exited at once (GSettings, notifications, portals had no bus).
 FALLBACK=/run/glassine/gpu-fallback STRIKES=/var/lib/glassine/gles-strikes GLES_GOOD_S=300
@@ -249,7 +244,7 @@ gpu_fallback() {
     rm -f /var/lib/glassine/gles-running
     echo "glassine-session-sway: $(date) $1: pixman for this boot ($FALLBACK)"
 }
-# the old sticky fallback (before ) removed the user's sway-gpu: give it back once
+# an older sticky fallback removed the user's sway-gpu: give it back once
 if [ -e /var/lib/glassine/gpu-fallback ]; then
     : > /etc/glassine/sway-gpu; rm -f /var/lib/glassine/gpu-fallback
     echo "glassine-session-sway: the old permanent GPU fallback is gone; /etc/glassine/sway-gpu restored"
@@ -323,7 +318,7 @@ start_sway() {
     if [ "$REN" = gles2 ]; then mkdir -p /var/lib/glassine; date > /var/lib/glassine/gles-running; sync; fi
     [ -s /var/log/sway.log ] && mv -f /var/log/sway.log /var/log/sway.log.1
     # GLES: GTK4 draws on the A509 (glassine-gtk.sh, read by su -l first, sets cairo
-    # for X/pixman) -- GNOME Software 146 -> 70 ms per scroll step, 30 ms to
+    # for pixman) -- GNOME Software 146 -> 70 ms per scroll step, 30 ms to
     # the first paint. Texture sub-uploads into a busy texture
     # (GTK4's glyph atlas: letters missing after a scroll) went through the
     # A509's 2D blitter, which writes nothing: FD_MESA_DEBUG=noblit until our
@@ -398,7 +393,7 @@ start_sway() {
 start_sway
 # apps on other workspaces: background CPU/IO priority, frozen after a while
 # (its sway side: waits for the user's sway socket, exits with sway; not
-# supervised, as on X)
+# supervised)
 BGPRIO=/usr/sbin/glassine-bgprio; [ -x $BGPRIO-wl ] && [ $BGPRIO-wl -nt $BGPRIO ] && BGPRIO=$BGPRIO-wl   # as glassine-epdd-desktop-wl
 [ "${GLASSINE_SESSION:-}" = setup ] || $BGPRIO -sway >>/var/log/glassine-bgprio.log 2>&1 &
 alive() { local s; { read -r s < /proc/$1/stat; } 2>/dev/null || return 1; s=${s##*) }; [ "${s%% *}" != Z ]; }

@@ -49,7 +49,6 @@ typedef struct {
     int stitch; col stitchColor;
     Box plateOn, plateOff; col plateOnFg;
     TFont wsFont, titleFont, numFont;
-    /* divider (glassine-winfit draws it; glassine-shell only passes the theme name) */
     /* cards */
     Box card; int emboss;
     float sepW; col sepC; int sepDashed;  /* 1 dashed, 2 dotted */

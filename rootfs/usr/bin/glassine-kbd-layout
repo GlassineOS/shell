@@ -35,6 +35,6 @@ new=$(printf '# glassine-kbd-layout (generated)\n%s\n%s' "$want" "$var")
 if [ "$(cat "$f" 2>/dev/null)" != "$new" ]; then
     printf '%s\n' "$new" > "$f.tmp" && mv "$f.tmp" "$f"
 fi
-# sway running (no sway, X: nothing to do)
+# sway running (no sway: nothing to do)
 swaymsg -q "$want; $var" 2>/dev/null
 exit 0

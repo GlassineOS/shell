@@ -1,19 +1,16 @@
 #!/bin/sh
 # glassine-theme-apply white|editorial|stationery — the desktop wears glassine-shell's
 # theme (glassine-shell runs this on start and on every theme change):
-# GTK3 xsettings /Net/ThemeName = glassine-NAME (/usr/share/themes; apps restyle live)
-# UI font xsettings /Gtk/FontName (the theme's text face)
+# GTK3 GSettings org.gnome.desktop.interface (dconf keeps it for the
+# session's apps; no xsettings daemon): gtk-theme glassine-NAME
+# (/usr/share/themes; apps restyle live), the theme's text face, the
+# icons, the monospace font, no cursor blink, no animations, and the
+# pointer's theme and size as sway's xcursor_theme (sway/config: 24
+# at scale 2, 48 px on the panel)
 # GTK4/Adw ~/.config/gtk-4.0/gtk.css = a copy of /usr/share/glassine/gtk4/NAME.css (read
 # at app start; a copy, not a link: Flatpak apps can't see /usr/share/glassine),
 # and a --user Flatpak override (xdg-config/gtk-4.0:ro) so sandboxed
 # GTK4 apps read it too
-# Onboard org.onboard theme (/usr/share/onboard/themes/glassine-NAME.theme); its
-# GTK-theme tracking would pick its own theme over ours, so it is off
-# Sway ($WAYLAND_DISPLAY; no xsettings daemon): GTK3 reads GSettings instead,
-# org.gnome.desktop.interface (dconf keeps it for the session's apps): the
-# theme and font as above, plus what xsettings.xml sets once on X (icons,
-# monospace font, no cursor blink, no animations), and the pointer's theme and
-# size as sway's xcursor_theme (sway/config: 24 at scale 2, 48 px on the panel). GTK4 as on X; no Onboard.
 t=$1
 case $t in
     white) font="IBM Plex Sans 10" ;;
@@ -33,25 +30,15 @@ gtk4() {
         flatpak override --user --filesystem=xdg-config/gtk-4.0:ro
     return 0
 }
-if [ -n "${WAYLAND_DISPLAY:-}" ]; then
-    gs() { [ "$(gsettings get org.gnome.desktop.interface "$1" 2>/dev/null)" = "$2" ] ||
-               gsettings set org.gnome.desktop.interface "$1" "$2"; }
-    gs gtk-theme "'glassine-$t'"
-    gs font-name "'$font'"
-    gs icon-theme "'glassine-mono'"
-    gs monospace-font-name "'GoMono Nerd Font Mono 10'"
-    gs cursor-blink false
-    gs cursor-theme "'Adwaita'"
-    gs cursor-size 24
-    gs enable-animations false
-    gtk4
-    exit 0
-fi
-xs() { [ "$(xfconf-query -c xsettings -p "$1" 2>/dev/null)" = "$2" ] || xfconf-query -c xsettings -p "$1" -n -t string -s "$2"; }
-xs /Net/ThemeName "glassine-$t"
-xs /Gtk/FontName "$font"
+gs() { [ "$(gsettings get org.gnome.desktop.interface "$1" 2>/dev/null)" = "$2" ] ||
+           gsettings set org.gnome.desktop.interface "$1" "$2"; }
+gs gtk-theme "'glassine-$t'"
+gs font-name "'$font'"
+gs icon-theme "'glassine-mono'"
+gs monospace-font-name "'IBM Plex Mono 10'"
+gs cursor-blink false
+gs cursor-theme "'Adwaita'"
+gs cursor-size 24
+gs enable-animations false
 gtk4
-ob=/usr/share/onboard/themes/glassine-$t.theme
-gsettings set org.onboard system-theme-tracking-enabled false 2>/dev/null
-[ "$(gsettings get org.onboard theme 2>/dev/null)" = "'$ob'" ] || gsettings set org.onboard theme "$ob" 2>/dev/null
 exit 0

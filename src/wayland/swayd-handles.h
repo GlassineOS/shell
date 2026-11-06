@@ -1,6 +1,5 @@
 /* swayd-handles.h — glassine-swayd's drag handles between tiles (swayd-handles.c):
- * layer-shell surfaces in sway's inner gaps, as glassine-winfit's handle windows on
- * X. All geometry in device (panel) px; the surfaces are at the output scale. */
+ * layer-shell surfaces in sway's inner gaps. All geometry in device (panel) px; the surfaces are at the output scale. */
 #ifndef SWAYD_HANDLES_H
 #define SWAYD_HANDLES_H
 

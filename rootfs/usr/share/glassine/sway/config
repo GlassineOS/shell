@@ -5,7 +5,7 @@ output EPD-1 scale 2 bg #ffffff solid_color
 default_border none
 default_floating_border none
 # 20 px (40 on the panel) between tiles, none at the screen edges: glassine-swayd's
-# drag handles sit in these gaps (as glassine-winfit's GAP on X)
+# drag handles sit in these gaps
 gaps inner 20
 gaps outer -20
 smart_gaps on
@@ -14,10 +14,6 @@ focus_follows_mouse no
 # runs: Chromium, GNOME apps hand over to the running copy) gets it, on its
 # own workspace; sway's default only marked it urgent there
 focus_on_window_activation focus
-# dialogs without a parent float as on X (xfwm4 floats by the dialog type hint;
-# sway only floats Wayland windows with a parent or a fixed size): the power &
-# light settings (GTK3: app_id = its program name)
-for_window [app_id="glassine-power-settings"] floating enable
 # the mouse pointer: the backend hands its cursor to glassine-epdd-desktop, which paints it
 # (@pointer=off in eink.conf: never). The pen and touch never show
 # it (sway-glassine 0009). Hovering is wanted with a mouse (tooltips, highlights)
@@ -34,8 +30,8 @@ seat * xcursor_theme Adwaita 24
 # focus changes never move (and so show) the pointer
 mouse_warping none
 
-# touch (the touchscreen itself: glassine-touchd is stopped in this session) and the
-# pen, both in panel coordinates -> portrait (as 40-glassine-input.conf on X)
+# touch (the touchscreen itself) and the pen, both in panel coordinates ->
+# portrait
 input type:touch {
     map_to_output EPD-1
     calibration_matrix 0 1 0 -1 0 1
@@ -69,15 +65,14 @@ exec sh -c '[ -n "$FD_CHUNK_US" ] && exec dbus-update-activation-environment FD_
 exec sh -c '[ -n "$FD_L4" ] && exec dbus-update-activation-environment FD_L4'
 # (and the Flatpak GL driver choice: D-Bus-activated Flatpaks run `flatpak run` from the bus)
 exec sh -c '[ -n "$FLATPAK_GL_DRIVERS" ] && exec dbus-update-activation-environment FLATPAK_GL_DRIVERS'
-# what the X session gets from XDG autostart (xfce4-session runs it, sway
-# doesn't): PipeWire (sound; also screen casts via the wlr portal), blueman's
-# applet (the pairing agent for Devices), Bluetooth media keys. The X-only
-# entries (glassine-popupd, Onboard) have their sway versions below.
+# what a desktop gets from XDG autostart (sway doesn't run it): PipeWire
+# (sound; also screen casts via the wlr portal), blueman's applet (the pairing
+# agent for Devices), Bluetooth media keys.
 # (glassine-pipewire: pipewire-launcher + the speaker volume kept across restarts)
 exec /usr/bin/glassine-pipewire
 exec blueman-applet
-# NetworkManager's secret agent (nm-applet's job on X): a network that needs a
-# new password gets a notice that opens glassine-settings on it (P14-1)
+# NetworkManager's secret agent: a network that needs a
+# new password gets a notice that opens glassine-settings on it
 exec sh -c 'until /usr/bin/glassine-nm-agent; do sleep 5; done'
 # a device that becomes paired is trusted, whoever paired it (BlueZ turns away
 # an untrusted device that reconnects itself, e.g. a gamepad; )
@@ -88,7 +83,7 @@ exec /usr/bin/mpris-proxy
 exec /usr/bin/glassine-app-render refresh
 # the bar + popups (glassine-shell's Wayland backend; restarted when it dies)
 exec /usr/bin/glassine-shell-wl-run
-# tiling as glassine-winfit on X (newest on top, 3 apps per workspace, no empty
+# tiling (newest on top, 3 apps per workspace, no empty
 # workspaces, drag handles), window hints for glassine-epdd-desktop; restarted if it fails
 exec sh -c 'until /usr/bin/glassine-swayd; do sleep 2; done'
 # the on-screen keyboard: wvkbd, hidden until glassine-osk shows it (the bar's

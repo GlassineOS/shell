@@ -5,8 +5,8 @@
  * windows start below it); popups and the resize rail are on the overlay
  * layer at an absolute position (exclusive zone -1). Pixels go out as wl_shm
  * buffers at the output's scale (device px); a surface is a multiple of the
- * scale in size and place (be_align). The popup's pointer grab of the X
- * backend is a transparent full-screen surface on the top layer ("backdrop"):
+ * scale in size and place (be_align). The popup's pointer grab is a
+ * transparent full-screen surface on the top layer ("backdrop"):
  * a tap outside the popup lands there (the bar region included: the common
  * part picks the bar by y), as with the grab.
  * Input: wl_pointer / wl_touch (the first finger) straight from sway, no
@@ -16,11 +16,11 @@
  * Windows and workspaces: sway's IPC (GET_WORKSPACES, GET_TREE, commands),
  * events on a second connection subscribed to workspace + window. A workspace
  * index is its place among the existing workspaces in number order (sway
- * removes an empty one it is not on, as glassine-winfit does on X); a window is
- * its container id. glassine-winfit requests go to glassine-swayd
+ * removes an empty one it is not on); a window is
+ * its container id. Window model requests go to glassine-swayd
  * ($XDG_RUNTIME_DIR/glassine-swayd, a datagram, when it runs); the theme name to
  * $XDG_RUNTIME_DIR/glassine-shell.theme. glassine-epdd-desktop learns about the popups from
- * here ("popup X Y W H" / "popup gone ..." on its FIFO; on X it sees them map).
+ * here ("popup X Y W H" / "popup gone ..." on its FIFO).
  * A close asks glassine-bgprio (-sway) to thaw the app first (/run/glassine-bgprio.sock,
  * "thaw CON_ID").
  * Launch placeholders (be_placeholder): an xdg toplevel (app_id
@@ -55,7 +55,6 @@
 #include "wayland/sway-ipc.h"
 
 int be_align = 1;
-int be_impostors = 0;                   /* glassine-epdd-desktop has no impostors on the wl source */
 static struct wl_display *wd;
 static struct wl_compositor *comp;
 static struct wl_shm *shm;
@@ -828,7 +827,7 @@ void be_title(WinId w, char *out, size_t len)
 int be_sheet_window(WinId w) { return w != 0; }        /* active is a view or nothing */
 void be_activate(WinId w) { swaycmd("[con_id=%lu] focus", w); }
 /* a frozen app (glassine-bgprio freezes long-hidden ones) sees a close only once
- * thawed: ask bgprio first (a datagram, as _GLASSINE_THAW on X) */
+ * thawed: ask bgprio first (a datagram) */
 void be_close(WinId w)
 {
     struct sockaddr_un a = { .sun_family = AF_UNIX };
@@ -873,7 +872,7 @@ void be_new_screen(WinId w, int follow)
 {
     char c[64];
     snprintf(c, sizeof c, "newscreen %lx %d", (unsigned long)w, follow);
-    be_winfit(c);
+    be_tile(c);
 }
 
 void be_move_to_desk(WinId w, long d)
@@ -887,7 +886,7 @@ void be_move_to_desk(WinId w, long d)
     swaycmd("[con_id=%lu] move container to workspace %s; workspace %s; [con_id=%lu] focus", w, a, a, w);
 }
 
-void be_winfit(const char *c)
+void be_tile(const char *c)
 {
     const char *rt = getenv("XDG_RUNTIME_DIR");
     struct sockaddr_un a = { .sun_family = AF_UNIX };

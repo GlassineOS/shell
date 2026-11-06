@@ -1,19 +1,16 @@
 #!/bin/sh
-# The graphical session (service glassine-x): X + Xfce (glassine-session-x, the default)
-# or sway (glassine-session-sway, --,
-# chosen by /etc/glassine/session ("x" or "sway"; no file = x). Switch with
-# glassine-session-switch x|sway (restarts the service).
-#
-# X: exec'd -- the X session runs exactly as before this file existed (same
-# PID for supervise-daemon, its own cleanup and exit codes).
-#
-# sway: run and watched here, not by supervise-daemon (which gives up after
-# respawn_max restarts, leaving no GUI at all). 3 quick deaths in a row (each
-# alive < 60 s) = sway failed: /run/glassine-session-failed, and X runs for the
-# rest of this boot; at once if the session gave itself up (exit 3: its bar
-# kept dying, glassine-shell-wl-run). The device is operated by touch only, so a broken
-# experimental session must never be the only way in (SSH over USB works in
-# both).
+# The graphical session (service glassine-session): the first-run setup when something is
+# missing, then the sway session (glassine-session-sway), run and watched here, not by
+# supervise-daemon (which gives up after respawn_max restarts, leaving no GUI at
+# all). 3 quick deaths in a row (each alive < 60 s), or the session giving itself
+# up (exit 3: its bar kept dying, glassine-shell-wl-run), mark this boot failed
+# (/run/glassine-session-failed, for the health check) and the session is tried again
+# after a pause: 30 s, doubled after each failed round up to 5 min
+# (glassine-session-sway itself already falls back to pixman when a GLES sway dies).
+# A session that then stays up 60 s clears the mark and the pause. The retries
+# never stop on purpose: there is no other desktop to fall back to, and SSH
+# over USB stays the way in.
+
 # the desktop user: $GLASSINE_USER, else the first account with a uid from 1000
 # (busybox adduser's range: glassine-setup creates one, the image's presets "user")
 desktop_user() { [ -n "${GLASSINE_USER:-}" ] && { echo "$GLASSINE_USER"; return; }; awk -F: '$3 >= 1000 && $3 < 65534 { print $1; exit }' /etc/passwd; }
@@ -23,8 +20,7 @@ FAILED=/run/glassine-session-failed
 # missing (glassine-setup --needs: the account, the look, language/location/keyboard,
 # Wi-Fi, software), so a fresh image asks everything and a reset asks again only what
 # it removed. It runs in sway as the locked system account glassine-setup and writes
-# through doas glassine-setup-apply; the desktop follows in the same boot. No X
-# fallback here (X runs Xfce as a desktop user); SSH over USB stays the way in.
+# through doas glassine-setup-apply; the desktop follows in the same boot.
 # /run/glassine-setup.needs: the list for the setup (root reads the saved Wi-Fi);
 # /run/glassine-setup.active: for the health check while it runs.
 setup_needs() { [ -x /usr/bin/glassine-setup ] && /usr/bin/glassine-setup --needs 2>/dev/null; }
@@ -49,49 +45,44 @@ if [ -n "$N" ]; then
     U=$(desktop_user)
 fi
 U=${U:-user}
-export GLASSINE_USER="$U"     # glassine-session-sway / -x run the session as this user
-choice() { c=x; [ -r /etc/glassine/session ] && read -r c < /etc/glassine/session; echo "${c:-x}"; }
+export GLASSINE_USER="$U"     # glassine-session-sway runs the session as this user
 
-C=$(choice)
-# X needs glassine-touchd (the sway session stops it; a killed one may not have
-# started it again)
-x_session() {
-    rc-service -q glassine-touchd status 2>/dev/null || rc-service -q glassine-touchd start 2>/dev/null
-    exec /usr/sbin/glassine-session-x
-}
-if [ "$C" != sway ] || [ -e $FAILED ]; then
-    [ "$C" = sway ] && echo "glassine-session: sway failed earlier this boot ($FAILED): X instead"
-    x_session
-fi
-
-CHILD=
-# supervise-daemon signals this script: take the sway session down with it
-# (and whatever of the desktop user's it left behind, as glassine-session-x does)
-trap '[ -n "$CHILD" ] && kill $CHILD 2>/dev/null; wait; pkill -u "$U" 2>/dev/null; exit 0' TERM INT
+CHILD= CLEAR=
 quick=0
+pause=30
+# supervise-daemon signals this script: take the sway session down with it
+# (and whatever of the desktop user's it left behind)
+trap '[ -n "$CHILD" ] && kill $CHILD 2>/dev/null; [ -n "$CLEAR" ] && kill $CLEAR 2>/dev/null; wait; pkill -u "$U" 2>/dev/null; exit 0' TERM INT
 while :; do
     t0=$(date +%s)
     if [ -x /usr/sbin/glassine-session-sway ]; then
         echo "glassine-session: $(date) starting sway"
         /usr/sbin/glassine-session-sway &
         CHILD=$!
+        # up 60 s: this boot's session works again
+        ( sleep 60; kill -0 $CHILD 2>/dev/null && rm -f $FAILED ) &
+        CLEAR=$!
         wait $CHILD
         rc=$?
         CHILD=
+        kill $CLEAR 2>/dev/null
     else
         echo "glassine-session: /usr/sbin/glassine-session-sway missing"
         rc=127
     fi
     alive=$(($(date +%s) - t0))
     echo "glassine-session: $(date) sway session ended (exit $rc after ${alive} s)"
-    if [ $alive -lt 60 ]; then quick=$((quick + 1)); else quick=0; fi
+    if [ $alive -lt 60 ]; then quick=$((quick + 1)); else quick=0; pause=30; fi
     [ $rc = 3 ] && echo "glassine-session: the sway session gave up (its bar)"
     if [ $quick -ge 3 ] || [ $rc = 3 ]; then
-        [ $rc = 3 ] || echo "glassine-session: sway died $quick times in a row within 60 s: X for the rest of this boot"
+        [ $rc = 3 ] || echo "glassine-session: sway died $quick times in a row within 60 s"
+        echo "glassine-session: this boot is marked failed ($FAILED); trying again in $pause s"
         touch $FAILED
         pkill -u "$U" 2>/dev/null
-        sleep 1
-        x_session
+        quick=0
+        sleep $pause
+        pause=$((pause * 2)); [ $pause -gt 300 ] && pause=300
+        continue
     fi
     sleep 2
 done

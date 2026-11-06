@@ -1,6 +1,5 @@
 /* glassine-shell-notify.c — glassine-shell is the desktop's notification server
- * (org.freedesktop.Notifications on the session bus, replacing
- * xfce4-notifyd). E-ink: a notice never pops up over the apps -- it goes into
+ * (org.freedesktop.Notifications on the session bus). E-ink: a notice never pops up over the apps -- it goes into
  * the list behind the bar's clock, whose counter shows how many are waiting;
  * the list opens with a tap on the clock. Notices stay until dismissed (a tap
  * opens one: its "default" action; the x or "Clear all" dismisses), their
@@ -186,7 +185,7 @@ int notify_init(void (*changed)(void))
         g_clear_error(&err);
         return -1;
     }
-    /* REPLACE: take the name from xfce4-notifyd if it lets go; nobody takes it from us */
+    /* REPLACE: take the name from another server if it lets go; nobody takes it from us */
     g_bus_own_name_on_connection(bus, "org.freedesktop.Notifications",
                                  G_BUS_NAME_OWNER_FLAGS_REPLACE,
                                  acquired, lost, NULL, NULL);
