@@ -86,6 +86,22 @@ check("strings escaped as Home's writer", get().split("\n")[2],
       'favourites = ["q\\"uote", "back\\\\slash", "tab\\tnl\\n", "bell\\u0007"]')
 check("... and read back", H.read(P)[0], ['q"uote', "back\\slash", "tab\tnl\n", "bell\x07"])
 
+# docs/home-conf.md (GlassineOS/home): favourites belongs at the top, before the first [[widget]]
+# (after it, TOML makes it a key of that widget); `widget = []` and a file without widgets are valid
+W = ('\n[[widget]]\nuuid = "0b5c3c2e-6a2b-4f0e-9c1d-1f2e3d4c5b6a"\nwidget = "home/all-apps"\nsize = 3\n'
+     'favourites = ["hand"]\n')
+put("version = 1\n" + W)
+check("a favourites key inside a widget is that widget's: not read", H.read(P)[0], [])
+H.set_fav("foot", True, P)
+check("... the top-level one goes before the first [[widget]], the widget's left as it is", get(),
+      'version = 1\nfavourites = ["foot"]\n' + W)
+put("version = 1\nwidget = []\n")
+H.set_fav("foot", True, P)
+check("widget = [] (all removed): kept, favourites at the top", get(), 'version = 1\nfavourites = ["foot"]\nwidget = []\n')
+put("version = 1")
+H.set_fav("foot", True, P)
+check("version only, no newline: favourites on a line of its own", get(), 'version = 1\nfavourites = ["foot"]\n')
+
 # refused: newer, broken, no version
 for what, text in (("a newer version", 'version = 2\nfavourites = ["a"]\n'),
                    ("a file it can't read", 'version = 1\nfavourites = ["a"\n'),
