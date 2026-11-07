@@ -278,7 +278,9 @@ class Renderer:
         (x, y, w, h), _ = self.hits[i % len(self.hits)]
         il = self.k["il"]
         col = il["focus-on-leather"] if y < head_h and self.k["voice"] == "stationery" else il["focus"]
-        P.box(self.cr, x - 4, y - 4, w + 8, h + 8, "6px", None, "inset 0 0 0 2px " + col)
+        fr = self.k["inline"]
+        o = P.px(fr["focusOff"]) + P.px(fr["focusW"])
+        P.box(self.cr, x - o, y - o, w + 2 * o, h + 2 * o, fr["focusR"], None, "inset 0 0 0 %s %s" % (fr["focusW"], col))
 
     def header(self, x, y, w, h):
         k, s = self.k, self.app.s
@@ -465,30 +467,28 @@ class Renderer:
     def mini(self, v, x, y):
         """a voice's miniature (200 x 96): its bar, Aa, a label, a highlight, a button"""
         cr, vk = self.cr, THEMES[v]
-        il = vk["il"]
-        r = {"white": "10px", "editorial": "0", "stationery": "3px"}[v]
+        il, mi = vk["il"], vk["inline"]
+        r = mi["miniR"]
         P.box(cr, x, y, 200, 96, r, il["paper"], "inset 0 0 0 1px " + il["ink"])
         cr.save()
         P.rrect(cr, x, y, 200, 96, P.px(r))
         cr.clip()
-        P.fill(cr, x, y, 200, 24, il["leather-dark"] if v == "stationery" else il["paper"])
-        bd = {"white": "1.5px solid " + il["ink"], "editorial": "3px double " + il["ink"], "stationery": None}[v]
-        if bd:
-            P.rule(cr, x, y + 24, 200, bd)
-        else:
+        P.fill(cr, x, y, 200, 24, mi["miniBarBg"])
+        if mi["miniBarRule"] != "none":
+            P.rule(cr, x, y + 24, 200, mi["miniBarRule"])
+        if mi["miniStitch"] != "none":
             for sy in (y + 3, y + 20):
-                P.rule(cr, x + 3, sy, 194, "1px dashed " + il["gilt"])
+                P.rule(cr, x + 3, sy, 194, mi["miniStitch"])
         cr.restore()
         P.box(cr, x, y, 200, 96, r, None, "inset 0 0 0 1px " + il["ink"])
         tf = vk["display"]
         import re
         tf = re.sub(r"[\d.]+px(/[\d.]+)?", "40px/1", tf, count=1)
         self.txt("Aa", tf, x + 12, y + 32 - 4, il["ink"])
-        lf = re.sub(r"[\d.]+px(/[\d.]+)?", "9.5px/1" if v == "white" else "13px/1", vk["lbl"], count=1)
-        self.txt("Label" if v == "white" else "label", lf, x + 62, y + 36, vk["lblC"], caps=(vk["lblVar"], vk["lblCase"]), ls=0.08)
-        P.box(cr, x + 62, y + 54, 62, 10, "3px" if v == "white" else "0", il["highlight"])
-        bsh = {"white": "0 2px 0 " + il["shade"], "editorial": "2px 2px 0 " + il["ink"], "stationery": "inset 0 0 0 1px " + il["gilt"]}[v]
-        P.box(cr, x + 200 - 10 - 42, y + 96 - 10 - 22, 42, 22, vk["btnR"], il["accent"], bsh)
+        lf = re.sub(r"[\d.]+px(/[\d.]+)?", mi["miniLblPx"], vk["lbl"], count=1)
+        self.txt(mi["miniLbl"], lf, x + 62, y + 36, vk["lblC"], caps=(vk["lblVar"], vk["lblCase"]), ls=0.08)
+        P.box(cr, x + 62, y + 54, 62, 10, mi["miniHlR"], il["highlight"])
+        P.box(cr, x + 200 - 10 - 42, y + 96 - 10 - 22, 42, 22, vk["btnR"], il["accent"], mi["miniBtnSh"])
 
     def p_location(self, x, y, w, bottom):
         k, s, app = self.k, self.app.s, self.app
@@ -613,7 +613,7 @@ class Renderer:
             open_ = on and not joined and lock != "badge"
             h = 58 + (4 + 48 + 10 + self.m("x", self.f("sub"), maxw=w - 32, wrap=True)[1] * 2 + 16 if open_ else 0)
             if on:
-                P.box(self.cr, x, y, w, h, k["rowR"], k["paper"] if k["voice"] == "editorial" else k["sheet"], k["cardFlat"])
+                P.box(self.cr, x, y, w, h, k["rowR"], k["inline"]["netOnBg"], k["cardFlat"])
             self.icon(SIG[sig], 24, x + 16 + 12, y + 29)
             sub = ("Connected · " + sec.split(" · ")[0]) if joined else sec
             nh = self.m(ssid, self.f("row"))[1]

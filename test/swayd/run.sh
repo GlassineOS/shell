@@ -1,6 +1,7 @@
 #!/bin/sh
-# (see test.sh) inside the container: /src = src, /t = this dir
+# (see test.sh) inside the container: /src = src, /t = this dir, /ui = GlassineOS/ui (ro)
 set -u
+make -s -C /ui install O=/tmp/ui-out PREFIX=/usr >/dev/null || exit 1   # (its own out: never the checkout's)
 sh /src/wayland/build-swayd.sh /src /tmp/glassine-swayd || exit 1
 export XDG_RUNTIME_DIR=/tmp/rt; mkdir -p -m 700 $XDG_RUNTIME_DIR
 printf 'output HEADLESS-1 resolution 1404x1872 scale 2\ndefault_border none\ndefault_floating_border none\ngaps inner 20\ngaps outer -20\nsmart_gaps on\nfor_window [app_id="dlg"] floating enable\n' > /tmp/c

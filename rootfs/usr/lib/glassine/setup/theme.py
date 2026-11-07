@@ -22,6 +22,7 @@ def voice(v):
     for key in ("stepOn", "stepDone", "stepTodo", "sel", "segOn"):
         k[key] = {a: _resolve(b, il) for a, b in k[key].items()}
     k["il"] = il
+    k["inline"] = g["inline"]                       # the focus ring, the voice miniatures
     k["ink"], k["paper"], k["soft"], k["sheet"] = il["ink"], il["paper"], il["ink-soft"], il["sheet"]
     k["accent"], k["onAccent"], k["highlight"], k["pen"] = il["accent"], il["on-accent"], il["highlight"], il["pen"]
     k["voice"] = v

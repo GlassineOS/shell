@@ -12,7 +12,8 @@
  * pointer positions stay relative to the surface they started on. The shell's
  * snap rail comes with it (glassine-shell `drag ...` / `dragend`).
  * A tap (no 16 px move) opens the shell's divider sheet (glassine-swayd). The look
- * follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme).
+ * follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme): the voice's
+ * drag-handle values of GlassineOS/ui (UiVoice div*, grip*).
  *
  * The same connection watches the text-input focus for the on-screen keyboard:
  * an input method (zwp_input_method_v2, no keyboard
@@ -28,6 +29,7 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #include <wayland-client.h>
+#include <glassine-ui.h>
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
 #include "input-method-unstable-v2-client-protocol.h"
 #include "swayd-handles.h"
@@ -60,16 +62,8 @@ static Surf hs[MAXHD], gh;
 static int nhs;
 
 /* ---- the look: glassine-shell's theme ----------------------------------------- */
-static const struct hstyle {
-    const char *name;
-    unsigned bg, drag, edge, grip, gripdrag, stitch, lip;   /* 0xRRGGBB, ~0u: none */
-    int gw, gh, round, n, gap;
-} hstyles[] = {
-    { "white", 0xffffff, 0x111111, 0x111111, 0x111111, 0xffffff, ~0u, ~0u, 112, 8, 0, 1, 0 },
-    { "editorial", 0xffffff, 0x111111, 0x111111, 0x111111, 0xffffff, ~0u, ~0u, 80, 4, 0, 1, 0 },
-    { "stationery", 0x111111, 0x111111, ~0u, 0xffffff, 0xffffff, 0xa0a0a0, 0xbdbdbd, 18, 18, 1, 3, 24 },
-};
-static const struct hstyle *hst;        /* NULL: the old look (white margins, grey bar, three lines) */
+#define DPX 2                           /* device px per logical px of the voice values (the panel's scale) */
+static const UiVoice *hst;              /* NULL: the old look (white margins, grey bar, three lines) */
 
 static void theme_read(void)
 {
@@ -82,9 +76,8 @@ static void theme_read(void)
         fclose(f);
     }
     name[strcspn(name, "\n")] = 0;
-    hst = NULL;
-    for (unsigned i = 0; i < sizeof hstyles / sizeof *hstyles; i++)
-        if (!strcmp(name, hstyles[i].name)) hst = &hstyles[i];
+    const UiVoice *v = ui_voice_find(name);   /* unknown names give White: not a voice here */
+    hst = !strcmp(name, v->name) ? v : NULL;
 }
 
 static void rgb(cairo_t *c, unsigned v)
@@ -115,18 +108,19 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
         cairo_restore(c);
         return;
     }
-    const struct hstyle *s = hst;
-    rgb(c, dragged ? s->drag : s->bg);
+    const UiVoice *s = hst;
+    rgb(c, dragged ? s->divDrag : s->divBg);
     cairo_rectangle(c, 0, 0, w, ht);
     cairo_fill(c);
-    if (s->edge != ~0u) {
-        rgb(c, s->edge);
-        cairo_rectangle(c, 0, 0, w, 2); cairo_rectangle(c, 0, ht - 2, w, 2);
-        cairo_rectangle(c, 0, 0, 2, ht); cairo_rectangle(c, w - 2, 0, 2, ht);
+    if (s->divEdgeW > 0) {
+        double e = s->divEdgeW * DPX;
+        rgb(c, s->divEdgeC);
+        cairo_rectangle(c, 0, 0, w, e); cairo_rectangle(c, 0, ht - e, w, e);
+        cairo_rectangle(c, 0, 0, e, ht); cairo_rectangle(c, w - e, 0, e, ht);
         cairo_fill(c);
     }
-    if (s->stitch != ~0u && !vert) {    /* stitched strap: a horizontal divider only */
-        rgb(c, s->stitch);
+    if (s->divStitch && !vert) {        /* stitched strap: a horizontal divider only */
+        rgb(c, s->divStitchC);
         double dash[2] = { 9, 6 };
         cairo_set_dash(c, dash, 2, 0);
         cairo_set_line_width(c, 3);
@@ -135,20 +129,21 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
         cairo_stroke(c);
         cairo_set_dash(c, NULL, 0, 0);
     }
-    int gw = vert ? s->gh : s->gw, ghh = vert ? s->gw : s->gh;
-    int tot = s->n * (vert ? ghh : gw) + (s->n - 1) * s->gap;
-    for (int i = 0; i < s->n; i++) {
-        int gx = vert ? (w - gw) / 2 : (w - tot) / 2 + i * (gw + s->gap);
-        int gy = vert ? (ht - tot) / 2 + i * (ghh + s->gap) : (ht - ghh) / 2;
-        rgb(c, dragged ? s->gripdrag : s->grip);
-        if (!s->round) { cairo_rectangle(c, gx, gy, gw, ghh); cairo_fill(c); continue; }
+    int sgw = (int)lround(s->gripW * DPX), sgh = (int)lround(s->gripH * DPX), gap = (int)lround(s->gripGap * DPX);
+    int gw = vert ? sgh : sgw, ghh = vert ? sgw : sgh;
+    int tot = s->grips * (vert ? ghh : gw) + (s->grips - 1) * gap;
+    for (int i = 0; i < s->grips; i++) {
+        int gx = vert ? (w - gw) / 2 : (w - tot) / 2 + i * (gw + gap);
+        int gy = vert ? (ht - tot) / 2 + i * (ghh + gap) : (ht - ghh) / 2;
+        rgb(c, dragged ? s->gripDrag : s->gripBg);
+        if (!s->gripRound) { cairo_rectangle(c, gx, gy, gw, ghh); cairo_fill(c); continue; }
         cairo_save(c);
         cairo_translate(c, gx + gw / 2.0, gy + ghh / 2.0);
         cairo_scale(c, gw / 2.0, ghh / 2.0);
         cairo_arc(c, 0, 0, 1, 0, 2 * M_PI);
         cairo_restore(c);
         cairo_fill(c);
-        if (s->lip != ~0u) {            /* a grey crescent at the grip's foot: inside the
+        if (s->gripLip) {               /* a grey crescent at the grip's foot: inside the
                                          * grip, outside the grip shifted 4 px up */
             cairo_save(c);
             cairo_save(c);
@@ -165,7 +160,7 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
             cairo_arc(c, 0, 0, 1, 0, 2 * M_PI);
             cairo_restore(c);
             cairo_set_fill_rule(c, CAIRO_FILL_RULE_EVEN_ODD);
-            rgb(c, s->lip);
+            rgb(c, s->gripLip);
             cairo_fill(c);
             cairo_restore(c);           /* the clip and the fill rule */
         }
@@ -199,7 +194,7 @@ static void draw(Surf *s)
     if (s->ghost) {                     /* the bar where the drag would put it */
         bar(c, 0, 0, d->vert, d->vert ? s->h : s->w, 1);
     } else if (dr.on && dr.moved && dr.s == s) {
-        rgb(c, 0xffffff);               /* it's being moved: an empty gap */
+        rgb(c, UI_PAPER);               /* it's being moved: an empty gap (the paper) */
         cairo_paint(c);
     } else bar(c, 0, 0, d->vert, d->vert ? s->h : s->w, 0);
     cairo_destroy(c);
