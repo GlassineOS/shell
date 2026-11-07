@@ -205,7 +205,7 @@ expect "Home hidden by its button: the empty screen goes" "$(cur) $(homest 'home
 sm -q "workspace number 1"; sleep 0.8
 # a shell would run $(id) and `id` (the name would change and the file not be found)
 mkdir -p '/tmp/data/a dir'
-F='/tmp/data/a dir/b $(id) `id`; "q" & * ~.epub'
+F="/tmp/data/a dir/b \$(id) \`id\`; \"q\" 'it''s' & * ~.epub"
 : > "$F"
 argv() { for i in $(seq 1 50); do [ -s /out/argv-$1 ] && break; sleep 0.1; done; tr '\n' '|' < /out/argv-$1 2>/dev/null; }
 launch_arg() { rm -f /out/argv-$1; mark; $B/glassine-shell-wl launch "$@"; waitapp $1; }

@@ -19,6 +19,7 @@ R=$(cd "$D/../.." && pwd)
 OUT=${1:-$D/out}
 mkdir -p "$OUT"
 UI=$(sh "$R/test/ui.sh")          # GlassineOS/ui (test/ui.sh)
-docker build -q -t glassine-shelltest "$R/test/shell" >/dev/null
-timeout 600 docker run --rm -v "$R":/r:ro -v "$UI":/ui:ro -v "$OUT":/out glassine-shelltest \
+# the image by its id: the tag is shared with other checkouts, which may rebuild it meanwhile
+IMG=$(docker build -q -t glassine-shelltest "$R/test/shell")
+timeout 600 docker run --rm -v "$R":/r:ro -v "$UI":/ui:ro -v "$OUT":/out "$IMG" \
     timeout 540 sh /r/test/e2e/run.sh
