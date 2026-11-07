@@ -97,6 +97,10 @@ app recf "$B/argrec recf --open %f --end"
 app recn "$B/argrec recn"
 app recu "$B/argrec recu @@u %U @@"
 app recq "\"$B/argrec\" recq \"two words\" %u"
+# Exec lines that can't be made into a command line (the launch must start nothing and send no `next`):
+# an unbalanced quote; only a field code (no program word, FR-046)
+app badq "$B/argrec badq \"unbalanced"
+app badf "%f"
 # Settings runs once (SingleMainWindow, as its own desktop file): argsingle hands a second
 # start's argv over (records it) and exits, as a GApplication does
 cat > $B/argsingle <<'S'
@@ -245,7 +249,8 @@ kill_ glassine-settings; rm -f /tmp/running-glassine-settings
 for bad_ in "recn here book.epub:relative" "recn here /tmp/data/none.epub:nonexistent" \
             "glassine-settings here ../x:not a page" "glassine-settings here /etc/passwd:a file for Settings" \
             "recn over /tmp/data/ok.epub:neither new nor here" "recn here /tmp/data/ok.epub /tmp/data/ok.epub:two arguments" \
-            "nosuchapp here /tmp/data/ok.epub:no such app"; do
+            "nosuchapp here /tmp/data/ok.epub:no such app" \
+            "badq new:an Exec line with an unbalanced quote" "badf new:an Exec line of only a field code"; do
     a=${bad_%%:*} why=${bad_#*:}
     rm -f /out/argv-*; mark
     # shellcheck disable=SC2086

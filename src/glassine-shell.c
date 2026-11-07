@@ -2585,7 +2585,7 @@ static char **launch_argv(const App *a, const char *arg)
     gchar **argv = NULL;
     GError *err = NULL;
     if (!g_shell_parse_argv(s->str, NULL, &argv, &err)) {
-        fprintf(stderr, "glassine-shell: %s: its Exec line can't be read (%s)\n", a->id, err ? err->message : "empty");
+        fprintf(stderr, "glassine-shell: launch %s: refused: its Exec line can't be read (%s)\n", a->id, err ? err->message : "empty");
         g_clear_error(&err);
         argv = NULL;
     }
@@ -2611,10 +2611,10 @@ static const char *launch_arg_bad(const App *a, const char *arg)
     return NULL;
 }
 
-static void launch_app(App *a, const char *arg)
+/* starts argv (the app's command line, launch_argv's) and puts a's placeholder where "next"
+ * said; frees argv */
+static void launch_run(App *a, char **argv)
 {
-    char **argv = launch_argv(a, arg);
-    if (!argv) return;
     be_placeholder(a, run_launch(argv));
     g_strfreev(argv);
     /* recent: this one first */
@@ -2634,6 +2634,12 @@ static void launch_app(App *a, const char *arg)
     if (f) { fputs(buf, f); fclose(f); }
 }
 
+static void launch_app(App *a, const char *arg)
+{
+    char **argv = launch_argv(a, arg);
+    if (argv) launch_run(a, argv);
+}
+
 /* where the next new window goes, told to glassine-swayd before the app starts
  * (its launch placeholder takes it): the empty screen under Home if there is
  * one, else where (new: a screen of its own after this one, here: beside the
@@ -2642,18 +2648,22 @@ static int focus_window_of(App *a);
 
 static void launch_where(App *a, const char *where, const char *arg)
 {
+    /* the command line first: one that can't be made starts nothing and leaves glassine-swayd's
+     * "next" alone (FR-047; it stays armed for 10 s and would take another app's window) */
+    char **argv = launch_argv(a, arg);
+    if (!argv) return;
     /* runs once and is open (FR-049): the new process hands its argv to the running one
      * and exits, so no "next" and no placeholder (it would hold an empty screen): run
      * it all the same, then go to the window it has */
     if (a->single && focus_window_of(a)) {
-        char **argv = launch_argv(a, arg);
-        if (argv) { run_launch(argv); g_strfreev(argv); }
+        run_launch(argv);
+        g_strfreev(argv);
         LOG("launch %s: runs once and has a window: focused, no new place", a->id);
         return;
     }
     if (st.home_vis && st.hole > 0) tile_cmd("next hole");
     else if (where && (!strcmp(where, "new") || !strcmp(where, "here"))) tile_cmd("next %s", where);
-    launch_app(a, arg);
+    launch_run(a, argv);
 }
 
 /* Home shown or hidden (spec 001 FR-030, FR-031): glassine-swayd owns it */
