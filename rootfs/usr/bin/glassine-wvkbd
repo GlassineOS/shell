@@ -24,15 +24,15 @@ while swaymsg -t get_version >/dev/null 2>&1; do
         case "$(cat "$TF" 2>/dev/null)" in     # the theme's look
             # >>> gen-apps: GlassineOS/ui tools/gen-apps writes these lines (its voices/voices.json, apps.wvkbd)
             editorial) set -- --fn "Source Serif 4 17" -R 0 --gap 2 --stroke-width 1 \
-                --bg ffffff --fg ffffff --fg-sp dedede --stroke 111111 --stroke-sp 111111 \
+                --bg ffffff --fg ffffff --fg-sp dddddd --stroke 111111 --stroke-sp 111111 \
                 --press 111111 --press-sp 111111 --swipe 11111160 --swipe-sp 11111160 \
                 --text 111111 --text-sp 111111 --text-press ffffff --text-press-sp ffffff ;;
             stationery) set -- --fn "EB Garamond Medium 19" -R 4 --gap 3 --stroke-width 1 \
-                --bg 111111 --fg ffffff --fg-sp d4d4d4 --stroke b0b0b0 --stroke-sp 7a7a7a \
-                --press 1b1b1b --press-sp 1b1b1b --swipe ffffff60 --swipe-sp ffffff60 \
-                --text 1b1b1b --text-sp 1b1b1b --text-press ffffff --text-press-sp ffffff ;;
+                --bg 111111 --fg ffffff --fg-sp cccccc --stroke aaaaaa --stroke-sp 777777 \
+                --press 222222 --press-sp 222222 --swipe ffffff60 --swipe-sp ffffff60 \
+                --text 222222 --text-sp 222222 --text-press ffffff --text-press-sp ffffff ;;
             *) set -- --fn "IBM Plex Sans Medium 16" -R 6 --gap 3 --stroke-width 1 \
-                --bg ffffff --fg ffffff --fg-sp e4e4e4 --stroke 111111 --stroke-sp 111111 \
+                --bg ffffff --fg ffffff --fg-sp dddddd --stroke 111111 --stroke-sp 111111 \
                 --press 111111 --press-sp 111111 --swipe 11111160 --swipe-sp 11111160 \
                 --text 111111 --text-sp 111111 --text-press ffffff --text-press-sp ffffff ;;
             # <<< gen-apps
