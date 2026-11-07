@@ -20,7 +20,7 @@ def _voice(v):
     line = "1.5px solid " + ink                     # the markup's keyline (border:1.5px solid ink)
     t = dict(s)                                     # the shell's values (theme tiles' miniatures)
     t.update({
-        "k": k, "il": il,
+        "k": k, "il": il, "inline": g["inline"],
         "screenBg": paper, "ink": ink, "paper": paper, "sheet": sheet, "dim": dim,
         "accent": acc, "onAccent": on_acc, "highlight": il["highlight"],
         "sub": k["subC"],

@@ -919,8 +919,8 @@ class Themes(Block):
         for i, (tid, name, x_t, on, fn) in enumerate(self.tiles):
             tx, ty = x + i * (tw + 18), y + 20
             ink = t["ink"]
-            ring = "0 0 0 3px %s,0 0 0 6px #ffffff,0 0 0 7px %s" % (ink, ink) if on else "0 0 0 1px " + ink
-            P.box(cr, tx, ty, tw, th, "4px", "#ffffff", ring)
+            ring = "0 0 0 3px %s,0 0 0 6px %s,0 0 0 7px %s" % (ink, t["paper"], ink) if on else "0 0 0 1px " + ink
+            P.box(cr, tx, ty, tw, th, "4px", x_t["paper"], ring)
             cr.save()
             P.rrect(cr, tx, ty, tw, th, 4)
             cr.clip()
@@ -931,11 +931,11 @@ class Themes(Block):
             if x_t["stitch"] != "none":
                 for sy in (ty + 4, ty + 26 - 1):
                     P.rule(cr, tx + 4, sy + 1, tw - 8, "1px dashed rgba(255,255,255,.6)")
-            P.box(cr, tx + 18, ty + 52, tw - 36, 120, x_t["cardR"], "#ffffff", x_t["cardSh"], x_t["cardBorder"])
-            c.txt("Aa", x_t["headFont"], tx + 30, ty + 64, "#111111")
+            P.box(cr, tx + 18, ty + 52, tw - 36, 120, x_t["cardR"], x_t["cardBg"], x_t["cardSh"], x_t["cardBorder"])
+            c.txt("Aa", x_t["headFont"], tx + 30, ty + 64, x_t["ink"])
             ah = c.m("Aa", x_t["headFont"])[1]
-            P.fill(cr, tx + 30, ty + 64 + ah + 9, (tw - 60) * 0.8, 2, "#111111")
-            P.fill(cr, tx + 30, ty + 64 + ah + 20, (tw - 60) * 0.55, 2, "#111111")
+            P.fill(cr, tx + 30, ty + 64 + ah + 9, (tw - 60) * 0.8, 2, x_t["ink"])
+            P.fill(cr, tx + 30, ty + 64 + ah + 20, (tw - 60) * 0.55, 2, x_t["ink"])
             P.box(cr, tx + 18, ty + th - 22 - 22, 48, 22, x_t["btnR"], x_t["btnBg"], x_t["btnSh"])
             cr.restore()
             self._text(c, x_t, name, THEME_BY.get(tid), on, tx, ty + th + 12, tw, 2)
@@ -950,7 +950,7 @@ class Themes(Block):
         ry = y + 6
         mid = ry + (h - 6 - _bw(t, "sep")) / 2
         px_, py = x, mid - ph / 2
-        P.box(cr, px_, py, pw, ph, "3px", "#ffffff", "0 0 0 1px " + t["ink"])
+        P.box(cr, px_, py, pw, ph, "3px", x_t["paper"], "0 0 0 1px " + t["ink"])
         cr.save()
         P.rrect(cr, px_, py, pw, ph, 3)
         cr.clip()
@@ -958,10 +958,10 @@ class Themes(Block):
         bb = P.border(x_t["barBorder"])
         if bb:
             P.rule(cr, px_, py + 12 + bb[0], pw, x_t["barBorder"])
-        P.box(cr, px_ + 8, py + 17, pw - 16, ph - 17 - 6, "3px", "#ffffff", None, x_t["cardBorder"])
+        P.box(cr, px_ + 8, py + 17, pw - 16, ph - 17 - 6, "3px", x_t["cardBg"], None, x_t["cardBorder"])
         af = _fs(x_t["headFont"], 15)
         ah = c.m("Aa", af)[1]
-        c.txt("Aa", af, px_ + 8 + 6, py + 17 + (ph - 23 - ah) / 2, "#111111")
+        c.txt("Aa", af, px_ + 8 + 6, py + 17 + (ph - 23 - ah) / 2, x_t["ink"])
         cr.restore()
         tx = x + pw + 16
         self._text(c, x_t, name, by, on, tx, mid - self._text_h(c, x_t, name, by, tw, 4) / 2, tw, 4)
