@@ -590,7 +590,9 @@ class Renderer:
         if i is None or not self.hits:
             return
         x, y, w, h = self.hits[i % len(self.hits)][0]
-        P.box(cr, x - 4, y - 4, w + 8, h + 8, "6px", None, "inset 0 0 0 2px " + t["il"]["focus"])
+        fr = t["inline"]
+        o = P.px(fr["focusOff"]) + P.px(fr["focusW"])
+        P.box(cr, x - o, y - o, w + 2 * o, h + 2 * o, fr["focusR"], None, "inset 0 0 0 %s %s" % (fr["focusW"], t["il"]["focus"]))
 
     def pill(self, c, x, y, label, icon=None, isz=22, fn=None, pad=(14, 18), gap=6, show_label=True, fg=None, h=48, bold=False,
              primary=False):

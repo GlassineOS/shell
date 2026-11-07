@@ -1025,7 +1025,6 @@ static void sheets_icon(Gc *g, double cx, double cy, double px, const char *num,
 }
 
 #define WS_MAX_APPS 4                   /* glassine-swayd's APPS_PER_WS */
-#define IL_HL RGB(0xcccccc)             /* the scheme's highlight: the move's arrows */
 
 /* ---- a screen's windows (spec 001): its groups from the tree (Layout) as
  * rectangles in fractions of the screen, every split even: what the bar's
@@ -1730,7 +1729,7 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
     if (snap) {                         /* an A8 mask: 255 = ink */
         cairo_t *cr = g->cr;
         int sw = cairo_image_surface_get_width(snap), sh = cairo_image_surface_get_height(snap);
-        ui_fill_rect(g, x, y, w, h, RGB(0xffffff));
+        ui_fill_rect(g, x, y, w, h, UI_PAPER);
         cairo_save(cr);
         cairo_rectangle(cr, x, y, w, h);
         cairo_clip(cr);
@@ -1746,7 +1745,7 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
     }
     Rc R[16];
     int n = scr_rects(d, R, 0);
-    if (!n || scr_full(R, n)) { ui_fill_rect(g, x, y, w, h, RGB(0xffffff)); return; }
+    if (!n || scr_full(R, n)) { ui_fill_rect(g, x, y, w, h, UI_PAPER); return; }
     for (int i = 0; i < n; i++) {
         const Client *c = R[i].c;
         if (!c || warea[2] <= 0 || warea[3] <= 0) continue;
@@ -1757,7 +1756,7 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
         if (rx + rw > x + w) rw = x + w - rx;
         if (ry + rh > y + h) rh = y + h - ry;
         if (rw < 4 || rh < 4) continue;
-        ui_fill_rect(g, rx, ry, rw, rh, RGB(0xffffff));
+        ui_fill_rect(g, rx, ry, rw, rh, UI_PAPER);
     }
 }
 
@@ -2008,7 +2007,7 @@ static void view_ov(Gc *g)
             for (int t = 0; t < nt; t++) {
                 static const char *const AI[4] = { "go-up-symbolic", "go-down-symbolic", "go-previous-symbolic", "go-next-symbolic" };
                 double tx = px + tg[t].x - 24, ty = py + tg[t].y - 24;
-                ui_rrect(g, tx, ty, 48, 48, T->btn.r[0], IL_HL);
+                ui_rrect(g, tx, ty, 48, 48, T->btn.r[0], UI_HIGHLIGHT);   /* the move's arrows */
                 ui_stroke_rrect(g, tx + 1, ty + 1, 46, 46, T->btn.r[0] > 1 ? T->btn.r[0] - 1 : 0, 2, T->ink, 1);
                 ui_icon(g, AI[tg[t].side], 26, tx + 24, ty + 24, T->ink);
                 hit(tx, ty, 48, 48, A_OV_PUT, tg[t].side, tg[t].k);
@@ -2300,12 +2299,16 @@ static void view_pop(Gc *g)
     case V_DIV: view_div(g); break;
     case V_PWR: view_power(g); break;
     }
-    if (st.focus >= 0 && g->paint) {    /* the keyboard's ring: 2 px, 2 px out */
+    if (st.focus >= 0 && g->paint) {    /* the keyboard's ring: focusW thick, focusOff out */
         int k = 0;
+        double o = T->focusOff + T->focusW / 2;     /* the stroke's centre line */
         for (int i = 0; i < pop.nhit; i++) {
             const Hit *h = &pop.hit[i];
             if (h->act == A_NONE) continue;
-            if (k++ == st.focus) { ui_stroke_rrect(g, h->x - 3, h->y - 3, h->w + 6, h->h + 6, 3, 2, T->ink, 0); break; }
+            if (k++ == st.focus) {
+                ui_stroke_rrect(g, h->x - o, h->y - o, h->w + 2 * o, h->h + 2 * o, T->focusR - T->focusW / 2, T->focusW, T->ink, 0);
+                break;
+            }
         }
     }
 }

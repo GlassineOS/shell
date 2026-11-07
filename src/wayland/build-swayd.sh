@@ -5,7 +5,8 @@
 # first. One place for every build: the mainline kit, build-in-container.sh,
 # sway/build-arm64.sh, test/swayd, test/shell-sway.
 # build-swayd.sh SRC OUT SRC = src
-# Needs gcc, pkgconf, wayland-dev, wayland-protocols, json-c-dev, cairo-dev.
+# Needs gcc, pkgconf, wayland-dev, wayland-protocols, json-c-dev, cairo-dev, and GlassineOS/ui
+# installed (pkg-config glassine-ui: the drag handles' look is the voice's).
 set -eu
 S=$1 O=$2
 G=$(mktemp -d)
@@ -17,4 +18,4 @@ for x in "$S/wayland/protocols/wlr-layer-shell-unstable-v1.xml" "$S/wayland/prot
     wayland-scanner private-code "$x" "$G/$n-protocol.c"
 done
 gcc -O2 -Wall -Wno-format-truncation -I"$G" -o "$O" "$S/glassine-swayd.c" "$S/wayland/sway-ipc.c" "$S/wayland/swayd-handles.c" \
-    "$G/wlr-layer-shell-unstable-v1-protocol.c" "$G/input-method-unstable-v2-protocol.c" "$G/xdg-shell-protocol.c" $(pkg-config --cflags --libs json-c wayland-client cairo) -lm
+    "$G/wlr-layer-shell-unstable-v1-protocol.c" "$G/input-method-unstable-v2-protocol.c" "$G/xdg-shell-protocol.c" $(pkg-config --cflags --libs glassine-ui json-c wayland-client cairo) -lm
