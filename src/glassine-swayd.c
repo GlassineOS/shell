@@ -59,8 +59,9 @@
  * cross HEXID a 2x2 screen: the other axis runs through, every
  * window keeps its quarter (FR-023)
  * direction HEXID a 2-window screen: rows <-> side by side
- * full HEXID toggle: floating over its screen's work area (the
- * bar stays; not sway's fullscreen), the others tiled underneath
+ * full [HEXID] toggle: floating over its screen's work area (the
+ * bar stays; not sway's fullscreen), the others tiled underneath;
+ * off for a window in sway's fullscreen too. No id: the focused one
  * scrmove N -1|1 screen N trades places with the one before/after
  * scrclose N every app on screen N closes, the screen goes (not the last)
  * home show|hide|toggle
@@ -1550,14 +1551,17 @@ static void cover(long id, const Ws *w)
 
 /* full (spec 001 FR-019): window a over its whole screen, the bar still above it;
  * the others stay tiled underneath. Not sway's fullscreen (that covers the bar):
- * a floating window over the work area, marked, kept in the layout's order */
+ * a floating window over the work area, marked, kept in the layout's order.
+ * A toggle: off for a `full` window, and for one in sway's fullscreen (an app
+ * asked for it; the shell shows both as full screen) */
 static void full(long a)
 {
     int ia;
     Ws *w = ws_of_view(a, &ia);
     Keep *k = w ? keep_of(w->name) : NULL;
     if (!k) { WARN("full: no window %lx", (unsigned long)a); return; }
-    if (w->full == a) {                 /* off: back to its tile */
+    if (w->full == a || w->v[ia].fullscreen) {  /* off: back to its tile */
+        if (w->v[ia].fullscreen) cadd("[con_id=%ld] fullscreen disable", a);
         unfull(a);
         crun();
         if (read_tree() && (w = ws_named(k->name)) && !w->fullscreen) { build(k); crun(); }
@@ -1943,6 +1947,14 @@ static void command(char *m)
     if (sscanf(m, "cross %lx", &a) == 1) { cross((long)a); return; }
     if (sscanf(m, "direction %lx", &a) == 1) { direction((long)a); return; }
     if (sscanf(m, "full %lx", &a) == 1) { full((long)a); return; }
+    if (!strcmp(m, "full")) {           /* the focused window (keys.conf: Super+F) */
+        long fv = 0;
+        for (int i = 0; i < nws; i++)
+            for (int k = 0; ws[i].focused && k < ws[i].nv; k++) if (ws[i].v[k].focused) fv = ws[i].v[k].id;
+        if (fv) full(fv);
+        else WARN("full: no focused window of a screen's layout");
+        return;
+    }
     if (sscanf(m, "scrmove %ld %d", &n, &lv) == 2) { scr_move(n, lv); return; }
     if (sscanf(m, "scrclose %ld", &n) == 1) { scr_close(n); return; }
     if (sscanf(m, "next %7s", dir) == 1) { next_set(dir); return; }

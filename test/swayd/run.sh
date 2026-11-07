@@ -177,6 +177,7 @@ WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/sway -d
 expect "sway -C: keys.conf read" "$(grep -c 'Loading config from /o/usr/share/glassine/sway/keys.conf' /tmp/devcfg.log)" "1"
 expect "sway -C: no errors, no binding bound twice" "$(grep -E '\[ERROR\]|Overwriting' /tmp/devcfg.log | head -3)" ""
 expect "keys.conf: its glassine scripts are in the overlay" "$(grep -o '/usr/s\?bin/glassine-[a-z0-9-]*' /o/usr/share/glassine/sway/keys.conf | sort -u | while read -r f; do [ -e /o$f ] || [ $f = /usr/bin/glassine-shell-wl ] || [ $f = /usr/bin/glassine-swayd ] || echo $f; done)" ""
+expect "keys.conf: no sway fullscreen (full screen is glassine-swayd's full: the bar stays)" "$(grep -E '^bindsym .* fullscreen' /o/usr/share/glassine/sway/keys.conf)" ""
 expect "shellcheck: glassine-screenshot, glassine-kbd-layout" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout 2>&1)" ""
 # the hardware keyboard layout (glassine-kbd-layout): as the OSK's first language, or the
 # user's choice; the include sway loads, and set live (a libinput keyboard: none here,
@@ -300,6 +301,18 @@ term G
 expect "a fifth window while one is full: the 4-apps rule, a new screen, the view follows" "$(cur) $(geo_of G)" "1 2 focus 2 2 0 0 702 936"
 expect "... full ended on screen 1" "$(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
 swaymsg -q 'workspace 1'; sleep 0.5
+# sway's own fullscreen (an app asked, or a gesture): the shell shows it as full screen, and
+# its Exit full screen (`full W`) ends it in one tap
+swaymsg -q "[app_id=F] fullscreen enable"; sleep 0.8
+expect "an app in sway's fullscreen" "$(fsviews)" "1"
+cmd "full $(id F)"
+expect "full on a window in sway's fullscreen: back in its tile, not full" "$(fsviews) $(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+# `full` with no window (keys.conf's Super+F): the focused one
+swaymsg -q "[app_id=A] focus"; sleep 0.5
+cmd "full"
+expect "full, no window named: the focused one, over the work area" "$(fullmarked) $(fsviews) $(geo_of A)" "1 0 1 0 0 702 936"
+cmd "full"
+expect "full, no window named, again: back in its tile" "$(fullmarked) $(geo_of A | cut -d' ' -f4-)" "0 341 458"
 # two windows: direction, and place on the window's own screen
 swaymsg -q '[shell=".*"] kill'; sleep 1.5
 term P; term Q

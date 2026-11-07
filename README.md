@@ -55,7 +55,7 @@ Other repositories use these, so renaming one means changing them in the same re
 - `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram`, `home-app` (Home's app_id, default `glassine-home`; or `$GLASSINE_HOME_APP_ID`) and the session's renderer flags
 - the OpenRC service `glassine-zram`, its spill directory `<USERDATA_PREFIX>/zram/` on userdata, and `glassine-zram park|writeback|status`
 - `$XDG_RUNTIME_DIR/glassine-swayd`, `~/.config/glassine-shell/theme`
-- `glassine-swayd VERB ARGS` (one datagram on `$XDG_RUNTIME_DIR/glassine-swayd`; window ids in hex): `place M T up|down|left|right` (also on M's own screen), `newscreen M FOLLOW`, `swaphalves W`, `swapin W`, `swap A B`, `cross W`, `direction W`, `orient L S`, `turn W`, `full W`, `swapdir D`, `scrmove N -1|1`, `scrclose N`, `home show|hide|toggle`, `next new|here|hole`, `apps?`
+- `glassine-swayd VERB ARGS` (one datagram on `$XDG_RUNTIME_DIR/glassine-swayd`; window ids in hex): `place M T up|down|left|right` (also on M's own screen), `newscreen M FOLLOW`, `swaphalves W`, `swapin W`, `swap A B`, `cross W`, `direction W`, `orient L S`, `turn W`, `full [W]` (no W: the focused window), `swapdir D`, `scrmove N -1|1`, `scrclose N`, `home show|hide|toggle`, `next new|here|hole`, `apps?`
 - glassine-swayd to glassine-shell (`$XDG_RUNTIME_DIR/glassine-shell`): `dividers N,ORIENT0 D...` and `divider-tap ...`, each divider `x,y,w,h,vert,level,a,b,pos` (level 0 the main line, 1 and 2 the inner line of half 0 and 1; pos its position as a fraction); `home VISIBLE HOLE` (HOLE: the empty screen's number under Home, 0 none)
 - `glassine-shell-wl`, started by the sway config through `glassine-shell-wl-run`
 
