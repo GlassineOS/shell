@@ -39,6 +39,21 @@ OUTLINE = os.environ.get("GLASSINE_SETTINGS_OUTLINE") == "1"   # draw the widget
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 THEME_FILE = RUN + "/glassine-shell.theme"
 TOPICS = [t[0] for t in pages.TABS]
+# the pages Settings opens on from its command line (glassine-shell launch glassine-settings new PAGE,
+# spec 001 FR-045): the tabs and the sub-pages that need nothing chosen first; a tab's section as "power#2"
+START = TOPICS + ["packages", "pkg-updates", "pkg-changes", "origins", "render-apps", "light-range", "time-zone", "bt-add"]
+START_ALIAS = {"network": "wifi", "bluetooth": "bt", "display": "eink", "clock": "time", "updates": "pkg-updates"}
+
+
+def start_page(page):
+    """the page to open for a command-line PAGE, None: not one (the default page then)"""
+    if not page:
+        return None
+    base, hash_, sec = page.partition("#")
+    base = START_ALIAS.get(base, base)
+    if base not in START or (hash_ and (base not in TOPICS or not sec.isdigit())):
+        return None
+    return base + hash_ + sec
 
 class Layout:
     """the design's G: the card, tabs and page metrics for a W x H window.
@@ -921,14 +936,14 @@ class App(Gtk.Application):
         page = args[0] if args else None
         ask = args[1] if page == "wifi-ask" and len(args) > 1 else None   # wifi-ask SSID [--eap] [--uuid U] (glassine-nm-agent)
         app = args[1] if page == "app" and len(args) > 1 else None        # app ID (the launcher: hold a tile)
-        page = {"network": "wifi", "bluetooth": "bt", "display": "eink", "clock": "time"}.get(page, page)
+        page = start_page(page) if page not in ("app", "wifi-ask") else page
         if not self.win:
             self.ui = UI(self.be, lambda: self.win and self.win.redraw())
             self.win = Window(self, self.ui)
             self.win.show_all()
             self.watch_theme()
-            self.ui.go(page if page in TOPICS else "eink")
-        elif page in TOPICS:
+            self.ui.go(page if page and page not in ("app", "wifi-ask") else "eink")
+        elif page and page not in ("app", "wifi-ask"):
             self.ui.go(page)
         if app:
             self.ui.go("app" if self.be.app(app) else "apps", app=app)

@@ -9,6 +9,7 @@ REPO=$(cd "$D/../.." && pwd)
 OUT=${1:-$D/out}
 mkdir -p "$OUT"
 UI=$(sh "$REPO/test/ui.sh")       # GlassineOS/ui: the voices and the drawing (test/ui.sh)
-docker build -q -t glassine-settingstest "$D" >/dev/null
+# the image by its id: the tag is shared with other checkouts, which may rebuild it meanwhile
+IMG=$(docker build -q -t glassine-settingstest "$D")
 docker run --rm -e THEMES="${THEMES:-white editorial stationery}" ${PAGES:+-e PAGES="$PAGES"} ${WINS:+-e WINS="$WINS"} ${PKS:+-e PKS="$PKS"} \
-    -v "$REPO":/src:ro -v "$UI":/ui:ro -v "$D":/t:ro -v "$OUT":/out glassine-settingstest sh /t/run.sh
+    -v "$REPO":/src:ro -v "$UI":/ui:ro -v "$D":/t:ro -v "$OUT":/out "$IMG" sh /t/run.sh

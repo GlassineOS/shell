@@ -27,6 +27,7 @@ check:
 	python3 "$$(sh test/ui.sh)/tools/gen-apps" --check rootfs
 	sh test/swayd/test.sh
 	sh test/shell/test.sh
+	sh test/e2e/test.sh
 	sh test/settings/test.sh
 	sh test/setup/test.sh
 	sh test/admin-auth/test.sh

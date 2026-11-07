@@ -55,10 +55,15 @@
  * fraction; the old 8-field form without pos is read too)
  * drag VERT POS A0 ALEN C0 CLEN | dragend (glassine-swayd)
  * theme NAME | close
- * launch ID [new|here] start the app (desktop id): first "next new|here" to
+ * launch ID [new|here [ARG]] start the app (desktop id): first "next new|here" to
  * glassine-swayd (where its window goes), "next hole" while
  * Home sits on an empty screen; without where: as glassine-swayd
- * places it
+ * places it. ARG (spec 001 FR-045..048): an absolute path of
+ * an existing file, where the Exec line's %f %F %u %U is (else
+ * appended), or Settings' page; anything else: refused, logged,
+ * no "next". An app that runs once (DBusActivatable or
+ * SingleMainWindow) and has a window: no "next", no placeholder,
+ * the launch runs and its window is focused (FR-049)
  * open ID its window if it has one, else launch
  * light up|down|warmer|cooler the front light one step, as the quick settings'
  * sliders do (the keyboard's brightness keys, sway keys.conf)
@@ -70,7 +75,7 @@
  *
  * glassine-shell [-v] run (session autostart)
  * glassine-shell theme NAME switch the theme
- * glassine-shell toggle VIEW | home | close | verbose | launch ID [new|here] | light STEP send a request
+ * glassine-shell toggle VIEW | home | close | verbose | launch ID [new|here [ARG]] | light STEP send a request
  * GLASSINE_SHELL_HITS=DIR (host tests) the targets of each render to DIR/bar, DIR/pop
  */
 #define _GNU_SOURCE
@@ -380,17 +385,6 @@ static void state_path(char *out, size_t n, const char *kind, const char *file)
     snprintf(out + l, n - l, "/%s", file);
 }
 
-static int in_list_file(const char *path, const char *id)
-{
-    FILE *f = fopen(path, "r");
-    if (!f) return -1;
-    char l[256];
-    int r = 0;
-    while (fgets(l, sizeof l, f)) { l[strcspn(l, "\r\n")] = 0; if (!strcmp(l, id)) r = 1; }
-    fclose(f);
-    return r;
-}
-
 /* a desktop file's OnlyShowIn/NotShowIn list ("A;B;") names one of the desktops in
  * $XDG_CURRENT_DESKTOP ("sway", or several separated by ':') */
 static int desktop_listed(const char *list)
@@ -434,6 +428,7 @@ static void load_app(const char *dir, const char *fn)
         else if (!strcmp(l, "Categories")) snprintf(cats, sizeof cats, "%s", v);
         else if (!strcmp(l, "StartupWMClass")) snprintf(a.wmclass, sizeof a.wmclass, "%s", v);
         else if (!strcmp(l, "Terminal")) a.terminal = !strcmp(v, "true");
+        else if (!strcmp(l, "DBusActivatable") || !strcmp(l, "SingleMainWindow")) a.single |= !strcmp(v, "true");
         else if (!strcmp(l, "NoDisplay") || !strcmp(l, "Hidden")) nodisp |= !strcmp(v, "true");
         else if (!strcmp(l, "Type")) app = !strcmp(v, "Application");
         else if (!strcmp(l, "OnlyShowIn")) notshown |= !desktop_listed(v);
@@ -481,17 +476,14 @@ static int app_dirs(char dirs[MAXAPPDIRS][512])
     return n;
 }
 
-/* the dirs' mtimes: an install or removal changes one, the list is re-read;
- * so does the favourites file (glassine-settings > Apps > an app > Favourite) */
+/* the dirs' mtimes: an install or removal changes one, the list is re-read
+ * (favourites are Home's: ~/.config/glassine/home.conf, GlassineOS/home) */
 static long long apps_sig(char dirs[MAXAPPDIRS][512], int n)
 {
     long long sig = 0;
     struct stat st;
-    char fp[512];
     for (int d = 0; d < n; d++)
         if (!stat(dirs[d], &st)) sig = sig * 31 + (long long)st.st_mtim.tv_sec * 1000000000LL + st.st_mtim.tv_nsec;
-    state_path(fp, sizeof fp, ".config", "favourites");
-    if (!stat(fp, &st)) sig = sig * 31 + (long long)st.st_mtim.tv_sec * 1000000000LL + st.st_mtim.tv_nsec;
     return sig;
 }
 
@@ -518,15 +510,6 @@ static void load_apps(void)
         closedir(dd);
     }
     qsort(apps, napps, sizeof *apps, app_cmp);
-    char fp[512];
-    state_path(fp, sizeof fp, ".config", "favourites");
-    /* without the file: the apps the image itself ships */
-    static const char *const DEF_FAV[] = { "glassine-settings", "foot", NULL };
-    for (int i = 0; i < napps; i++) {
-        int r = in_list_file(fp, apps[i].id);
-        if (r < 0) { r = 0; for (int k = 0; DEF_FAV[k]; k++) if (!strcmp(DEF_FAV[k], apps[i].id)) r = 1; }
-        apps[i].fav = r;
-    }
     LOG("%d apps", napps);
 }
 
@@ -2508,9 +2491,13 @@ static int unboost_tree(pid_t root)
     return n;
 }
 
-static pid_t run_launch(const char *cmd)
+static pid_t run_launch(char **argv)
 {
-    LOG("run: %s", cmd);
+    if (verbose) {
+        gchar *j = g_strjoinv("\" \"", argv);
+        LOG("run: \"%s\"", j);
+        g_free(j);
+    }
     int bmin = 0, bms = 0;
     FILE *bf = fopen(LAUNCH_BOOST, "r");
     if (bf) {
@@ -2519,7 +2506,9 @@ static pid_t run_launch(const char *cmd)
     }
     if (bmin) LOG("launch boost: uclamp.min %d for %d ms", bmin, bms);
     int pf[2];
-    if (pipe2(pf, O_CLOEXEC)) { run(cmd, NULL); return 0; }
+    if (pipe2(pf, O_CLOEXEC)) pf[0] = pf[1] = -1;   /* started all the same, its pid unknown */
+    int ef[2];                              /* the exec's errno, closed by a good exec (O_CLOEXEC) */
+    if (pipe2(ef, O_CLOEXEC)) ef[0] = ef[1] = -1;
     pid_t p = fork(), g = 0;
     if (p == 0) {
         setsid();
@@ -2527,12 +2516,22 @@ static pid_t run_launch(const char *cmd)
         if (c == 0) {
             int fd = open("/dev/null", O_RDWR);
             dup2(fd, 0); dup2(fd, 1);
-            for (int i = 3; i < 256; i++) close(i);
+            for (int i = 3; i < 256; i++) if (i != ef[1]) close(i);
             if (bmin && set_umin(0, bmin)) bmin = 0;
-            execl("/bin/sh", "sh", "-c", cmd, (char *)NULL);
+            execvp(argv[0], argv);          /* never a shell: a file name stays one word (FR-046) */
+            int e = errno;
+            if (ef[1] >= 0 && write(ef[1], &e, sizeof e) != sizeof e) {}
             _exit(127);
         }
-        if (write(pf[1], &c, sizeof c) != sizeof c) {}
+        if (pf[1] >= 0 && write(pf[1], &c, sizeof c) != sizeof c) {}
+        if (ef[1] >= 0) {                   /* a failed exec says why, in the shell's log (stderr) */
+            int e = 0;
+            close(ef[1]);
+            if (c > 0 && read(ef[0], &e, sizeof e) == sizeof e) {
+                fprintf(stderr, "glassine-shell: launch: can't run \"%s\": %s\n", argv[0], strerror(e));
+                c = -1;                     /* (no boost helper for a process that never ran) */
+            }
+        }
         if (bmin && c > 0 && fork() == 0) {     /* the helper: reparented when we exit */
             for (int i = 0; i < 256; i++) close(i);
             struct timespec ts = { bms / 1000, (bms % 1000) * 1000000L };
@@ -2542,12 +2541,13 @@ static pid_t run_launch(const char *cmd)
         }
         _exit(0);
     }
-    close(pf[1]);
+    if (pf[1] >= 0) close(pf[1]);
+    if (ef[0] >= 0) { close(ef[0]); close(ef[1]); }
     if (p > 0) {
-        if (read(pf[0], &g, sizeof g) != sizeof g) g = 0;
+        if (pf[0] < 0 || read(pf[0], &g, sizeof g) != sizeof g) g = 0;
         waitpid(p, NULL, 0);
     }
-    close(pf[0]);
+    if (pf[0] >= 0) close(pf[0]);
     return g > 0 ? g : 0;
 }
 
@@ -2568,19 +2568,126 @@ void ev_placeholder_draw(cairo_t *cr, int w, int h, const App *a)
     cairo_restore(cr);
 }
 
-static void launch_app(App *a)
+/* the words of an Exec line with ARG (NULL: none) where a field code for files or URLs (%f %F
+ * %u %U) stands, else appended; the other field codes give nothing. Quoting as the desktop
+ * entry spec has it. NULL: no words (err set) */
+static char **exec_words(const char *exec, const char *arg, GError **err)
 {
-    char cmd[700] = "";
-    size_t n = 0;
-    for (const char *p = a->exec; *p && n < sizeof cmd - 2; p++) {
-        if (*p == '%') { if (p[1] == '%') cmd[n++] = '%'; if (p[1]) p++; continue; }   /* field codes: no files */
-        cmd[n++] = *p;
+    GString *s = g_string_new("");
+    int used = 0;
+    for (const char *p = exec; *p; p++) {
+        if (*p != '%') { g_string_append_c(s, *p); continue; }
+        if (!p[1]) break;
+        p++;
+        if (*p == '%') g_string_append_c(s, '%');
+        else if (strchr("fFuU", *p) && arg && !used) {
+            gchar *q = g_shell_quote(arg);
+            g_string_append(s, q);
+            g_free(q);
+            used = 1;
+        }
     }
-    cmd[n] = 0;
-    char full[800];
-    if (a->terminal) snprintf(full, sizeof full, "foot %s", cmd);
-    else snprintf(full, sizeof full, "%s", cmd);
-    be_placeholder(a, run_launch(full));
+    if (arg && !used) {
+        gchar *q = g_shell_quote(arg);
+        g_string_append_c(s, ' ');
+        g_string_append(s, q);
+        g_free(q);
+    }
+    gchar **argv = NULL;
+    if (!g_shell_parse_argv(s->str, NULL, &argv, err)) argv = NULL;
+    g_string_free(s, TRUE);
+    return argv;
+}
+
+/* the app's command line (its desktop entry's Exec, in a terminal if it asks for one) with ARG
+ * where the entry wants a file, the words going to execvp, never to a shell. The program is the
+ * entry's own: an Exec whose first word is a field code (or empty) with a file would make the
+ * file the command, so it is refused. NULL: no command line (logged, "refused") */
+static char **launch_argv(const App *a, const char *arg)
+{
+    GError *err = NULL;
+    char **argv = exec_words(a->exec, arg, &err);
+    char **bare = argv && arg ? exec_words(a->exec, NULL, NULL) : NULL;     /* without ARG: the program the entry names */
+    const char *why = NULL;
+    if (!argv) why = err ? err->message : "empty";
+    else if (arg && (!bare || strcmp(bare[0], argv[0]))) why = "no program word before the field code";
+    if (why) {
+        fprintf(stderr, "glassine-shell: launch %s: refused: its Exec line can't be run (%s)\n", a->id, why);
+        g_strfreev(argv);
+        argv = NULL;
+    }
+    g_clear_error(&err);
+    g_strfreev(bare);
+    if (argv && a->terminal) {          /* foot runs the words after it as the command */
+        guint n = g_strv_length(argv);
+        char **t = g_new0(char *, n + 2);
+        t[0] = g_strdup("foot");
+        for (guint i = 0; i < n; i++) t[i + 1] = argv[i];
+        g_free(argv);
+        argv = t;
+    }
+    return argv;
+}
+
+/* why ARG can't go to the app (NULL: it can): Settings takes the name of a page it opens on, every
+ * other app an absolute path of a regular file that is there (FR-045, FR-047). The page names are
+ * Settings' own (settings/app.py: TOPICS, START, START_ALIAS; test/settings/files.py checks that
+ * these lists are the same): a tab or sub-page, an alias, a tab's section as "power#2" */
+#define SETTINGS_ID "glassine-settings"
+static const char *const SETTINGS_TABS[] = { /* TOPICS */
+    "eink", "apps", "power", "appearance", "wifi", "sound", "light", "bt", "keyboard", "gestures", "time",
+    "storage", "about", NULL };
+static const char *const SETTINGS_SUBS[] = { /* START without TOPICS */
+    "packages", "pkg-updates", "pkg-changes", "origins", "render-apps", "light-range", "time-zone", "bt-add", NULL };
+static const char *const SETTINGS_ALIAS[][2] = { /* START_ALIAS */
+    { "network", "wifi" }, { "bluetooth", "bt" }, { "display", "eink" }, { "clock", "time" },
+    { "updates", "pkg-updates" }, { NULL, NULL } };
+
+static int in_list(const char *const *l, const char *w, size_t n)
+{
+    for (; *l; l++) if (strlen(*l) == n && !strncmp(*l, w, n)) return 1;
+    return 0;
+}
+
+static int settings_page_ok(const char *arg)
+{
+    size_t n = strlen(arg);
+    if (!n || n > 64 || !isalnum((unsigned char)arg[0])) return 0;
+    for (const char *p = arg; *p; p++)
+        if (!isalnum((unsigned char)*p) && !strchr("-_#", *p)) return 0;
+    const char *h = strchr(arg, '#');
+    size_t bn = h ? (size_t)(h - arg) : n;
+    const char *base = arg;
+    char mapped[65];
+    for (int i = 0; SETTINGS_ALIAS[i][0]; i++)
+        if (strlen(SETTINGS_ALIAS[i][0]) == bn && !strncmp(arg, SETTINGS_ALIAS[i][0], bn)) {
+            snprintf(mapped, sizeof mapped, "%s", SETTINGS_ALIAS[i][1]);
+            base = mapped; bn = strlen(mapped);
+        }
+    int topic = in_list(SETTINGS_TABS, base, bn);
+    if (!topic && !in_list(SETTINGS_SUBS, base, bn)) return 0;
+    if (!h) return 1;                   /* a section: only of a tab, and its number */
+    if (!topic || !h[1]) return 0;
+    for (const char *p = h + 1; *p; p++) if (!isdigit((unsigned char)*p)) return 0;
+    return 1;
+}
+
+static const char *launch_arg_bad(const App *a, const char *arg)
+{
+    if (!strcmp(a->id, SETTINGS_ID)) return settings_page_ok(arg) ? NULL : "not a Settings page";
+    struct stat sb;
+    if (arg[0] != '/') return "not an absolute path";
+    if (stat(arg, &sb)) return "no such file";
+    if (!S_ISREG(sb.st_mode)) return "not a regular file";
+    return NULL;
+}
+
+/* starts argv (the app's command line, launch_argv's) and puts a's placeholder where "next"
+ * said; frees argv */
+static void launch_run(App *a, char **argv)
+{
+    be_placeholder(a, run_launch(argv));
+    g_strfreev(argv);
     /* recent: this one first */
     char p[512], l[128], buf[4096];
     state_path(p, sizeof p, ".local/state", "recent");
@@ -2598,15 +2705,36 @@ static void launch_app(App *a)
     if (f) { fputs(buf, f); fclose(f); }
 }
 
+static void launch_app(App *a, const char *arg)
+{
+    char **argv = launch_argv(a, arg);
+    if (argv) launch_run(a, argv);
+}
+
 /* where the next new window goes, told to glassine-swayd before the app starts
  * (its launch placeholder takes it): the empty screen under Home if there is
  * one, else where (new: a screen of its own after this one, here: beside the
  * apps on this one; NULL: as glassine-swayd places it) */
-static void launch_where(App *a, const char *where)
+static int focus_window_of(App *a);
+
+static void launch_where(App *a, const char *where, const char *arg)
 {
+    /* the command line first: one that can't be made starts nothing and leaves glassine-swayd's
+     * "next" alone (FR-047; it stays armed for 10 s and would take another app's window) */
+    char **argv = launch_argv(a, arg);
+    if (!argv) return;
+    /* runs once and is open (FR-049): the new process hands its argv to the running one
+     * and exits, so no "next" and no placeholder (it would hold an empty screen): run
+     * it all the same, then go to the window it has */
+    if (a->single && focus_window_of(a)) {
+        run_launch(argv);
+        g_strfreev(argv);
+        LOG("launch %s: runs once and has a window: focused, no new place", a->id);
+        return;
+    }
     if (st.home_vis && st.hole > 0) tile_cmd("next hole");
     else if (where && (!strcmp(where, "new") || !strcmp(where, "here"))) tile_cmd("next %s", where);
-    launch_app(a);
+    launch_run(a, argv);
 }
 
 /* Home shown or hidden (spec 001 FR-030, FR-031): glassine-swayd owns it */
@@ -2629,25 +2757,32 @@ static void overview(void)
     set_view(V_WS);
 }
 
-/* an app that already has a window comes forward (minimized: back here)
- * instead of a second copy (KOReader ran twice on one book); else it starts */
-static void open_app(App *a)
+/* a's window comes forward: one here first, then one on another screen, a
+ * minimized one last (back here). Home over it goes. 0: a has no window */
+static int focus_window_of(App *a)
 {
     be_read_desktop();
-    /* several: one here first, then one on another workspace, a minimized one last */
     int best = -1, rank = 3;
     for (int k = 0; k < ncl; k++) {
         if (app_of(cl[k].w) != a) continue;
         int r = cl[k].desk == curdesk ? 0 : cl[k].desk >= 0 ? 1 : 2;
         if (r < rank) { rank = r; best = k; }
     }
-    if (best >= 0) {
-        LOG("open %s: its window %lu is there", a->id, (unsigned long)cl[best].w);
-        if (cl[best].desk < 0) { be_restore(cl[best].w); return; }
-        if (cl[best].desk != curdesk) be_goto_desk(cl[best].desk);
-        be_activate(cl[best].w);
-        return;
-    }
+    if (best < 0) return 0;
+    LOG("%s: its window %lu is there", a->id, (unsigned long)cl[best].w);
+    if (st.view != V_IDLE) set_view(V_IDLE);
+    if (st.home_vis) tile_cmd("home hide");
+    if (cl[best].desk < 0) { be_restore(cl[best].w); return 1; }
+    if (cl[best].desk != curdesk) be_goto_desk(cl[best].desk);
+    be_activate(cl[best].w);
+    return 1;
+}
+
+/* an app that already has a window comes forward (minimized: back here)
+ * instead of a second copy (KOReader ran twice on one book); else it starts */
+static void open_app(App *a)
+{
+    if (focus_window_of(a)) return;
     /* glassine-settings > Appearance > Windows: a workspace of its own (*; the default since design, the file
      * app-shared-workspace turns it off); an empty current one is used as it is */
     char shared[512];
@@ -2655,7 +2790,7 @@ static void open_app(App *a)
     snprintf(shared, sizeof shared, "%s/.config/glassine/app-shared-workspace", home ? home : "");
     int busy = 0;
     for (int k = 0; k < ncl; k++) if (cl[k].desk == curdesk) busy = 1;
-    launch_where(a, access(shared, F_OK) && busy ? "new" : NULL);
+    launch_where(a, access(shared, F_OK) && busy ? "new" : NULL, NULL);
 }
 
 /* a notice without a "default" action: bring its app forward (a window of
@@ -2673,7 +2808,7 @@ static void notice_raise(const char *entry, const char *app)
             return;
         }
     }
-    if (a) launch_app(a);
+    if (a) launch_app(a, NULL);
 }
 
 static void act(const Hit *h, double rx)
@@ -3078,6 +3213,13 @@ static void request(char *msg, int len)
             if (sscanf(w[i], "%d,%d,%d,%d,%d,%d,%lx,%lx,%lf", &d->x, &d->y, &d->w, &d->h, &d->vert, &d->level, &d->a, &d->b, &d->pos) >= 8)
                 st.ndv++;
         }
+        if (verbose) {                  /* the list as parsed: "LEVEL:A:B" per line (the host tests read it) */
+            char dl[256] = "";
+            size_t k = 0;
+            for (int i = 0; i < st.ndv && k < sizeof dl; i++)
+                k += snprintf(dl + k, sizeof dl - k, " %d:%lx:%lx", st.dv[i].level, (unsigned long)st.dv[i].a, (unsigned long)st.dv[i].b);
+            LOG("%s %d,%d%s", w[0], st.dv_n, st.dv_o, dl);
+        }
         if (w[0][7] == '-') { if (st.ndv) set_view(V_DIV); }    /* the tap: open, or (again) close */
         else if (st.view == V_DIV) { if (st.ndv) { render_pop(); div_input(); } else set_view(V_IDLE); }
     } else if (!strcmp(w[0], "change")) {    /* a system change: "change PID 3/12"; "change" alone: over */
@@ -3094,10 +3236,16 @@ static void request(char *msg, int len)
     } else if (!strcmp(w[0], "status")) {    /* glassine-settings changed the time zone or 12/24 h: show it now */
         read_status();
         render_bar();
-    } else if (!strcmp(w[0], "launch") && n > 1) {    /* "launch ID [new|here]" (Home's taps) */
+    } else if (!strcmp(w[0], "launch") && n > 1) {    /* "launch ID [new|here [ARG]]" (Home's taps) */
         App *a = notice_app(w[1], "");
-        if (a) launch_where(a, n > 2 ? w[2] : NULL);
-        else LOG("launch %s: no such app", w[1]);
+        const char *where = n > 2 ? w[2] : NULL, *arg = n > 3 ? w[3] : NULL, *why = NULL;
+        /* checked before "next" goes to glassine-swayd: a refused launch leaves it alone (FR-047) */
+        if (!a) why = "no such app";
+        else if (n > 4) why = "more than one argument";
+        else if (arg && strcmp(where, "new") && strcmp(where, "here")) why = "the argument needs new or here before it";
+        else if (arg) why = launch_arg_bad(a, arg);
+        if (why) fprintf(stderr, "glassine-shell: launch %s%s%s: refused: %s\n", w[1], arg ? " " : "", arg ? arg : "", why);
+        else launch_where(a, where, arg);
     } else if (!strcmp(w[0], "open") && n > 1) {    /* as a drawer tap: its window if there is one */
         App *a = notice_app(w[1], "");
         if (a) open_app(a);
@@ -3123,7 +3271,7 @@ static int send_request(int argc, char **argv)
 {
     struct sockaddr_un a = { .sun_family = AF_UNIX };
     if (!sock_path(a.sun_path, sizeof a.sun_path)) return 1;
-    char msg[1024];
+    char msg[4400];                     /* a launch's file: up to PATH_MAX */
     size_t n = 0;
     for (int i = 0; i < argc; i++) {
         size_t l = strlen(argv[i]) + 1;
@@ -3240,7 +3388,7 @@ int main(int argc, char **argv)
         if (g_main_context_check(gctx, gprio, gfd, ng)) g_main_context_dispatch(gctx);
         t = now_ms();
         if (pf[1].revents & POLLIN) {
-            char m[1100];
+            char m[4500];
             int l;
             while ((l = recv(sfd, m, sizeof m - 1, 0)) > 0) request(m, l);
         }

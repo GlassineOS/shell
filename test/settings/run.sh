@@ -62,5 +62,11 @@ n=$(cd $P/rootfs/usr/lib/glassine && python3 -c 'from settings.backend import sw
 want=$(grep -c '^## ' $P/rootfs/usr/share/glassine/sway/keys.conf)
 [ "$n" = "$want" ] && [ "$n" -ge 15 ] && echo "ok   keyboard shortcuts: $n from keys.conf" || { echo "FAIL keyboard shortcuts: $n parsed, $want labels"; fail=1; }
 python3 /t/tab.py $P || fail=1
+python3 /t/files.py $P || fail=1
+python3 /t/homeconf.py $P || fail=1
+# Settings opened on the page Home asks for (glassine-shell launch glassine-settings new updates)
+for t in ${THEMES:-white}; do
+    python3 $S --demo --render /out/shots/$t-start-updates.png --page pkg-updates --theme $t 2>/out/err.txt || { echo "FAIL $t pkg-updates"; cat /out/err.txt; fail=1; }
+done
 echo "renders: $(ls /out/shots | wc -l)"
 exit $fail

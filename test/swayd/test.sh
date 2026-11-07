@@ -15,5 +15,6 @@ set -eu
 D=$(cd "$(dirname "$0")" && pwd)
 SRC=$(cd "$D/../../src" && pwd)
 UI=$(sh "$D/../ui.sh")             # GlassineOS/ui: the drag handles' look (test/ui.sh)
-docker build -q -t glassine-swaydtest "$D" >/dev/null
-docker run --rm -v "$SRC":/src:ro -v "$UI":/ui:ro -v "$D/../../rootfs":/o:ro -v "$D":/t:ro glassine-swaydtest sh /t/run.sh
+# the image by its id: the tag is shared with other checkouts, which may rebuild it meanwhile
+IMG=$(docker build -q -t glassine-swaydtest "$D")
+docker run --rm -v "$SRC":/src:ro -v "$UI":/ui:ro -v "$D/../../rootfs":/o:ro -v "$D":/t:ro "$IMG" sh /t/run.sh

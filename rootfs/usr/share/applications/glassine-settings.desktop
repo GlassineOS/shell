@@ -5,3 +5,5 @@ Comment=Wi-Fi, Bluetooth, sound, light & e-ink, power, keyboard, appearance, dat
 Exec=/usr/bin/glassine-settings
 Icon=preferences-system
 Categories=Settings;
+SingleMainWindow=true
+StartupWMClass=org.glassine.Settings
