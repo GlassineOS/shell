@@ -68,7 +68,9 @@ ln -sf $XDG_RUNTIME_DIR/glassine-shell.theme $RT2/glassine-shell.theme
 # the home app is a setting (FR-029): not glassine-home here, both look it up the same way
 export GLASSINE_HOME_APP_ID=test-home
 XDG_RUNTIME_DIR=$RT2 WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/wayland-1 $B/glassine-swayd -v 2>/out/swayd-$O.log &
+SWAYDPID=$!
 GLASSINE_SHELL_HITS=$HITS $B/glassine-shell-wl -v >$L 2>&1 &
+SHELLPID=$!
 mkfifo $XDG_RUNTIME_DIR/vptr
 $B/vptr $XDG_RUNTIME_DIR/vptr $LW $LH 2>/out/vptr-$O.log &
 sleep 1.5
@@ -271,6 +273,22 @@ send home 0 0
 tap bar screen
 C=$(nh pop scr-close)
 mark; tap pop scr-close $((C - 1)); sent "close the last screen: scrclose" "scrclose $C"
+key Escape
+
+# glassine-swayd down (its restart loop leaves stock sway in charge): a screen of 4 columns
+# of 4 windows and a window marked full, 17 in all, in the bar and in Overview
+kill $SWAYDPID; sleep 0.5
+sm -q "workspace number 9"; sleep 0.3
+for c in 1 2 3 4; do sm -q "exec foot -a col$c sleep 600"; sleep 0.8; done
+for c in 1 2 3 4; do
+    sm -q "[app_id=col$c] focus; splitv"
+    for r in 2 3 4; do sm -q "exec foot -a c$c$r sleep 600"; sleep 0.8; done
+done
+sm -q "exec foot -a c17 sleep 600"; sleep 1.2
+sm -q "[app_id=c17] floating enable, mark --add _glassine_full"; sleep 1
+expect "17 windows on one screen: 16 tiled" "$(tree count | awk '{ print $NF }')" "16"
+tap bar screen
+expect "17 windows on one screen: the bar and Overview draw them, the shell still runs" "$(view) $(kill -0 $SHELLPID 2>/dev/null && echo runs)" "2 runs"
 key Escape
 
 grep -q 'glassine-shell: ' $L || bad "the shell logged nothing" ""

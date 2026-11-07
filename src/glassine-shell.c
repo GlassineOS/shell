@@ -1033,6 +1033,7 @@ static void sheets_icon(Gc *g, double cx, double cy, double px, const char *num,
  * reading order, the overview's slots and the move's arrows go by (not the
  * lines' positions) ---- */
 typedef struct { const Client *c; WinId w; int gi; double x, y, wd, ht; } Rc;
+#define MAXRC (4 * 4 + 1)               /* lay_rects: 4 groups of 4 (lay_read) and the full one */
 
 static int lay_n(const Layout *L)
 {
@@ -1057,6 +1058,7 @@ static Layout lay_get(long d)
     return L;
 }
 
+/* out: MAXRC */
 static int lay_rects(const Layout *L, Rc *out)
 {
     int n = 0;
@@ -1076,7 +1078,7 @@ static int lay_rects(const Layout *L, Rc *out)
     return n;
 }
 
-/* screen d's windows as rectangles (at most 16), in the tree's order or, with
+/* screen d's windows as rectangles (at most MAXRC), in the tree's order or, with
  * reading, by rows top to bottom, then left to right */
 static int scr_rects(long d, Rc *out, int reading)
 {
@@ -1278,7 +1280,7 @@ static void view_bar(Gc *g)
         plate(g, x, cy - 18, pw, 36, st.view == V_WS, &fg);
         int hole = st.home_vis && st.hole > 0;
         long num = hole ? st.hole : curdesk + 1, cnt = ndesk > num ? ndesk : num;
-        Rc R[16];
+        Rc R[MAXRC];
         int n = hole ? 0 : scr_rects(curdesk, R, 1);
         char lab[24];
         snprintf(lab, sizeof lab, "%ld/%ld", num, cnt);
@@ -1745,7 +1747,7 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
         cairo_restore(cr);
         return;
     }
-    Rc R[16];
+    Rc R[MAXRC];
     int n = scr_rects(d, R, 0);
     if (!n || scr_full(R, n)) { ui_fill_rect(g, x, y, w, h, RGB(0xffffff)); return; }
     for (int i = 0; i < n; i++) {
@@ -1789,7 +1791,7 @@ static int ov_targets(long d, const Client *m, const Rc *R, int n, double W, dou
     else { if (n >= WS_MAX_APPS) return 0; B = X; }
     int nb = lay_n(&B);
     if (!nb) return 0;
-    Rc RB[16];
+    Rc RB[MAXRC];
     int nrb = lay_rects(&B, RB);
     struct { WinId k; int side; Layout nx; } C[16];
     int nc = 0;
@@ -1947,7 +1949,7 @@ static void view_ov(Gc *g)
     for (int i = 0; i < 4 && page * 4 + i < ndesk; i++) {
         long d = page * 4 + i;
         double cx = x0 + (i % 2) * (cw + CG), ry = gridY + (i / 2) * (rh + RG);
-        Rc R[16];
+        Rc R[MAXRC];
         int n = scr_rects(d, R, 0), isCur = d == curdesk, isSrc = mc && mc->desk == d;
         int nofit = mc && !isSrc && n >= WS_MAX_APPS;
         const Client *full = scr_full(R, n);
