@@ -1524,11 +1524,14 @@ static void direction(long a)
     build(k); crun();
 }
 
-/* `full` ends for window id (it leaves or is placed): back into the tiling */
+/* `full` ends for window id (it leaves or is placed): back into the tiling
+ * (sway puts it where it likes: the workspace is laid out again) */
 static void unfull(long id)
 {
     for (int i = 0; i < nws; i++)
         if (ws[i].full == id) {
+            Keep *k = keep_of(ws[i].name);
+            if (k) k->built = 0;
             cadd("[con_id=%ld] unmark " FULL_MARK, id);
             cadd("[con_id=%ld] floating disable", id);
             ws[i].full = 0;
@@ -1791,10 +1794,12 @@ static int view_exists(long id)
 }
 
 /* new tiled windows: `next` sends the first where it was asked to go; any hides
- * Home (filling the hole if it is there). 1: something moved (read again) */
+ * Home (filling the hole if it is there) and ends `full` on the screen it lands
+ * on (a floating window stays above it: the new one would open unseen, and the
+ * 4-apps rule waits while a screen is full). 1: something moved (read again) */
 static int fresh(void)
 {
-    long nid = 0, top = seen_view;
+    long nid = 0, top = seen_view, before = seen_view;
     Ws *nw = NULL;
     for (int i = 0; i < nws; i++)
         for (int a = 0; a < ws[i].nv; a++) {
@@ -1836,6 +1841,15 @@ static int fresh(void)
         crun();
         if (did && !read_tree()) return 1;  /* (the focus moved: home_hide must see it) */
     }
+    for (int i = 0; i < nws; i++)       /* where the new ones are now */
+        for (int a = 0; ws[i].full && a < ws[i].nv; a++)
+            if (ws[i].v[a].id > before && ws[i].v[a].id != ws[i].full) {
+                LOG("workspace %s: window %ld opened: full ends", ws[i].name, ws[i].v[a].id);
+                unfull(ws[i].full);
+                crun();
+                did = 1;
+                break;
+            }
     if (home_on[0]) {                   /* an app opened: Home hides */
         if (hole[0] && strcmp(hole, where)) home_hide(0, where);    /* not into the hole: it goes */
         else home_hide(1, NULL);

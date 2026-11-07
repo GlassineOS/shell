@@ -245,6 +245,16 @@ def w(x):
     for c in x.get("nodes",[])+x.get("floating_nodes",[]): w(c)
 w(json.load(sys.stdin)); print(n)'; }
 warned() { [ "$(grep -c "$1" /tmp/swayd.log)" -gt 0 ] && echo yes; }
+# "app ws WxH" per view, sorted by app; the views marked `full`
+sizes() { geo | tr '|' '\n' | awk '{ printf "%s%s %s %sx%s", (NR > 1 ? " | " : ""), $1, $2, $5, $6 }'; }
+fullmarked() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+n=0
+def w(x):
+    global n
+    if x.get("shell") and "_glassine_full" in x.get("marks",[]): n+=1
+    for c in x.get("nodes",[])+x.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin)); print(n)'; }
 swaymsg -q '[shell=".*"] kill'; sleep 1.5
 swaymsg -q 'workspace 1'; sleep 0.3
 term A; term B; term C; term E
@@ -279,6 +289,17 @@ expect "full off: E back in its tile" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 34
 cmd "full $(id E)"
 kill_ E
 expect "a full window closes: its gap closes (its column whole)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 936 | C 1 361 0 341 458"
+# a window opens on a screen with a full one: full ends (a floating window would hide it)
+cmd "full $(id C)"
+term F
+expect "a window opens while one is full: full ends, quarters" "$(sizes)" "A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458"
+expect "... no window left marked full" "$(fullmarked)" "0"
+cmd "full $(id C)"
+expect "... C full again" "$(fullmarked)" "1"
+term G
+expect "a fifth window while one is full: the 4-apps rule, a new screen, the view follows" "$(cur) $(geo_of G)" "1 2 focus 2 2 0 0 702 936"
+expect "... full ended on screen 1" "$(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+swaymsg -q 'workspace 1'; sleep 0.5
 # two windows: direction, and place on the window's own screen
 swaymsg -q '[shell=".*"] kill'; sleep 1.5
 term P; term Q
