@@ -91,7 +91,8 @@ spill is detached, and nothing else on the user data partition changes.
   and names listed `nofreeze`. Process names compare as the kernel stores them (first 15
   characters).
 - **FR-006**: The prioritizer thaws an app on a datagram `thaw CON_ID` (sway container id)
-  on its socket, and thaws every frozen app when an output changes.
+  on its socket (which only sway's user and root can send to), and thaws every frozen app
+  when an output changes.
 - **FR-007**: Frozen processes get the highest OOM score and their own value back on thaw.
 - **FR-008**: After a pass that froze something, frozen processes' anonymous memory is
   paged out (`reclaim swap`: only while a swap device is on, the default; `always`; `off`).

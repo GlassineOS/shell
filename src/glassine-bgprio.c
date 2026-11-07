@@ -44,9 +44,10 @@
  * (leaving a frozen cgroup thaws). A frozen app answers nothing (Wayland events
  * queue, D-Bus calls wait), so the shell asks for a thaw before it closes a
  * hidden window: a datagram "thaw CON_ID" (sway's container id) on
- * /run/glassine-bgprio.sock moves that view's app out of the freezer and
- * restarts its freeze timer. An output change thaws every frozen app (sway sends
- * every client a burst of events at once).
+ * /run/glassine-bgprio.sock (sway's user's, mode 0600; at most THAW_BURST per
+ * wakeup, the rest waits for the next) moves that view's app out of the freezer
+ * and restarts its freeze timer. An output change thaws every frozen app (sway
+ * sends every client a burst of events at once).
  *
  * Parked memory: after a pass that froze something, the processes it froze get
  * process_madvise(MADV_PAGEOUT) over their anonymous mappings (in a thread: it
@@ -171,6 +172,7 @@
 #define BG_SLACK_NS "50000000"          /* 50 ms */
 #define DEMOTE_S 3
 #define RESCAN_S 30
+#define THAW_BURST 16                   /* thaw datagrams handled per wakeup */
 #define COMM_LEN 15                     /* the kernel's comm, without the NUL */
 #define IOPRIO_WHO_PROCESS 1
 #define IOPRIO_CLASS_IDLE 3
@@ -573,7 +575,14 @@ static void parked(void)
 /* on the RESCAN_S pass: the writeback, when due (one at a time) */
 static void writeback_due(void)
 {
-    if (wb_pid > 0 && waitpid(wb_pid, NULL, WNOHANG) != 0) wb_pid = 0;
+    if (wb_pid > 0) {
+        int st;
+        pid_t r = waitpid(wb_pid, &st, WNOHANG);
+        if (r == wb_pid && !(WIFEXITED(st) && !WEXITSTATUS(st)))
+            logf_("zram writeback failed (%s %d; an idle age needs CONFIG_ZRAM_TRACK_ENTRY_ACTIME)",
+                  WIFEXITED(st) ? "exit" : "signal", WIFEXITED(st) ? WEXITSTATUS(st) : WTERMSIG(st));
+        if (r != 0) wb_pid = 0;
+    }
     if (!wb_at || now() < wb_at || wb_pid > 0) return;
     double was = wb_at;
     /* freezes after this one was scheduled: their pages are not idle long enough yet */
@@ -1175,8 +1184,11 @@ static void thaw_sock_open(void)
     unlink(a.sun_path);
     thaw_fd = socket(AF_UNIX, SOCK_DGRAM | SOCK_CLOEXEC | SOCK_NONBLOCK, 0);
     if (thaw_fd >= 0 && bind(thaw_fd, (struct sockaddr *)&a, sizeof a)) { close(thaw_fd); thaw_fd = -1; }
-    if (thaw_fd >= 0) chmod(a.sun_path, 0666);         /* the desktop user's shell asks */
-    else logf_("no thaw socket " THAW_SOCK ": %s", strerror(errno));
+    /* only sway's user (the shell, which asks) and root may send: every datagram
+     * costs a /proc scan and a get_tree */
+    if (thaw_fd >= 0 && ((session_uid != (uid_t)-1 && chown(a.sun_path, session_uid, (gid_t)-1)) || chmod(a.sun_path, 0600)))
+        logf_("thaw socket " THAW_SOCK ": can't give it to uid %d: %s", (int)session_uid, strerror(errno));
+    if (thaw_fd < 0) logf_("no thaw socket " THAW_SOCK ": %s", strerror(errno));
 }
 
 /* one pass; demote_ok = 0: only bring processes to the front */
@@ -1336,9 +1348,10 @@ int main(int argc, char **argv)
             char m[64];
             ssize_t l;
             long id;
-            while ((l = recv(thaw_fd, m, sizeof m - 1, 0)) > 0) {
+            /* a few per wakeup: sway's events come between (thaw_owner reads /proc itself) */
+            for (int k = 0; k < THAW_BURST && (l = recv(thaw_fd, m, sizeof m - 1, 0)) > 0; k++) {
                 m[l] = 0;
-                if (sscanf(m, "thaw %ld", &id) == 1 && id > 0) { read_procs(); thaw_owner(sway_scan(id)); }
+                if (sscanf(m, "thaw %ld", &id) == 1 && id > 0) thaw_owner(sway_scan(id));
             }
         }
         if (changed) {

@@ -66,11 +66,23 @@ CONF=$ROOT/etc/glassine/zram
 # shellcheck disable=SC1090
 [ -r "$CONF" ] && . "$CONF"
 
-# deploy.conf: only the two keys, without running the file
+# deploy.conf: only the two keys, without running the file. It is shell, so a
+# value may be quoted ("..." or '...')
 DEPLOY_CONF=${GLASSINE_DEPLOY_CONF:-$ROOT/etc/glassine/deploy.conf}
-conf_key() { [ -r "$DEPLOY_CONF" ] && sed -n "s/^$1=//p" "$DEPLOY_CONF" | tail -n 1; }
+conf_key() {
+	[ -r "$DEPLOY_CONF" ] || return 0
+	sed -n "s/^$1=//p" "$DEPLOY_CONF" | tail -n 1 |
+		sed -e 's/[[:space:]]*$//' -e 's/^"\(.*\)"$/\1/' -e "s/^'\\(.*\\)'\$/\\1/"
+}
 UD_MNT=$(conf_key USERDATA_MNT); UD_MNT=${UD_MNT:-/run/glassine/userdata}
 UD_PREFIX=$(conf_key USERDATA_PREFIX); UD_PREFIX=${UD_PREFIX:-media/glassine}
+# hardening only (both files are root's): the spill goes nowhere but an absolute
+# path without a ".." component
+bad_path() { case "$1" in /*) ;; *) return 0 ;; esac; case "$1/" in */../*) return 0 ;; esac; return 1; }
+BAD=
+bad_path "$UD_MNT" && BAD="USERDATA_MNT $UD_MNT"
+bad_path "/$UD_PREFIX" && BAD="USERDATA_PREFIX $UD_PREFIX"
+[ -n "$SPILL_DIR" ] && bad_path "$SPILL_DIR" && BAD="SPILL_DIR $SPILL_DIR"
 
 Z=$ROOT/sys/block/zram0
 SPILL=$ROOT/run/glassine-zram
@@ -169,6 +181,7 @@ spill_plain() {
 # the loop device zram writes back to, or nothing (no userdata, no room)
 backing_dev() {
 	[ "$WB_SIZE_MB" -gt 0 ] || { log "WB_SIZE_MB 0: no spill"; return 1; }
+	[ -z "$BAD" ] || { log "$BAD: not an absolute path without '..': no spill"; return 1; }
 	[ -e "$Z/backing_dev" ] || { log "no zram writeback in this kernel: no spill"; return 1; }
 	if [ -z "$SPILL_DIR" ]; then
 		mountpoint -q "$NEED" || { log "userdata not mounted at $UD_MNT: no spill"; return 1; }
@@ -269,7 +282,9 @@ writeback)
 	age=${2:-1800}
 	spilling || exit 0
 	rc=0
-	{ echo "$age" > "$Z/idle" && echo idle > "$Z/writeback"; } || rc=1
+	# an age (not "all") needs CONFIG_ZRAM_TRACK_ENTRY_ACTIME, else EINVAL
+	if ! echo "$age" > "$Z/idle"; then log "idle age $age refused (the kernel needs CONFIG_ZRAM_TRACK_ENTRY_ACTIME)"; rc=1
+	elif ! echo idle > "$Z/writeback"; then rc=1; fi
 	# bd_stat: bd_count bd_reads bd_writes (4 KiB pages)
 	log "writeback (idle >= ${age}s): rc $rc, on disk now $(awk '{ print $1 * 4 " KiB, written " $3 * 4 " KiB" }' "$Z/bd_stat")"
 	exit $rc

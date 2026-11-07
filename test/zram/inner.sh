@@ -61,6 +61,15 @@ fresh() {
     stubs
 }
 run() { GLASSINE_ZRAM_ROOT=$R PATH=$S/bin:$PATH sh /o/usr/sbin/glassine-zram "$@" 2>$S/err; }
+# the same with only the stubs and the plain tools the script and stubs use on
+# PATH: a host's own mkfs.btrfs or losetup can't stand in for a missing one
+run_bare() {
+    rm -rf $S/sys; mkdir -p $S/sys
+    for t in awk cat chmod dd df dirname grep mkdir rm sed stat sync tail truncate; do
+        p=$(command -v $t) && ln -s "$p" $S/sys/$t
+    done
+    GLASSINE_ZRAM_ROOT=$R PATH=$S/bin:$S/sys /bin/sh /o/usr/sbin/glassine-zram "$@" 2>$S/err
+}
 z() { cat $Z/$1; }
 
 echo "--- defaults: btrfs spill on userdata"
@@ -106,6 +115,10 @@ run writeback 600; is "writeback 600: exit 0" $? 0
 is "writeback: idle age" "$(z idle)" 600
 is "writeback: idle pages" "$(z writeback)" idle
 run writeback; is "writeback default age 1800" "$(z idle)" 1800
+rm $Z/idle; mkdir $Z/idle                       # an age refused (no CONFIG_ZRAM_TRACK_ENTRY_ACTIME)
+run writeback 600; is "idle age refused: exit 1" $? 1
+has "idle age refused: names the kernel option" $S/err "idle age 600 refused (the kernel needs CONFIG_ZRAM_TRACK_ENTRY_ACTIME)"
+rmdir $Z/idle; : > $Z/idle
 
 : > $S/log
 run stop; is "stop: exit 0" $? 0
@@ -206,7 +219,7 @@ hasnt "park without a spill or recompression: no glassine-zpark" $S/log "zpark"
 
 echo "--- no btrfs-progs: a plain file"
 fresh; rm $S/bin/mkfs.btrfs
-run start
+run_bare start
 P=$UD/media/glassine/zram/writeback
 is "plain file: WB_SIZE_MB" "$(mib $P)" 4096
 is "plain file: no image" "$(mib $IMG)" none
@@ -264,6 +277,18 @@ fresh; printf 'USERDATA_MNT=/data\nUSERDATA_PREFIX=media/other\n' > $R/etc/glass
 mkdir -p $R/data/media; echo $R/data > $S/st/mounted
 run start
 is "/etc/glassine/deploy.conf read" "$(mib $R/data/media/other/zram/spill.btrfs)" 2048
+fresh; printf 'USERDATA_MNT="/data"\nUSERDATA_PREFIX='"'"'media/other'"'"'\n' > $R/etc/glassine/deploy.conf
+mkdir -p $R/data/media; echo $R/data > $S/st/mounted
+run start
+is "deploy.conf: quoted values (it is shell)" "$(mib $R/data/media/other/zram/spill.btrfs)" 2048
+fresh; printf 'USERDATA_MNT=data\n' > $R/etc/glassine/deploy.conf
+run start
+is "deploy.conf: a relative USERDATA_MNT: no spill" "$(z backing_dev)" none
+has "deploy.conf: a relative USERDATA_MNT: says so" $S/err "USERDATA_MNT data: not an absolute path without '..': no spill"
+fresh; printf 'USERDATA_PREFIX=media/../../etc\n' > $R/etc/glassine/deploy.conf
+run start
+is "deploy.conf: '..' in USERDATA_PREFIX: no spill" "$(z backing_dev)" none
+is "deploy.conf: '..' in USERDATA_PREFIX: nothing made" "$(ls $UD/media)" ""
 
 fresh; echo SPILL_DIR=/srv/spill > $R/etc/glassine/zram; mkdir -p $R/srv; : > $S/st/mounted
 run start

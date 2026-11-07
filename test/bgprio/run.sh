@@ -79,7 +79,14 @@ else
     echo "skipped: page-out of B (the host has no swap)"
 fi
 grep -q "paged out" /tmp/bgprio.log && echo "ok   page-out tried after the freeze: $(grep -o 'paged out.*' /tmp/bgprio.log | tail -1)" || { echo "FAIL no reclaim logged"; fail=1; }
-python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM); s.sendto(("thaw %s" % sys.argv[1]).encode(), "/run/glassine-bgprio.sock")' $IB
+expect "thaw socket: sway's user's, mode 600" "$(stat -c '%u %a' /run/glassine-bgprio.sock)" "1000 600"
+expect "thaw socket: another user can't send" "$(python3 -c '
+import os, socket
+os.setgroups([]); os.setgid(1001); os.setuid(1001)
+try: socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM).sendto(b"thaw 1", "/run/glassine-bgprio.sock"); print("sent")
+except PermissionError: print("refused")')" "refused"
+# as the shell sends it: from the desktop user
+/tmp/asuser python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM); s.sendto(("thaw %s" % sys.argv[1]).encode(), "/run/glassine-bgprio.sock")' $IB
 sleep 0.5
 expect "thaw CON_ID (the shell before a close): B thawed, still background" "$(where $PB)" "glassine-bg"
 expect "thawed: oom_score_adj back" "$(cat /proc/$PB/oom_score_adj)" "0"
