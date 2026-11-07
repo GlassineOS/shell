@@ -295,6 +295,18 @@ $B/glassine-shell-wl launch glassine-settings here power; sleep 2
 expect "Settings open, launch here power: focused the same way" \
     "$(since | grep -c next) $(tree count) $(cur) $(focused) $(handover glassine-settings)" "0 3 3 4 1 2 3 focus 1 glassine-settings power|"
 sm -q "workspace number 1"; sleep 0.5
+# Home shown over an empty screen, Settings open on another one: the launch hides Home (swayd drops the empty
+# screen) and the shell goes to Settings' screen; the two requests go to different sockets
+mark; $B/glassine-shell-wl launch extra new; waitapp extra
+kill_ extra
+expect "an empty screen under Home, Settings open on screen 1" "$(cur) $(homest 'home 1 hole 2')" "1 2 3 4 focus 2 home 1 hole 2"
+rm -f /out/handover-*; mark
+$B/glassine-shell-wl launch glassine-settings new updates; sleep 2.5
+expect "Home over an empty screen, launch new updates: Settings' screen shown, its window focused, no new screen" \
+    "$(cur) $(focused) $(since | grep -c next)" "1 2 3 focus 1 glassine-settings 0"
+expect "... Home hidden, the empty screen gone" "$(homest 'home 0 hole 0') $(tree count)" "home 0 hole 0 3 3 4"
+expect "... the running Settings got the page" "$(handover glassine-settings)" "updates|"
+sm -q "workspace number 1"; sleep 0.5
 mark; $B/glassine-shell-wl launch extra new; waitapp extra
 mark; $B/glassine-shell-wl launch extra new; sleep 3
 expect "an app that doesn't run once, open already: a second window on a new screen" \
