@@ -1,6 +1,7 @@
 #!/bin/sh
-# (see test.sh) inside the container: /src = src, /t = this dir
+# (see test.sh) inside the container: /src = src, /t = this dir, /ui = GlassineOS/ui (ro)
 set -u
+make -s -C /ui install O=/tmp/ui-out PREFIX=/usr >/dev/null || exit 1   # (its own out: never the checkout's)
 sh /src/wayland/build-swayd.sh /src /tmp/glassine-swayd || exit 1
 export XDG_RUNTIME_DIR=/tmp/rt; mkdir -p -m 700 $XDG_RUNTIME_DIR
 printf 'output HEADLESS-1 resolution 1404x1872 scale 2\ndefault_border none\ndefault_floating_border none\ngaps inner 20\ngaps outer -20\nsmart_gaps on\nfor_window [app_id="dlg"] floating enable\n' > /tmp/c
@@ -177,7 +178,22 @@ WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/sway -d
 expect "sway -C: keys.conf read" "$(grep -c 'Loading config from /o/usr/share/glassine/sway/keys.conf' /tmp/devcfg.log)" "1"
 expect "sway -C: no errors, no binding bound twice" "$(grep -E '\[ERROR\]|Overwriting' /tmp/devcfg.log | head -3)" ""
 expect "keys.conf: its glassine scripts are in the overlay" "$(grep -o '/usr/s\?bin/glassine-[a-z0-9-]*' /o/usr/share/glassine/sway/keys.conf | sort -u | while read -r f; do [ -e /o$f ] || [ $f = /usr/bin/glassine-shell-wl ] || [ $f = /usr/bin/glassine-swayd ] || echo $f; done)" ""
-expect "shellcheck: glassine-screenshot, glassine-kbd-layout" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout 2>&1)" ""
+expect "keys.conf: no sway fullscreen (full screen is glassine-swayd's full: the bar stays)" "$(grep -E '^bindsym .* fullscreen' /o/usr/share/glassine/sway/keys.conf)" ""
+expect "shellcheck: glassine-screenshot, glassine-kbd-layout, glassine-home-start" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout /o/usr/bin/glassine-home-start 2>&1)" ""
+# the home app the session starts (glassine-home-start -n: the command): the app_id as
+# glassine-swayd finds it, its desktop entry, else a command of that name, else nothing
+HS=/tmp/hs; mkdir -p $HS/data/applications $HS/bin
+hs() { env -u GLASSINE_HOME_APP_ID HOME=$HS XDG_DATA_HOME=$HS/data XDG_DATA_DIRS=/nonexistent PATH=$HS/bin:/usr/bin:/bin "$@" sh /o/usr/bin/glassine-home-start -n; echo "rc $?"; }
+expect "home app: none installed, nothing set: nothing starts" "$(hs)" "rc 0"
+printf '#!/bin/sh\n' > $HS/bin/glassine-home; chmod +x $HS/bin/glassine-home
+expect "home app: glassine-home by default" "$(hs | tr '\n' ' ')" "glassine-home rc 0 "
+mkdir -p /etc/glassine; printf 'other.Home extra\n' > /etc/glassine/home-app
+printf '[Desktop Entry]\nType=Application\nName=Other\nExec=other-home --page %%U\n[Desktop Action x]\nExec=nope\n' > $HS/data/applications/other.Home.desktop
+expect "home app: /etc/glassine/home-app's first word, from its desktop entry (field codes dropped)" "$(hs | tr '\n' ' ')" "other-home --page rc 0 "
+printf '#!/bin/sh\n' > $HS/bin/mine; chmod +x $HS/bin/mine
+expect "home app: \$GLASSINE_HOME_APP_ID first, a command of that name" "$(hs GLASSINE_HOME_APP_ID=mine | tr '\n' ' ')" "mine rc 0 "
+rm -f /etc/glassine/home-app
+expect "sway config: starts the home app with glassine-home-start" "$(grep -c '^exec /usr/bin/glassine-home-start$' /o/usr/share/glassine/sway/config)" "1"
 # the hardware keyboard layout (glassine-kbd-layout): as the OSK's first language, or the
 # user's choice; the include sway loads, and set live (a libinput keyboard: none here,
 # so the IPC command's success is what can be checked)
@@ -245,6 +261,16 @@ def w(x):
     for c in x.get("nodes",[])+x.get("floating_nodes",[]): w(c)
 w(json.load(sys.stdin)); print(n)'; }
 warned() { [ "$(grep -c "$1" /tmp/swayd.log)" -gt 0 ] && echo yes; }
+# "app ws WxH" per view, sorted by app; the views marked `full`
+sizes() { geo | tr '|' '\n' | awk '{ printf "%s%s %s %sx%s", (NR > 1 ? " | " : ""), $1, $2, $5, $6 }'; }
+fullmarked() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+n=0
+def w(x):
+    global n
+    if x.get("shell") and "_glassine_full" in x.get("marks",[]): n+=1
+    for c in x.get("nodes",[])+x.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin)); print(n)'; }
 swaymsg -q '[shell=".*"] kill'; sleep 1.5
 swaymsg -q 'workspace 1'; sleep 0.3
 term A; term B; term C; term E
@@ -279,6 +305,29 @@ expect "full off: E back in its tile" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 34
 cmd "full $(id E)"
 kill_ E
 expect "a full window closes: its gap closes (its column whole)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 936 | C 1 361 0 341 458"
+# a window opens on a screen with a full one: full ends (a floating window would hide it)
+cmd "full $(id C)"
+term F
+expect "a window opens while one is full: full ends, quarters" "$(sizes)" "A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458"
+expect "... no window left marked full" "$(fullmarked)" "0"
+cmd "full $(id C)"
+expect "... C full again" "$(fullmarked)" "1"
+term G
+expect "a fifth window while one is full: the 4-apps rule, a new screen, the view follows" "$(cur) $(geo_of G)" "1 2 focus 2 2 0 0 702 936"
+expect "... full ended on screen 1" "$(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+swaymsg -q 'workspace 1'; sleep 0.5
+# sway's own fullscreen (an app asked, or a gesture): the shell shows it as full screen, and
+# its Exit full screen (`full W`) ends it in one tap
+swaymsg -q "[app_id=F] fullscreen enable"; sleep 0.8
+expect "an app in sway's fullscreen" "$(fsviews)" "1"
+cmd "full $(id F)"
+expect "full on a window in sway's fullscreen: back in its tile, not full" "$(fsviews) $(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+# `full` with no window (keys.conf's Super+F): the focused one
+swaymsg -q "[app_id=A] focus"; sleep 0.5
+cmd "full"
+expect "full, no window named: the focused one, over the work area" "$(fullmarked) $(fsviews) $(geo_of A)" "1 0 1 0 0 702 936"
+cmd "full"
+expect "full, no window named, again: back in its tile" "$(fullmarked) $(geo_of A | cut -d' ' -f4-)" "0 341 458"
 # two windows: direction, and place on the window's own screen
 swaymsg -q '[shell=".*"] kill'; sleep 1.5
 term P; term Q

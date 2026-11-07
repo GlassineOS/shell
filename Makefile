@@ -21,8 +21,10 @@ $(OUT)/glassine-bgprio: $(S)/glassine-bgprio.c $(S)/wayland/sway-ipc.c $(S)/wayl
 $(OUT)/glassine-zpark: $(S)/glassine-zpark.c
 	$(CC) $(CFLAGS) -o $@ $(S)/glassine-zpark.c
 
-# The tests build what they need in their own containers.
+# The tests build what they need in their own containers. First: the GTK themes and the
+# keyboard looks in rootfs/ are GlassineOS/ui's (tools/gen-apps; test/ui.sh finds ui).
 check:
+	python3 "$$(sh test/ui.sh)/tools/gen-apps" --check rootfs
 	sh test/swayd/test.sh
 	sh test/shell/test.sh
 	sh test/e2e/test.sh

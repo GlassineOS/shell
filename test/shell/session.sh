@@ -68,8 +68,12 @@ ln -sf $XDG_RUNTIME_DIR/glassine-shell.theme $RT2/glassine-shell.theme
 # sway's socket is in the session's runtime dir, swayd's own in RT2: WL first (assignments
 # expand left to right: WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/... after XDG_RUNTIME_DIR=$RT2 pointed into RT2)
 WL=$XDG_RUNTIME_DIR/wayland-1
+# the home app is a setting (FR-029): not glassine-home here, both look it up the same way
+export GLASSINE_HOME_APP_ID=test-home
 XDG_RUNTIME_DIR=$RT2 WAYLAND_DISPLAY=$WL $B/glassine-swayd -v 2>/out/swayd-$O.log &
+SWAYDPID=$!
 GLASSINE_SHELL_HITS=$HITS $B/glassine-shell-wl -v >$L 2>&1 &
+SHELLPID=$!
 mkfifo $XDG_RUNTIME_DIR/vptr
 $B/vptr $XDG_RUNTIME_DIR/vptr $LW $LH 2>/out/vptr-$O.log &
 sleep 1.5
@@ -132,6 +136,15 @@ PY
 )" "left-top"
 tap bar screen
 expect "the screen button again closes Overview" "$(view)" "0"
+# the home app (its own app_id, kept in the scratchpad by glassine-swayd) is not an app of a
+# screen: not among the minimized ones, which a minimized app is
+sm -q "exec foot -a test-home sleep 600; exec foot -a extra sleep 600"; sleep 2
+sm -q "[app_id=extra] move scratchpad"; sleep 1
+tap bar screen
+expect "the home app (GLASSINE_HOME_APP_ID) is not listed as minimized, a minimized app is" "$(nh pop ov-restore) $(python3 $T/hit.py --all $HITS/pop ov-restore | cut -d' ' -f2)" "1 $(tree id extra)"
+expect "... nor among the screens' apps" "$(nh pop ov-pick)" "10"
+tap bar screen
+sm -q "[app_id=extra] kill; [app_id=test-home] kill"; sleep 1
 send home 1 0
 mark; tap bar screen; sent "Overview over Home: Home hides" "home hide"
 key Escape
@@ -264,6 +277,22 @@ send home 0 0
 tap bar screen
 C=$(nh pop scr-close)
 mark; tap pop scr-close $((C - 1)); sent "close the last screen: scrclose" "scrclose $C"
+key Escape
+
+# glassine-swayd down (its restart loop leaves stock sway in charge): a screen of 4 columns
+# of 4 windows and a window marked full, 17 in all, in the bar and in Overview
+kill $SWAYDPID; sleep 0.5
+sm -q "workspace number 9"; sleep 0.3
+for c in 1 2 3 4; do sm -q "exec foot -a col$c sleep 600"; sleep 0.8; done
+for c in 1 2 3 4; do
+    sm -q "[app_id=col$c] focus; splitv"
+    for r in 2 3 4; do sm -q "exec foot -a c$c$r sleep 600"; sleep 0.8; done
+done
+sm -q "exec foot -a c17 sleep 600"; sleep 1.2
+sm -q "[app_id=c17] floating enable, mark --add _glassine_full"; sleep 1
+expect "17 windows on one screen: 16 tiled" "$(tree count | awk '{ print $NF }')" "16"
+tap bar screen
+expect "17 windows on one screen: the bar and Overview draw them, the shell still runs" "$(view) $(kill -0 $SHELLPID 2>/dev/null && echo runs)" "2 runs"
 key Escape
 
 grep -q 'glassine-shell: ' $L || bad "the shell logged nothing" ""
