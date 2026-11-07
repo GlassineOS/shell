@@ -102,15 +102,17 @@ def sway_shortcuts(path=KEYS_CONF):
             label = None
     return out
 GESTURE_DIRS = ("up", "down", "left", "right")
-GESTURE_ACTIONS = ("nothing", "refresh", "ws-next", "ws-prev", "move-next", "move-prev", "overview", "maximize",
-                   "minimize", "fullscreen", "unfullscreen", "swap", "close", "launcher", "quick", "notices",
+GESTURE_ACTIONS = ("nothing", "refresh", "screen-next", "screen-prev", "move-next", "move-prev", "overview", "home",
+                   "minimize", "fullscreen", "unfullscreen", "swap", "close", "quick", "notices",
                    "page-up", "page-down")
-# 3 up/down = full screen/minimize (maximize is gone, it was hard
-# to tell from full screen in a tiling WM; a "maximize" line in an old file means full screen).
-# Before: maximize/minimize (user, ; minimize restores a maximized
-# window first), 3 left/right = workspaces (as before); 4 fingers: the design's
-GESTURE_DEFAULT = {(3, "up"): "fullscreen", (3, "down"): "minimize", (3, "left"): "ws-next", (3, "right"): "ws-prev",
-                   (4, "up"): "overview", (4, "down"): "refresh", (4, "left"): "move-next", (4, "right"): "move-prev",
+# ids of older files: read as the new ones, never written (README "Runtime interfaces"):
+# maximize = full screen (it was hard to tell apart in a tiling WM), the launcher
+# became Home, workspaces became screens
+GESTURE_OLD = {"maximize": "fullscreen", "launcher": "home", "ws-next": "screen-next", "ws-prev": "screen-prev"}
+# 3 fingers: screens left/right, full screen/minimize up/down; 4 fingers up: Home
+# (spec 001 FR-030; it was Overview), down a full refresh, left/right move the window
+GESTURE_DEFAULT = {(3, "up"): "fullscreen", (3, "down"): "minimize", (3, "left"): "screen-next", (3, "right"): "screen-prev",
+                   (4, "up"): "home", (4, "down"): "refresh", (4, "left"): "move-next", (4, "right"): "move-prev",
                    (2, "tap"): "right-click"}
 # a two-finger tap : a right click (sway has no long press = right click), or a swipe action
 TAP_ACTIONS = ("right-click",) + GESTURE_ACTIONS
@@ -122,8 +124,8 @@ def read_gestures(path=GESTURES):
         with open(path) as f:
             for l in f:
                 p = l.split("#")[0].split()
-                if len(p) == 3 and p[2] == "maximize":
-                    p[2] = "fullscreen"
+                if len(p) == 3:
+                    p[2] = GESTURE_OLD.get(p[2], p[2])
                 if len(p) == 3 and p[0] in ("3", "4") and p[1] in GESTURE_DIRS and p[2] in GESTURE_ACTIONS:
                     g[(int(p[0]), p[1])] = p[2]
                 elif len(p) == 3 and p[0] == "2" and p[1] == "tap" and p[2] in TAP_ACTIONS:
@@ -1678,7 +1680,7 @@ class Real(Base):
         self._try(lambda: self.eink.set_kv(a["match"], "dither", v))
 
     def set_gesture(self, n, d, act):
-        if act not in GESTURE_ACTIONS:
+        if act not in (TAP_ACTIONS if (n, d) == (2, "tap") else GESTURE_ACTIONS):
             return
         self.gestures[(n, d)] = act
         self._try(lambda: write_gestures(self.gestures))

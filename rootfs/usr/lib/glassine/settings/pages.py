@@ -75,22 +75,22 @@ PKEYS = [("suspend", "Sleep", "The page stays on screen, a press wakes it"), ("i
 # Gestures: the actions a swipe can run ("#" = a group head on the pick page)
 GA = [("nothing", "Nothing", "The swipe is ignored"), ("refresh", "Full refresh", "Flashes the panel to clear ghosting"),
       ("#", "Screens", ""),
-      ("ws-next", "Next screen", "Shows the screen to the right"),
-      ("ws-prev", "Previous screen", "Shows the screen to the left"),
+      ("screen-next", "Next screen", "Shows the screen to the right"),
+      ("screen-prev", "Previous screen", "Shows the screen to the left"),
       ("move-next", "Window to next screen", "Moves the window under your fingers and follows it"),
       ("move-prev", "Window to previous screen", "Moves the window under your fingers and follows it"),
       ("overview", "Overview", "Opens the screen switcher"),
       ("#", "Window", ""),
       ("minimize", "Minimize window", "Hides it until you reopen it. A full-screen window leaves full screen first"),
-      ("fullscreen", "Enter full screen", "Hides the top bar too"),
-      ("unfullscreen", "Leave full screen", "Brings the top bar back"),
+      ("fullscreen", "Enter full screen", "The window fills its screen; the top bar stays"),
+      ("unfullscreen", "Leave full screen", "Brings the other windows of the screen back"),
       ("swap", "Swap tiled windows", "Trades places with its neighbour"),
       ("close", "Close app", "Closes the window under your fingers"),
       ("#", "Keys", ""),
       ("page-up", "Page up", "Scrolls the window under your fingers up a page"),
       ("page-down", "Page down", "Scrolls the window under your fingers down a page"),
       ("#", "Open", ""),
-      ("launcher", "App drawer", "The launcher"), ("quick", "Quick settings", "The quick settings popup"),
+      ("home", "Home", "Shows or hides Home"), ("quick", "Quick settings", "The quick settings popup"),
       ("notices", "Notifications", "Your notices")]
 GA_NAME = {a: n for a, n, _ in GA if a != "#"}
 # a two-finger tap: a right click first, then what a swipe can do
