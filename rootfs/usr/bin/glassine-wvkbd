@@ -3,14 +3,14 @@
 # glassine-osk shows/hides it, glassine-swayd shows it for a focused text field): wvkbd,
 # hidden until asked, restarted while sway runs.
 # The look follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme):
-# wvkbd-glassine is wvkbd with ../wvkbd/0001-glassine-themable-keys.patch (key outlines,
-# the gap, the label of a pressed key, no press popup: one e-ink update less per
-# key). A theme
-# change restarts it (shown again if it was). Stock wvkbd-mobintl (no patch):
+# wvkbd-glassine is GlassineOS/wvkbd (branch glassine/0.21: upstream wvkbd 0.21 with key
+# outlines and the gap; the label of a pressed key and no press popup, one e-ink update
+# less per key, are upstream's options). A theme
+# change restarts it (shown again if it was). Stock wvkbd-mobintl (no outline or gap):
 # the old look, white keys on black lines, a grey press.
 # Layers (the ⌨ key cycles them): ~/.config/glassine/osk-layers (glassine-settings →
 # Keyboard), else /etc/glassine/osk-layers, default german,special (German QWERTZ
-# with umlauts, 0002-glassine-german-layer.patch); full = US. A change restarts it too.
+# with umlauts, the fork's "german" layer); full = US. A change restarts it too.
 EXTRA=$*                                # e.g. -o (the harness logs the keys); no spaces
 R=${XDG_RUNTIME_DIR:-/tmp}
 TF=$R/glassine-shell.theme
