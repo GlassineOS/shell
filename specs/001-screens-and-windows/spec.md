@@ -154,6 +154,10 @@ or opening an app hides it.
   name), or with more than one argument, starts nothing, changes nothing about where the next window goes, and is
   logged with the reason.
 - **FR-048**: Where the window goes is settled before the app starts, so its launch placeholder already sits there.
+- **FR-049**: An app whose desktop entry says it runs once (D-Bus activatable, or a single main window) and that already
+  has a window is not given a new place: the shell asks for no new screen and shows no placeholder, starts the launch
+  all the same (so the running app gets the argument, e.g. the Settings page) and goes to that window's screen with
+  the window focused, for `new` and `here` alike. Other apps open a further window as in FR-045.
 
 **General**
 - **FR-050**: Every control here is reachable with Tab and pressed with Enter or Space; Escape closes the top
@@ -169,7 +173,7 @@ or opening an app hides it.
 | Window-model commands (the shell to the window model: place, swap, swap within a half, crossing, direction, full screen, new screen, move and close screens) | owned | 2 | this repository, README "Runtime interfaces" |
 | Divider list (the window model to the shell: each divider's place, kind main/inner and half) | owned | 2 | this repository, README "Runtime interfaces" |
 | The home-app rule (which app, show, hide, fill the empty screen) | owned | 1 | this spec; consumed by `GlassineOS/home` |
-| Launching apps (desktop id, where, an optional file or Settings page: FR-045 to FR-048) | owned | 2 | this spec and README "Runtime interfaces"; consumed by `GlassineOS/home` |
+| Launching apps (desktop id, where, an optional file or Settings page, apps that run once: FR-045 to FR-049) | owned | 2 | this spec and README "Runtime interfaces"; consumed by `GlassineOS/home` |
 
 ## Device scope and risk
 
