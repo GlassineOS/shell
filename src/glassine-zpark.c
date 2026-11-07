@@ -26,9 +26,10 @@
  * swap device that is a raw block device the offset is the device page, i.e. the
  * zram slot index. Only mappings whose smaps "Swap:" is non-zero are read, so a
  * browser's huge reserved regions cost nothing. The swap type has to be zram's:
- * with one active swap device (ours) all swapped entries carry its type; when
- * the pages sit on more than one (another swap file switched on, e.g. for a
- * hibernate) it refuses. The app must stay frozen while this runs (bgprio's
+ * with one active swap device (ours) all swapped entries carry its type. With
+ * more than one on (another swap file switched on, e.g. for a hibernate) it
+ * refuses, wherever this app's pages are: an offset on the other device isn't a
+ * zram slot. The app must stay frozen while this runs (bgprio's
  * job): a page it touched in between would simply lose its slot, which zram
  * skips.
  * Exit: 0 done (or nothing to do), 1 error, 2 usage. */
@@ -109,6 +110,17 @@ static int scan_pid(int pid)
     return 0;
 }
 
+/* swap devices on: /proc/swaps has a header line and one line per device */
+static int swap_devices(void)
+{
+    FILE *f = fopen("/proc/swaps", "r");
+    char l[512];
+    int n = -1;
+    while (f && fgets(l, sizeof l, f)) n++;
+    if (f) fclose(f);
+    return n;
+}
+
 static int cmp_ul(const void *a, const void *b)
 {
     unsigned long x = *(const unsigned long *)a, y = *(const unsigned long *)b;
@@ -187,6 +199,11 @@ int main(int argc, char **argv)
         }
     }
     if (!cg && optind >= argc) { fprintf(stderr, "glassine-zpark: no PID and no -c\n"); return 2; }
+    int ndev = swap_devices();
+    if (ndev > 1) {
+        fprintf(stderr, "glassine-zpark: %d swap devices on (a swap offset may not be a zram slot): refusing\n", ndev);
+        return 1;
+    }
 
     int npid = 0;
     if (cg) {

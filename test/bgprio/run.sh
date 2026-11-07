@@ -143,13 +143,21 @@ expect "sway gone: bgprio exited" "$(kill -0 $BG 2>/dev/null && echo running || 
 grep -q "sway gone, exiting" /tmp/bgprio2.log && echo "ok   log: sway gone" || { echo "FAIL log"; cat /tmp/bgprio2.log; fail=1; }
 expect "sway gone: the thaw socket removed" "$([ -e /run/glassine-bgprio.sock ] && echo there || echo gone)" "gone"
 
-# glassine-zpark: usage and a dry run (finding real zram slots needs a zram swap device)
+# glassine-zpark: usage and a dry run (finding real zram slots needs a zram swap device),
+# against a /proc/swaps of our own (bind-mounted in this container only)
+printf 'Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n/dev/zram0\t\t\t\tpartition\t1000\t\t0\t\t100\n' > /tmp/swaps1
+cp /tmp/swaps1 /tmp/swaps2; printf '/swapfile\t\t\t\tfile\t\t1000\t\t0\t\t-2\n' >> /tmp/swaps2
+mount --bind /tmp/swaps1 /proc/swaps || { echo "FAIL can't bind a /proc/swaps"; fail=1; }
 /tmp/glassine-zpark 2>/dev/null; expect "zpark without PID: usage (exit 2)" "$?" 2
 /tmp/glassine-zpark -x 2>/dev/null; expect "zpark bad option: usage (exit 2)" "$?" 2
 out=$(/tmp/glassine-zpark -n $$); expect "zpark -n PID: exit 0" "$?" 0
 case "$out" in "glassine-zpark: 1 process(es), "*" swapped slot(s) on swap type "*) echo "ok   zpark -n: $out" ;; *) echo "FAIL zpark -n: '$out'"; fail=1 ;; esac
 out=$(/tmp/glassine-zpark -n -c $C/init); expect "zpark -n -c CGROUP: exit 0" "$?" 0
 /tmp/glassine-zpark -n -c /nonexistent 2>/dev/null; expect "zpark -c missing cgroup: exit 1" "$?" 1
+umount /proc/swaps; mount --bind /tmp/swaps2 /proc/swaps
+/tmp/glassine-zpark -n $$ 2>/tmp/zpark.err; expect "zpark with two swap devices on: refuses (exit 1)" "$?" 1
+grep -q "2 swap devices on .*: refusing" /tmp/zpark.err && echo "ok   zpark: says why" || { echo "FAIL zpark refusal: $(cat /tmp/zpark.err)"; fail=1; }
+umount /proc/swaps
 
 [ $fail = 0 ] || { echo "--- bgprio.log"; cat /tmp/bgprio.log; }
 exit $fail
