@@ -58,9 +58,9 @@ HOME = ('# glassine-home: the widgets in order. Pages follow from packing.\n'
 put(HOME)
 check("read", H.read(P), (["foot", "org.gnome.Calendar"], True))
 H.set_fav("koreader", True, P)
-check("add: only the favourites line changes (its comment goes with it)", get(),
+check("add: only the favourites value changes (the comment after it stays)", get(),
       HOME.replace('favourites = ["foot", "org.gnome.Calendar"]   # mine\n',
-                   'favourites = ["foot", "org.gnome.Calendar", "koreader"]\n'))
+                   'favourites = ["foot", "org.gnome.Calendar", "koreader"]   # mine\n'))
 H.set_fav("foot", False, P)
 check("remove: the order kept", H.read(P)[0], ["org.gnome.Calendar", "koreader"])
 check("... the widgets byte for byte", get().split("\n", 3)[3], HOME.split("\n", 3)[3])
@@ -73,6 +73,25 @@ ML = 'version = 1\nfavourites = [\n  "a",  # one\n  "b]c",\n]\nother = 1\n'
 put(ML)
 H.set_fav("d", True, P)
 check("a list over lines: replaced whole", get(), 'version = 1\nfavourites = ["a", "b]c", "d"]\nother = 1\n')
+
+# another key's array over lines, with a line that starts with [ (a nested array: no table header), before
+# and after favourites; a string over lines with a [ line; the comment after a list that spans lines
+ML2 = ('version = 1\nmatrix = [\n  [1, 2],\n  [3, 4],\n]\nnote = """\n[not a table]\n"""\n'
+       'favourites = [\n  "a",\n  "b",\n] # kept\nafter = [\n  [5],\n]\n[[widget]]\nwidget = "x"\n')
+put(ML2)
+H.set_fav("d", True, P)
+check("a valid file with [ lines inside other keys' values: written, not refused", get(),
+      ML2.replace('favourites = [\n  "a",\n  "b",\n] # kept\n', 'favourites = ["a", "b", "d"] # kept\n'))
+put('version = 1\nmatrix = [\n  [1, 2],\n]\n[[widget]]\nwidget = "x"\n')
+H.set_fav("d", True, P)
+check("... no favourites: added after the last top-level key's version, not twice",
+      get(), 'version = 1\nfavourites = ["d"]\nmatrix = [\n  [1, 2],\n]\n[[widget]]\nwidget = "x"\n')
+put('version = 1\nfavourites = ["a"]# glued\n')
+H.set_fav("b", True, P)
+check("a comment right after the list stays", get(), 'version = 1\nfavourites = ["a", "b"]# glued\n')
+put('version = 1\nfavourites = ["a"]   ')
+H.set_fav("b", True, P)
+check("blanks after the list, no newline at the end: kept as they are", get(), 'version = 1\nfavourites = ["a", "b"]   \n')
 
 # no favourites yet: after version
 put('# x\nversion = 1\n\n[[widget]]\nuuid = "0b5c3c2e-6a2b-4f0e-9c1d-1f2e3d4c5b6a"\nwidget = "home/all-apps"\nsize = 3\n')

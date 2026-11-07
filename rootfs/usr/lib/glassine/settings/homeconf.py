@@ -2,9 +2,9 @@
 
 ~/.config/glassine/home.conf ($XDG_CONFIG_HOME/glassine/home.conf) is Home's:
 a TOML subset with `version`, `favourites` (a list of desktop ids) and the
-`[[widget]]` tables. Settings changes only the `favourites` line(s) and keeps
-every other byte; it writes a temporary file beside it, syncs and renames it,
-holding an exclusive flock on home.conf.lock (Home takes the same lock). A file
+`[[widget]]` tables. Settings changes only the `favourites` value and keeps
+every other byte (a comment after it on its last line too); it writes a temporary file
+beside it, syncs and renames it, holding an exclusive flock on home.conf.lock (Home takes the same lock). A file
 with a newer version than VERSION, or one Settings can't read, is not written.
 Without the file: ~/.config/glassine-shell/favourites (the shell's old list),
 imported once as Home does; a write then creates the file with only `version`
@@ -80,21 +80,33 @@ def _parse(text):
 
 _KEY = re.compile(r'[ \t]*(?:favourites|"favourites"|\'favourites\')[ \t]*=')
 _VERSION = re.compile(r'[ \t]*(?:version|"version"|\'version\')[ \t]*=')
+_BARE = r'(?:[A-Za-z0-9_-]+|"[^"\n]*"|\'[^\'\n]*\')'
+_ANYKEY = re.compile(r'[ \t]*%s(?:[ \t]*\.[ \t]*%s)*[ \t]*=' % (_BARE, _BARE))   # any key of the top table
 
 
-def _value_end(text, i):
-    """the end of the value starting at text[i] (after `=` and blanks) and of
-    its line (the newline included): strings, comments and nested brackets are
-    skipped, an array may span lines"""
+def _value_span(text, i):
+    """(the end of the value starting at text[i] (after `=`), the end of its line, the
+    newline included): strings, comments and nested brackets are skipped, an array may
+    span lines. What follows the value on its last line (blanks, a comment) is after the
+    first end and before the second"""
     depth = 0
     n = len(text)
+    stop = None                  # where the value stopped: its line's comment or newline
     while i < n:
         c = text[i]
         if c == "#":
+            if depth == 0:
+                stop = i
+                break
             while i < n and text[i] != "\n":
                 i += 1
-            if depth == 0:
-                break
+            continue
+        if text.startswith('"""', i) or text.startswith("'''", i):      # a string over lines
+            q = text[i:i + 3]
+            i += 3
+            while i < n and not text.startswith(q, i):
+                i += 2 if q[0] == '"' and text[i] == "\\" else 1
+            i += 3
             continue
         if c == '"' or c == "'":
             q = c
@@ -108,16 +120,27 @@ def _value_end(text, i):
         elif c == "]":
             depth -= 1
         elif c == "\n" and depth == 0:
+            stop = i
             break
         i += 1
-    while i < n and text[i] != "\n":
-        i += 1
-    return min(i + 1, n)
+    i = min(i, n)
+    if stop is None:
+        stop = i
+    vend = stop
+    while vend > 0 and text[vend - 1] in " \t":
+        vend -= 1
+    e = text.find("\n", i)
+    return vend, (n if e < 0 else e + 1)
+
+
+def _value_end(text, i):
+    return _value_span(text, i)[1]
 
 
 def _top_lines(text):
-    """(start, end) of each line of the top-level table (before the first table header);
-    an array's continuation lines are left out (they start inside the value)"""
+    """(start, end) of each key line of the top-level table (before the first table header);
+    the continuation lines of any key's array or string are left out (they start inside the
+    value, and may start with a [ that is no table header)"""
     i, n = 0, len(text)
     while i < n:
         e = text.find("\n", i)
@@ -126,22 +149,26 @@ def _top_lines(text):
         if line.lstrip().startswith("["):
             return
         yield i, e
-        m = _KEY.match(line) or _VERSION.match(line)
+        m = _ANYKEY.match(line)
         if m:
             e = _value_end(text, i + m.end())
         i = e
 
 
 def replace_favourites(text, favs):
-    """text with only its favourites value changed (added after version when missing)"""
+    """text with only its favourites value changed (added after version when missing): what
+    follows the value on its last line, a comment, stays"""
     line = fav_line(favs)
     after_version = None
     for s, e in _top_lines(text):
-        if _KEY.match(text[s:e]):
-            end = _value_end(text, s + _KEY.match(text[s:e]).end())
-            return text[:s] + line + text[end:]
-        if _VERSION.match(text[s:e]):
-            after_version = _value_end(text, s + _VERSION.match(text[s:e]).end())
+        m = _KEY.match(text[s:e])
+        if m:
+            vend, lend = _value_span(text, s + m.end())
+            tail = text[vend:]
+            return text[:s] + line.rstrip("\n") + tail + ("" if tail.endswith("\n") else "\n")
+        m = _VERSION.match(text[s:e])
+        if m:
+            after_version = _value_end(text, s + m.end())
     if after_version is None:
         raise Refused("Home's layout file has no version line; not changing it")
     pre = text[:after_version]
