@@ -125,7 +125,20 @@ prealloc() {
 
 spill_mount() { mount -t btrfs -o "compress-force=zstd:$SPILL_LEVEL,noatime" "$1" "$SPILL"; }
 
-# the btrfs spill: image -> loop -> btrfs at $SPILL -> new sparse file -> loop
+# a btrfs spill that failed after its image was attached, undone ($1: the
+# image's loop); 1 when the btrfs stays mounted
+spill_btrfs_undo() {
+	rm -f "$SPILL/wb"
+	if mountpoint -q "$SPILL"; then
+		umount "$SPILL" || { log "umount $SPILL failed: no spill"; return 1; }
+	fi
+	losetup -d "$1" 2>/dev/null
+	return 0
+}
+
+# the btrfs spill: image -> loop -> btrfs at $SPILL -> new sparse file -> loop.
+# On failure nothing of it stays attached: 1 = the plain file may take over,
+# 2 = it couldn't be undone (no spill at all)
 spill_btrfs() {
 	command -v mkfs.btrfs >/dev/null || { log "no mkfs.btrfs (btrfs-progs): plain spill file"; return 1; }
 	rm -f "$PLAIN"                      # the plain file's space goes to the image
@@ -135,13 +148,15 @@ spill_btrfs() {
 	mkdir -p "$SPILL"
 	if [ $fresh = 1 ] || ! spill_mount "$img" 2>/dev/null; then
 		if ! { mkfs.btrfs -q -f -m single -d single -L glassine-zram "$img" >/dev/null && spill_mount "$img"; }; then
-			log "btrfs on $IMG failed"; losetup -d "$img"; return 1
+			log "btrfs on $IMG failed"; spill_btrfs_undo "$img" || return 2; return 1
 		fi
 	fi
 	# zram's backing data never outlives a boot: a new file each start, which
 	# also frees what the last boot left (copy-on-write extents)
-	rm -f "$SPILL/wb" && truncate -s "${WB_SIZE_MB}M" "$SPILL/wb" && chmod 600 "$SPILL/wb" || return 1
-	loop_of "$SPILL/wb" || { log "losetup $SPILL/wb failed"; return 1; }
+	if ! { rm -f "$SPILL/wb" && truncate -s "${WB_SIZE_MB}M" "$SPILL/wb" && chmod 600 "$SPILL/wb" &&
+		loop_of "$SPILL/wb"; }; then
+		log "the writeback file $SPILL/wb failed"; spill_btrfs_undo "$img" || return 2; return 1
+	fi
 }
 
 spill_plain() {
@@ -159,7 +174,10 @@ backing_dev() {
 		[ -d "$NEED" ] || { log "no $NEED: no spill"; return 1; }
 	fi
 	mkdir -p "$DIR" && chmod 700 "$DIR" || return 1
-	spill_btrfs || spill_plain
+	spill_btrfs
+	case $? in 0) return 0 ;; 2) return 1 ;; esac
+	rm -f "$IMG"                        # the image's space goes to the plain file
+	spill_plain
 }
 
 # the files whose page cache holds written-back pages (glassine-zpark drops it)

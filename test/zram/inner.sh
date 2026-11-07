@@ -212,6 +212,29 @@ has "plain file: says so" $S/err "no mkfs.btrfs (btrfs-progs): plain spill file"
 : > $S/log; run park 7
 has "plain file: park flushes it" $S/log "zpark -f $P 7"
 
+echo "--- the btrfs spill fails after its mount: undone, the plain file instead"
+P=$UD/media/glassine/zram/writeback
+fresh; stub truncate 'case "$3" in */run/glassine-zram/wb) echo "truncate $*" >> /s/log; exit 1 ;; esac; exec /usr/bin/truncate "$@"'
+run start; is "wb file fails: exit 0" $? 0
+has "wb file fails: says so" $S/err "the writeback file $R/run/glassine-zram/wb failed"
+has "wb file fails: btrfs unmounted" $S/log "umount $R/run/glassine-zram"
+has "wb file fails: image loop detached" $S/log "losetup -d /dev/loop1"
+is "wb file fails: no wb file left" "$(mib $R/run/glassine-zram/wb)" none
+is "wb file fails: the image's space goes to the plain file" "$(mib $IMG)" none
+is "wb file fails: plain file" "$(mib $P)" 4096
+is "wb file fails: its loop is the backing device" "$(z backing_dev)" /dev/loop2
+has "wb file fails: the log names the plain file" $S/err "spill to /dev/loop2 ($P)"
+: > $S/log; run park 7
+has "wb file fails: park flushes the plain file" $S/log "zpark -f $P 7"
+hasnt "wb file fails: ... and not the btrfs files" $S/log "spill.btrfs"
+fresh; stub truncate 'case "$3" in */run/glassine-zram/wb) exit 1 ;; esac; exec /usr/bin/truncate "$@"'
+stub umount 'echo "umount $*" >> /s/log; exit 1'
+run start; is "... and the btrfs won't unmount: exit 0" $? 0
+has "btrfs won't unmount: says so" $S/err "umount $R/run/glassine-zram failed: no spill"
+is "btrfs won't unmount: no backing device" "$(z backing_dev)" none
+is "btrfs won't unmount: no plain file next to it" "$(mib $P)" none
+has "btrfs won't unmount: zram on in RAM" $S/log "swapon -p 100 /dev/zram0"
+
 echo "--- settings and paths"
 fresh
 printf 'ZRAM_SIZE=1G\nZRAM_MEM_LIMIT=256M\nZRAM_ALGO=lzo\nRECOMP_LEVEL=0\nSWAPPINESS=30\nSPILL_LEVEL=3\nSPILL_MB=512\nWB_SIZE_MB=1024\n' > $R/etc/glassine/zram
