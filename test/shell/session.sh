@@ -65,7 +65,10 @@ export SWAYSOCK=$(ls $XDG_RUNTIME_DIR/sway-ipc.*) WAYLAND_DISPLAY=wayland-1
 python3 $T/proxy.py $XDG_RUNTIME_DIR/glassine-swayd $RT2/glassine-swayd $VERBS &
 ln -sf $XDG_RUNTIME_DIR/glassine-shell $RT2/glassine-shell
 ln -sf $XDG_RUNTIME_DIR/glassine-shell.theme $RT2/glassine-shell.theme
-XDG_RUNTIME_DIR=$RT2 WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/wayland-1 $B/glassine-swayd -v 2>/out/swayd-$O.log &
+# sway's socket is in the session's runtime dir, swayd's own in RT2: WL first (assignments
+# expand left to right: WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/... after XDG_RUNTIME_DIR=$RT2 pointed into RT2)
+WL=$XDG_RUNTIME_DIR/wayland-1
+XDG_RUNTIME_DIR=$RT2 WAYLAND_DISPLAY=$WL $B/glassine-swayd -v 2>/out/swayd-$O.log &
 GLASSINE_SHELL_HITS=$HITS $B/glassine-shell-wl -v >$L 2>&1 &
 mkfifo $XDG_RUNTIME_DIR/vptr
 $B/vptr $XDG_RUNTIME_DIR/vptr $LW $LH 2>/out/vptr-$O.log &
@@ -78,6 +81,7 @@ open 3 mail; open 3 calendar; open 3 reader
 open 4 software; open 4 stars; open 4 browser; open 4 maps
 sleep 1
 expect "four screens with 1, 2, 3 and 4 windows" "$(tree count)" "1 2 3 4"
+expect "glassine-swayd draws its handles (it reached sway's Wayland socket)" "$(grep -c 'running (drag handles)' /out/swayd-$O.log)" "1"
 TERM_=$(tree id terminal) NOTES=$(tree id notes) READER=$(tree id reader)
 
 # ---- shots, per voice ----------------------------------------------------------
