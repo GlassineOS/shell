@@ -382,17 +382,6 @@ static void state_path(char *out, size_t n, const char *kind, const char *file)
     snprintf(out + l, n - l, "/%s", file);
 }
 
-static int in_list_file(const char *path, const char *id)
-{
-    FILE *f = fopen(path, "r");
-    if (!f) return -1;
-    char l[256];
-    int r = 0;
-    while (fgets(l, sizeof l, f)) { l[strcspn(l, "\r\n")] = 0; if (!strcmp(l, id)) r = 1; }
-    fclose(f);
-    return r;
-}
-
 /* a desktop file's OnlyShowIn/NotShowIn list ("A;B;") names one of the desktops in
  * $XDG_CURRENT_DESKTOP ("sway", or several separated by ':') */
 static int desktop_listed(const char *list)
@@ -483,17 +472,14 @@ static int app_dirs(char dirs[MAXAPPDIRS][512])
     return n;
 }
 
-/* the dirs' mtimes: an install or removal changes one, the list is re-read;
- * so does the favourites file (glassine-settings > Apps > an app > Favourite) */
+/* the dirs' mtimes: an install or removal changes one, the list is re-read
+ * (favourites are Home's: ~/.config/glassine/home.conf, GlassineOS/home) */
 static long long apps_sig(char dirs[MAXAPPDIRS][512], int n)
 {
     long long sig = 0;
     struct stat st;
-    char fp[512];
     for (int d = 0; d < n; d++)
         if (!stat(dirs[d], &st)) sig = sig * 31 + (long long)st.st_mtim.tv_sec * 1000000000LL + st.st_mtim.tv_nsec;
-    state_path(fp, sizeof fp, ".config", "favourites");
-    if (!stat(fp, &st)) sig = sig * 31 + (long long)st.st_mtim.tv_sec * 1000000000LL + st.st_mtim.tv_nsec;
     return sig;
 }
 
@@ -520,15 +506,6 @@ static void load_apps(void)
         closedir(dd);
     }
     qsort(apps, napps, sizeof *apps, app_cmp);
-    char fp[512];
-    state_path(fp, sizeof fp, ".config", "favourites");
-    /* without the file: the apps the image itself ships */
-    static const char *const DEF_FAV[] = { "glassine-settings", "foot", NULL };
-    for (int i = 0; i < napps; i++) {
-        int r = in_list_file(fp, apps[i].id);
-        if (r < 0) { r = 0; for (int k = 0; DEF_FAV[k]; k++) if (!strcmp(DEF_FAV[k], apps[i].id)) r = 1; }
-        apps[i].fav = r;
-    }
     LOG("%d apps", napps);
 }
 

@@ -519,8 +519,8 @@ def build(ui, be):
                     add(B.Segments("Freeze in background", FREEZE_SUB[a["freeze"]], FREEZES, a["freeze"],
                                    lambda v: be.set_app_freeze(a["id"], v)))
             if a.get("desk"):
-                add(B.Head("Launcher"))
-                add(B.Toggle("Favourite", "Listed under Favourites in the app launcher", a["fav"],
+                add(B.Head("Home"))
+                add(B.Toggle("Favourite", "Listed under Favourite apps on Home", a["fav"],
                              lambda: be.set_fav(a["id"], not a["fav"])))
 
                 def reset():

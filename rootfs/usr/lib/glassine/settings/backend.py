@@ -23,6 +23,8 @@ import time
 
 from gi.repository import GLib
 
+from . import homeconf      # favourites: Home's layout file (~/.config/glassine/home.conf)
+
 HOME = os.environ.get("HOME", "/home/user")
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 POWER_CONF = "/etc/glassine/power.conf"
@@ -30,8 +32,6 @@ EINK_CONF = "/etc/glassine/eink.conf"
 EPDD_CLASSES = "/run/glassine-epdd-desktop.classes"     # the window classes glassine-epdd-desktop has seen since it started
 SEEN_CLASSES = HOME + "/.cache/glassine/epdd-classes"   # those, across boots
 BGPRIO_CONF = "/etc/glassine/bgprio.conf"
-FAVOURITES = HOME + "/.config/glassine-shell/favourites"   # glassine-shell's launcher (re-read on change)
-FAV_DEFAULT = ("glassine-settings", "foot")   # as glassine-shell without the file: the apps the image ships
 MONO_ICONS = "/usr/share/icons/glassine-mono/scalable/apps/%s.svg"
 APP_DIRS = ("/usr/share/applications", "/usr/local/share/applications", HOME + "/.local/share/applications",
             "/var/lib/flatpak/exports/share/applications", HOME + "/.local/share/flatpak/exports/share/applications")
@@ -399,24 +399,22 @@ class Base:
                 or a.get("render", "gpu") != "gpu")
 
     def favs(self):
-        """glassine-shell's favourites: the file's ids, else its built-in ones"""
-        try:
-            with open(FAVOURITES) as f:
-                return [l.strip() for l in f if l.strip()]
-        except OSError:
-            return list(FAV_DEFAULT)
+        """Home's favourites (home.conf; without it the shell's old list, as Home imports it)"""
+        return homeconf.read()[0]
 
     def set_fav(self, aid, on):
-        fs = [f for f in self.favs() if f != aid] + ([aid] if on else [])
-        a = self.app(aid)
-        if a:
-            a["fav"] = on
-
-        def w():
-            os.makedirs(os.path.dirname(FAVOURITES), exist_ok=True)
-            with open(FAVOURITES, "w") as f:
-                f.write("".join(x + "\n" for x in fs))
-        self._try(w)
+        """in or out of Home's favourites: only home.conf's favourites change (homeconf)"""
+        try:
+            fs = homeconf.set_fav(aid, on)
+        except homeconf.Refused as e:
+            self.error("Favourite not saved", str(e))
+            fs = self.favs()
+        except OSError as e:
+            self.error("Favourite not saved", str(e))
+            fs = self.favs()
+        for a in self.apps:
+            a["fav"] = a["id"] in fs
+        self.changed()
 
     # -- where an app comes from (design origins): decides its badge, how it updates
     # and what Remove does -> (core|system|package|flatpak|android, package or app id, pack)
