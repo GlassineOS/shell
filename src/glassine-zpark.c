@@ -17,7 +17,9 @@
  *     -R  no recompression      -W  no writeback
  *     -f  flush + drop the page cache of FILE after writeback (up to 8)
  *     -c  all processes of a cgroup (e.g. /sys/fs/cgroup/glassine-bg/frozen)
- * Usually run through `glassine-zram park`, which adds the spill's -f files.
+ * Usually run through `glassine-zram park`: with a spill it passes -R and the
+ * spill's -f files (compressed_writeback is off, so the writeback decompresses
+ * every slot and a recompression first is lost work), without one -W.
  *
  * How the slots are found: /proc/PID/pagemap gives, for a swapped-out page, the
  * swap type and offset (root only: CAP_SYS_ADMIN, else the field reads 0). On a

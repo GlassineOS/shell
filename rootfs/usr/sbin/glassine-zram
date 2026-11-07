@@ -6,9 +6,10 @@
 # pages the frozen processes out (process_madvise MADV_PAGEOUT), which lands here
 # compressed with a fast algorithm (fast to decompress = fast to switch back).
 # `glassine-zram park` then moves exactly one app's slots on to disk
-# (glassine-zpark: its zram slots from /proc/PID/pagemap, recompressed, then
-# `writeback page_indexes=`), so only parked apps cost disk writes; the app in
-# front never does.
+# (glassine-zpark: its zram slots from /proc/PID/pagemap, then `writeback
+# page_indexes=`), so only parked apps cost disk writes; the app in front never
+# does. Without a spill, park recompresses those slots with the second algorithm
+# instead (`recompress page_indexes=`), in RAM.
 #
 # The disk side: zram writes whole pages per slot, even with compressed_writeback,
 # and a swap file can't live on a compressing file system. So zram's backing
@@ -25,7 +26,8 @@
 #   glassine-zram start                  set up zram0 (+ the spill), swapon
 #   glassine-zram stop                   swapoff (pages come back into RAM), tear down;
 #                                        exit 1 and nothing torn down when swapoff fails
-#   glassine-zram park (-c CG | PID...)  one parked app's zram slots -> disk (glassine-zpark)
+#   glassine-zram park (-c CG | PID...)  one parked app's zram slots -> disk (glassine-zpark -R),
+#                                        or recompressed in RAM without a spill (-W)
 #   glassine-zram writeback [S]          every slot idle for >= S seconds (1800) -> disk
 #   glassine-zram status                 sizes, compression ratios, counters
 #
@@ -34,7 +36,7 @@
 #   ZRAM_SIZE            uncompressed swap size, RAM + disk (K/M/G suffix; default: the RAM size)
 #   ZRAM_MEM_LIMIT       compressed RAM zram may use (default: a quarter of the RAM)
 #   ZRAM_ALGO            first algorithm (lz4)
-#   RECOMP_ALGO          second algorithm, for glassine-zpark's per-app recompression (zstd)
+#   RECOMP_ALGO          second algorithm, for a park's recompression without a spill (zstd)
 #   RECOMP_LEVEL         its level (3); 0 = no recompression
 #   WB_SIZE_MB           logical size of the spill (4096); 0 = no spill
 #   SPILL_MB             disk space for the btrfs image (2048)
@@ -253,9 +255,15 @@ stop)
 	;;
 park)
 	shift
-	spilling || exit 0
-	# shellcheck disable=SC2046
-	exec /usr/sbin/glassine-zpark $(spill_files) "$@"
+	# with a spill: writeback only. compressed_writeback is off, so the writeback
+	# decompresses every slot to write the raw page: a recompression first would
+	# be lost work. Without one: recompression only, the one case it saves RAM
+	if spilling; then
+		# shellcheck disable=SC2046
+		exec /usr/sbin/glassine-zpark -R $(spill_files) "$@"
+	fi
+	[ "$RECOMP_LEVEL" -gt 0 ] && [ -e "$Z/recomp_algorithm" ] || exit 0
+	exec /usr/sbin/glassine-zpark -W "$@"
 	;;
 writeback)
 	age=${2:-1800}

@@ -54,9 +54,10 @@ brings pages back as the app touches them.
 ### Scenario 5 – Long-frozen apps move to disk, one app at a time (Priority: P2)
 
 **Given** compressed swap with a disk spill, **When** an app has been frozen for the park
-delay, **Then** exactly that app's swapped memory is recompressed and written to the
-spill on the user data partition; the app in front never causes disk writes. A thaw
-during the move stops it.
+delay, **Then** exactly that app's swapped memory is written to the spill on the user
+data partition (as raw pages, which the spill compresses); the app in front never causes
+disk writes. A thaw during the move stops it. Without a spill, that memory is recompressed
+in RAM with the second algorithm instead.
 
 ### Scenario 6 – No user data partition, no spill (Priority: P2)
 
@@ -95,8 +96,8 @@ spill is detached, and nothing else on the user data partition changes.
 - **FR-008**: After a pass that froze something, frozen processes' anonymous memory is
   paged out (`reclaim swap`: only while a swap device is on, the default; `always`; `off`).
 - **FR-009**: `park_after` seconds after an app froze (default 600; 0 = never), that one
-  app's swapped memory is moved to the spill through the zram service's `park` command,
-  one app at a time; a thaw stops a running park. `writeback_after` (default 0 = off) runs
+  app's swapped memory is moved to the spill through the zram service's `park` command
+  (without a spill: recompressed in RAM), one app at a time; a thaw stops a running park. `writeback_after` (default 0 = off) runs
   one idle-age writeback instead.
 - **FR-010**: Foreground boost: with `/etc/glassine/fg-boost` holding N (1-100), front
   apps get a utilization floor of N %; off in the power saver mode (`/etc/glassine/ddr`
@@ -106,7 +107,9 @@ spill is detached, and nothing else on the user data partition changes.
 - **FR-012**: The prioritizer re-reads its configuration on every periodic pass (30 s).
 - **FR-013**: The parker finds exactly the given processes' (or a cgroup's) zram slots,
   recompresses them with the second algorithm, writes them back to the backing device and
-  flushes and drops the backing files' page cache. It refuses when swapped pages sit on more
+  flushes and drops the backing files' page cache; either step can be left out. The zram
+  service's `park` writes back without recompressing when there is a spill (the writeback
+  decompresses each slot) and only recompresses when there is none. It refuses when swapped pages sit on more
   than one swap device. A failed recompression is reported and the writeback still runs.
 - **FR-014**: The zram service sets up one zram swap device (size, RAM limit, algorithm,
   optional recompression algorithm), priority 100, the configured swappiness, page-cluster 0.

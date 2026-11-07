@@ -60,10 +60,11 @@
  * frozen group holds next to nothing. Only while a swap device is on (reclaim
  * swap, the default). park_after seconds after an app froze (600),
  * `glassine-zram park PID...` moves that app's zram slots on to the disk spill
- * (recompressed), one app at a time, on the RESCAN_S pass. Thawing an app while
- * its park runs stops the park; an app frozen again is parked again. Optional
- * instead (writeback_after, off by default: it also writes the front app's idle
- * pages): writeback_after seconds after the first freeze of a cluster, one
+ * (without one: recompresses them in RAM), one app at a time, on the RESCAN_S
+ * pass. Thawing an app while its park runs stops the park; an app frozen again
+ * is parked again. Optional instead (writeback_after, off by default: it also
+ * writes the front app's idle pages): writeback_after seconds after the first
+ * freeze of a cluster, one
  * `glassine-zram writeback 1800` moves every page idle that long; freezes after
  * it was scheduled get one more. Frozen processes get oom_score_adj 1000 (the
  * OOM killer takes a parked app before the one in front), their own value back

@@ -98,9 +98,9 @@ has "status: on disk" $S/out "disk: 0 MiB of pages, read back 0 MiB, written 0 M
 
 : > $S/log
 run park 123 456; is "park: exit 0" $? 0
-has "park: glassine-zpark with the spill files and the PIDs" $S/log "zpark -f $R/run/glassine-zram/wb -f $IMG 123 456"
+has "park: glassine-zpark writeback only (-R), the spill files and the PIDs" $S/log "zpark -R -f $R/run/glassine-zram/wb -f $IMG 123 456"
 run park -c /sys/fs/cgroup/glassine-bg/frozen
-has "park -c CGROUP passed on" $S/log "zpark -f $R/run/glassine-zram/wb -f $IMG -c /sys/fs/cgroup/glassine-bg/frozen"
+has "park -c CGROUP passed on" $S/log "zpark -R -f $R/run/glassine-zram/wb -f $IMG -c /sys/fs/cgroup/glassine-bg/frozen"
 
 run writeback 600; is "writeback 600: exit 0" $? 0
 is "writeback: idle age" "$(z idle)" 600
@@ -198,8 +198,11 @@ has "no writeback in the kernel: zram on" $S/log "swapon -p 100 /dev/zram0"
 
 : > $S/log
 run park 123; is "park without a spill: exit 0" $? 0
-hasnt "park without a spill: no glassine-zpark" $S/log "zpark"
+has "park without a spill: recompression only (-W), no files" $S/log "zpark -W 123"
 run writeback; is "writeback without a spill: exit 0" $? 0
+echo RECOMP_LEVEL=0 > $R/etc/glassine/zram; : > $S/log
+run park 123; is "park without a spill or recompression: exit 0" $? 0
+hasnt "park without a spill or recompression: no glassine-zpark" $S/log "zpark"
 
 echo "--- no btrfs-progs: a plain file"
 fresh; rm $S/bin/mkfs.btrfs
@@ -210,7 +213,7 @@ is "plain file: no image" "$(mib $IMG)" none
 is "plain file: the backing device" "$(z backing_dev)" /dev/loop1
 has "plain file: says so" $S/err "no mkfs.btrfs (btrfs-progs): plain spill file"
 : > $S/log; run park 7
-has "plain file: park flushes it" $S/log "zpark -f $P 7"
+has "plain file: park flushes it" $S/log "zpark -R -f $P 7"
 
 echo "--- the btrfs spill fails after its mount: undone, the plain file instead"
 P=$UD/media/glassine/zram/writeback
@@ -225,7 +228,7 @@ is "wb file fails: plain file" "$(mib $P)" 4096
 is "wb file fails: its loop is the backing device" "$(z backing_dev)" /dev/loop2
 has "wb file fails: the log names the plain file" $S/err "spill to /dev/loop2 ($P)"
 : > $S/log; run park 7
-has "wb file fails: park flushes the plain file" $S/log "zpark -f $P 7"
+has "wb file fails: park flushes the plain file" $S/log "zpark -R -f $P 7"
 hasnt "wb file fails: ... and not the btrfs files" $S/log "spill.btrfs"
 fresh; stub truncate 'case "$3" in */run/glassine-zram/wb) exit 1 ;; esac; exec /usr/bin/truncate "$@"'
 stub umount 'echo "umount $*" >> /s/log; exit 1'

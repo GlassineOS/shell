@@ -26,7 +26,7 @@ make check      # compiles, then the host tests in Docker
 
 ## Installing
 
-The programs from `make` go to `/usr/bin` (`glassine-shell-wl`, `glassine-swayd`) and `/usr/sbin` (`glassine-bgprio`, `glassine-zpark`); everything under `rootfs/` goes to the same path on the target. A package adds `glassine-zram` to a runlevel (`rc-update add glassine-zram default`); `glassine-bgprio` needs no service, the session starts it. Their kernel needs: cgroup v2 with the cpu controller (the freezer and `uclamp` are used when present), `process_madvise`, zram with writeback (`CONFIG_ZRAM_WRITEBACK`), a second compression algorithm (`CONFIG_ZRAM_MULTI_COMP`) and, for the per-app recompression, a zram `recompress` that takes `page_index=` / `page_indexes=` (without it a park reports the failed step and still writes back); the spill needs `btrfs-progs` and loop devices, else it falls back to a plain file.
+The programs from `make` go to `/usr/bin` (`glassine-shell-wl`, `glassine-swayd`) and `/usr/sbin` (`glassine-bgprio`, `glassine-zpark`); everything under `rootfs/` goes to the same path on the target. A package adds `glassine-zram` to a runlevel (`rc-update add glassine-zram default`); `glassine-bgprio` needs no service, the session starts it. Their kernel needs: cgroup v2 with the cpu controller (the freezer and `uclamp` are used when present), `process_madvise`, zram with writeback (`CONFIG_ZRAM_WRITEBACK`), a second compression algorithm (`CONFIG_ZRAM_MULTI_COMP`) and, for the per-app recompression of a park without a spill, a zram `recompress` that takes `page_index=` / `page_indexes=` (without it such a park reports the failed step); the spill needs `btrfs-progs` and loop devices, else it falls back to a plain file.
 
 `/etc/glassine/zram` (shell `KEY=value`, all optional; a device ships its own values):
 
@@ -35,7 +35,7 @@ The programs from `make` go to `/usr/bin` (`glassine-shell-wl`, `glassine-swayd`
 | `ZRAM_SIZE` | the RAM size | uncompressed swap size, RAM + disk |
 | `ZRAM_MEM_LIMIT` | a quarter of the RAM | compressed RAM zram may use |
 | `ZRAM_ALGO` | `lz4` | first algorithm (fast to decompress) |
-| `RECOMP_ALGO`, `RECOMP_LEVEL` | `zstd`, `3` | per-app recompression before a park; level 0 = none |
+| `RECOMP_ALGO`, `RECOMP_LEVEL` | `zstd`, `3` | per-app recompression in RAM, for a park without a spill; level 0 = none |
 | `WB_SIZE_MB` | `4096` | logical spill size; 0 = no spill |
 | `SPILL_MB` | `2048` | disk space of the btrfs image |
 | `SPILL_LEVEL` | `9` | btrfs `compress-force=zstd` level |
