@@ -23,7 +23,8 @@
 # Nothing in the spill outlives a boot: a broken image is recreated.
 #
 #   glassine-zram start                  set up zram0 (+ the spill), swapon
-#   glassine-zram stop                   swapoff (pages come back into RAM), tear down
+#   glassine-zram stop                   swapoff (pages come back into RAM), tear down;
+#                                        exit 1 and nothing torn down when swapoff fails
 #   glassine-zram park (-c CG | PID...)  one parked app's zram slots -> disk (glassine-zpark)
 #   glassine-zram writeback [S]          every slot idle for >= S seconds (1800) -> disk
 #   glassine-zram status                 sizes, compression ratios, counters
@@ -223,7 +224,12 @@ start)
 	log "on: $ZRAM_SIZE ($ZRAM_ALGO, RAM limit $ZRAM_MEM_LIMIT), swappiness $SWAPPINESS"
 	;;
 stop)
-	on && swapoff /dev/zram0
+	# swapoff fails when the swapped pages don't fit back in RAM: zram0 is still
+	# swap then, and its spill still in use, so nothing is torn down
+	if on && ! swapoff /dev/zram0; then
+		log "stop failed: swapoff /dev/zram0 (the swapped pages don't fit in RAM?): zram and its spill stay on"
+		exit 1
+	fi
 	teardown
 	exit 0
 	;;

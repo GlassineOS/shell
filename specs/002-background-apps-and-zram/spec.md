@@ -117,7 +117,8 @@ spill is detached, and nothing else on the user data partition changes.
   backing-device-capable kernel: no spill, and zram runs in RAM only.
 - **FR-016**: The spill never grows userdata's use past the configured reserve of free space.
 - **FR-017**: `stop` turns the swap off (pages come back), resets zram, detaches the loops
-  and unmounts the spill. Commands: `start`, `stop`, `park (-c CGROUP | PID...)`,
+  and unmounts the spill. When the swap can't be turned off (the pages don't fit in RAM)
+  it fails and tears nothing down, and the service reports the failure. Commands: `start`, `stop`, `park (-c CGROUP | PID...)`,
   `writeback [SECONDS]`, `status`; anything else is a usage error (exit 2).
 - **FR-018**: The spill directory defaults to `<USERDATA_MNT>/<USERDATA_PREFIX>/zram` from
   `/etc/glassine/deploy.conf` (defaults `/run/glassine/userdata`, `media/glassine`);
@@ -165,7 +166,8 @@ writeback file), and it adds a swap device.
   recovery, the deployments or anything outside its spill directory on userdata.
 - **Escape route:** `rc-service glassine-zram stop` (swap off, spill detached), then
   `WB_SIZE_MB=0` in `/etc/glassine/zram` or removing the service from its runlevel, and
-  deleting `<prefix>/zram/`. The system boots without the service; the escape needs only a
+  deleting `<prefix>/zram/` once the stop has succeeded. If it fails (the swapped pages
+  don't fit in RAM), close apps and stop again, or reboot with `WB_SIZE_MB=0` first. The system boots without the service; the escape needs only a
   shell (local or SSH), nothing this feature can break.
 
 ## Acceptance

@@ -117,6 +117,26 @@ has "stop: image loop detached" $S/log "losetup -d /dev/loop1"
 is "stop: the image stays" "$(mib $IMG)" 2048
 run stop; is "stop when off: exit 0" $? 0
 
+echo "--- stop when swapoff fails: nothing torn down"
+fresh; run start
+stub swapoff 'echo "swapoff $*" >> /s/log; exit 1'
+: > $S/log; : > $Z/reset
+run stop; is "swapoff fails: exit 1" $? 1
+has "swapoff fails: says so" $S/err "stop failed: swapoff /dev/zram0"
+is "swapoff fails: no zram reset" "$(z reset)" ""
+hasnt "swapoff fails: no loop detached" $S/log "losetup -d"
+hasnt "swapoff fails: spill not unmounted" $S/log "umount"
+has "swapoff fails: zram0 still swap" $R/proc/swaps "/dev/zram0 "
+is "swapoff fails: spill still attached" "$(z backing_dev)" /dev/loop2
+
+echo "--- the service reports what the command returns"
+sed "s|/usr/sbin/glassine-zram|$S/zram-cmd|" /o/etc/init.d/glassine-zram > $S/svc
+svc() { printf '#!/bin/sh\nexit %s\n' "$2" > $S/zram-cmd; chmod 755 $S/zram-cmd
+    ( ebegin() { :; }; eend() { echo "eend $1"; }; . $S/svc; $1 ); }
+is "service stop: a failed stop reported" "$(svc stop 1)" "eend 1"
+is "service stop: success" "$(svc stop 0)" "eend 0"
+is "service start: a failed start reported" "$(svc start 1)" "eend 1"
+
 echo "--- a failed start leaves nothing attached"
 fresh; stub mkswap 'echo "mkswap $*" >> /s/log; exit 1'
 run start; is "mkswap fails: exit 1" $? 1

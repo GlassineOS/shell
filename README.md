@@ -45,7 +45,7 @@ The programs from `make` go to `/usr/bin` (`glassine-shell-wl`, `glassine-swayd`
 
 `/etc/glassine/bgprio.conf` (`#` comments, re-read every 30 s): `NAME...` (never demoted), `nofreeze NAME...`, `freeze NAME...` (the settings app writes these two), `freeze_after` (120 s; 0 = never), `reclaim swap|always|off`, `park_after` (600 s; 0 = never), `writeback_after` (0 = off), `bg_uclamp_max` (79 %). The full description is the header of `src/glassine-bgprio.c`.
 
-To turn the spill off on a device: `rc-service glassine-zram stop`, then `WB_SIZE_MB=0` in `/etc/glassine/zram` (or remove the service from its runlevel) and delete `<USERDATA_PREFIX>/zram/` on userdata. Nothing else on userdata is touched.
+To turn the spill off on a device: `rc-service glassine-zram stop`, then `WB_SIZE_MB=0` in `/etc/glassine/zram` (or remove the service from its runlevel) and delete `<USERDATA_PREFIX>/zram/` on userdata. Nothing else on userdata is touched. If the stop fails (`swapoff` can't fit the swapped pages back into RAM), zram and its spill stay on: close apps and stop again, or set `WB_SIZE_MB=0`, reboot, and delete the directory after that. Deleting it while the spill is attached frees nothing until the next boot.
 
 ## Runtime interfaces
 

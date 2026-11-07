@@ -20,5 +20,5 @@ start() {
 stop() {
 	ebegin "Stopping zram swap"
 	/usr/sbin/glassine-zram stop
-	eend 0
+	eend $?
 }
