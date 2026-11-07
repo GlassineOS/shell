@@ -14,5 +14,5 @@
 set -eu
 D=$(cd "$(dirname "$0")" && pwd)
 SRC=$(cd "$D/../../src" && pwd)
-docker build -q -t glassine-bgpriotest "$D" >/dev/null
-docker run --rm --privileged --cgroupns=private -v "$SRC":/src:ro -v "$D":/t:ro glassine-bgpriotest sh /t/run.sh
+IMG=$(docker build -q -t glassine-bgpriotest "$D")
+docker run --rm --privileged --cgroupns=private -v "$SRC":/src:ro -v "$D":/t:ro "$IMG" sh /t/run.sh
