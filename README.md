@@ -7,6 +7,8 @@ The desktop around the apps on an e-ink device running sway:
 - **`glassine-settings`:** the touch settings app (Python, GTK3, cairo), with its root helper.
 - **`glassine-setup`:** the first-run setup, with its root helper.
 - **The session:** `glassine-session`, `glassine-session-sway`, the sway config and key bindings, the on-screen keyboard wrappers and the `glassine-mono` icons.
+- **Background apps:** `glassine-bgprio` (started with the sway session) gives apps on hidden workspaces CPU time only when the apps in front don't want it, freezes them after a while (not media players, apps playing audio, Flatpaks with the background permission or the desktop itself) and pages their memory out; `glassine-zpark` moves one parked app's swapped memory to disk.
+- **Compressed swap:** the OpenRC service `glassine-zram` (`/usr/sbin/glassine-zram start|stop|park|writeback|status`): zram swap whose parked apps spill to a compressed btrfs image on the user data partition, under `<USERDATA_PREFIX>/zram/` from `/etc/glassine/deploy.conf` (RAM only when userdata isn't mounted or short of space). Host-tested only: the freeze, page-out and spill chain hasn't run on a device from this repository.
 - **Session services:** `glassine-pipewire` (PipeWire with the saved volume), `glassine-bt-trust` (trusts devices paired outside the settings), `glassine-ink-discover` (finds pen canvases over AT-SPI), `glassine-appenv` (per-app render profiles).
 - **Themes:** the `glassine-white`, `glassine-editorial` and `glassine-stationery` GTK 3 themes and their libadwaita CSS (`usr/share/glassine/gtk4`, applied by `glassine-theme-apply`).
 - **System files the session needs:** the doas and polkit rules for its helpers and Wi-Fi, `glassine-checkpass` (admin password check), the package-index refresh on connect and a boot health check.
@@ -16,18 +18,42 @@ The desktop around the apps on an e-ink device running sway:
 ## Build and test
 
 ```
-make            # glassine-shell-wl and glassine-swayd, on Alpine
+make            # glassine-shell-wl, glassine-swayd, glassine-bgprio and glassine-zpark, on Alpine
 make check      # compiles, then the host tests in Docker
 ```
 
-`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper), `test/swayd` (the window model on stock sway, headless), `test/admin-auth` (the administrator tiers of the root helpers, with real accounts) and `test/health` (the boot health check with BusyBox). None of them need a device.
+`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper), `test/swayd` (the window model on stock sway, headless), `test/admin-auth` (the administrator tiers of the root helpers, with real accounts), `test/health` (the boot health check with BusyBox), `test/session-dispatch` (the session's restart loop), `test/bgprio` (glassine-bgprio on headless sway in a privileged container with its own cgroup v2 tree; the page-out check is skipped on a host without swap) and `test/zram` (the zram service against a fake root with stubbed tools). None of them need a device. What they can't show: real zram, writeback and recompression, `glassine-zpark` finding real zram slots, and the spill on a device's userdata.
+
+## Installing
+
+The programs from `make` go to `/usr/bin` (`glassine-shell-wl`, `glassine-swayd`) and `/usr/sbin` (`glassine-bgprio`, `glassine-zpark`); everything under `rootfs/` goes to the same path on the target. A package adds `glassine-zram` to a runlevel (`rc-update add glassine-zram default`); `glassine-bgprio` needs no service, the session starts it. Their kernel needs: cgroup v2 with the cpu controller (the freezer and `uclamp` are used when present), `process_madvise`, zram with writeback (`CONFIG_ZRAM_WRITEBACK`; `writeback_after` and `glassine-zram writeback` also need `CONFIG_ZRAM_TRACK_ENTRY_ACTIME` for the idle age), a second compression algorithm (`CONFIG_ZRAM_MULTI_COMP`) and, for the per-app recompression of a park without a spill, a zram `recompress` that takes `page_index=` / `page_indexes=` (without it such a park reports the failed step); the spill needs `btrfs-progs` and loop devices, else it falls back to a plain file.
+
+`/etc/glassine/zram` (shell `KEY=value`, all optional; a device ships its own values):
+
+| Key | Default | |
+|---|---|---|
+| `ZRAM_SIZE` | the RAM size | uncompressed swap size, RAM + disk |
+| `ZRAM_MEM_LIMIT` | a quarter of the RAM | compressed RAM zram may use |
+| `ZRAM_ALGO` | `lz4` | first algorithm (fast to decompress) |
+| `RECOMP_ALGO`, `RECOMP_LEVEL` | `zstd`, `3` | per-app recompression in RAM, for a park without a spill; level 0 = none |
+| `WB_SIZE_MB` | `4096` | logical spill size; 0 = no spill |
+| `SPILL_MB` | `2048` | disk space of the btrfs image |
+| `SPILL_LEVEL` | `9` | btrfs `compress-force=zstd` level |
+| `SPILL_DIR` | `<USERDATA_MNT>/<USERDATA_PREFIX>/zram` | where the spill files live |
+| `USERDATA_RESERVE_MB` | `4096` | free space the spill never takes |
+| `SWAPPINESS` | `20` | `vm.swappiness` while zram is on |
+
+`/etc/glassine/bgprio.conf` (`#` comments, re-read every 30 s): `NAME...` (never demoted), `nofreeze NAME...`, `freeze NAME...` (the settings app writes these two), `freeze_after` (120 s; 0 = never), `reclaim swap|always|off`, `park_after` (600 s; 0 = never), `writeback_after` (0 = off), `bg_uclamp_max` (79 %). The full description is the header of `src/glassine-bgprio.c`.
+
+To turn the spill off on a device: `rc-service glassine-zram stop`, then `WB_SIZE_MB=0` in `/etc/glassine/zram` (or remove the service from its runlevel) and delete `<USERDATA_PREFIX>/zram/` on userdata. Nothing else on userdata is touched. If the stop fails (`swapoff` can't fit the swapped pages back into RAM), zram and its spill stay on: close apps and stop again, or set `WB_SIZE_MB=0`, reboot, and delete the directory after that. Deleting it while the spill is attached frees nothing until the next boot.
 
 ## Runtime interfaces
 
 Other repositories use these, so renaming one means changing them in the same release:
 
 - `/run/glassine-epdd-desktop.ctl`, `/run/glassine-epdd-desktop.classes`, `/run/glassine-rotation`, `/run/glassine-light`, `/run/glassine-bgprio.sock`
-- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden` and the session's renderer flags
+- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram` and the session's renderer flags
+- the OpenRC service `glassine-zram`, its spill directory `<USERDATA_PREFIX>/zram/` on userdata, and `glassine-zram park|writeback|status`
 - `$XDG_RUNTIME_DIR/glassine-swayd`, `~/.config/glassine-shell/theme`
 - `glassine-shell-wl`, started by the sway config through `glassine-shell-wl-run`
 
