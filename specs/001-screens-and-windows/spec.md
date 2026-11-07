@@ -141,6 +141,20 @@ or opening an app hides it.
   app opens (Escape and the Home button do nothing then).
 - **FR-041**: Previous screen and Next screen are the gestures' names for switching screens.
 
+**Launching apps**
+- **FR-045**: Home and the other apps open an app through the shell with the app's desktop id, where it goes (`new`:
+  a screen of its own right after the current one, or the empty screen under Home; `here`: beside the apps on the
+  current screen) and at most one argument: an absolute path of a file that exists, opened with the app, or, for the
+  Settings app, the name of a Settings page to open.
+- **FR-046**: The shell hands a file to the app the way the app's desktop entry asks for files (its single-file,
+  file-list or URL field codes); an entry without one gets the file as its last argument. The command line is never
+  given to a shell, so no character in a file name has a meaning beyond the name. Apps installed as Flatpaks go the
+  same way, through their own desktop entry.
+- **FR-047**: A launch with an argument that is not an absolute path of an existing file (or, for Settings, not a page
+  name), or with more than one argument, starts nothing, changes nothing about where the next window goes, and is
+  logged with the reason.
+- **FR-048**: Where the window goes is settled before the app starts, so its launch placeholder already sits there.
+
 **General**
 - **FR-050**: Every control here is reachable with Tab and pressed with Enter or Space; Escape closes the top
   panel or cancels the move; focus ring 2 px with a 2 px offset.
@@ -154,7 +168,8 @@ or opening an app hides it.
 |---|---|---|---|
 | Window-model commands (the shell to the window model: place, swap, swap within a half, crossing, direction, full screen, new screen, move and close screens) | owned | 2 | this repository, README "Runtime interfaces" |
 | Divider list (the window model to the shell: each divider's place, kind main/inner and half) | owned | 2 | this repository, README "Runtime interfaces" |
-| The home-app rule (which app, show, hide, fill the empty screen) and launching apps | owned | 1 | this spec; consumed by `GlassineOS/home` |
+| The home-app rule (which app, show, hide, fill the empty screen) | owned | 1 | this spec; consumed by `GlassineOS/home` |
+| Launching apps (desktop id, where, an optional file or Settings page: FR-045 to FR-048) | owned | 2 | this spec and README "Runtime interfaces"; consumed by `GlassineOS/home` |
 
 ## Device scope and risk
 
@@ -164,6 +179,9 @@ Device-neutral. No device risk: nothing flashes or touches boot, recovery or use
 
 - Host: the window-model tests (headless sway) cover every command above with 1–4 windows, both directions,
   the own-screen move, the crossing toggle, per-line positions and screen reorder/close.
+- Host: the shell and the window model together on headless sway: divider mode from the window model's own divider
+  list, swaps reaching the window model, Home shown and hidden from the bar, the empty screen, a launch landing on a new
+  screen and its argument reaching the app.
 - Host: renders of the bar, Overview (browse and move, portrait and landscape) and divider mode in all three voices.
 - Hardware (supervised): taps on the screen button, Overview, a move, divider mode and a drag on the device.
 
