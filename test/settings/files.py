@@ -3,6 +3,7 @@ old action ids read as the new ones, never written) and the start page from its 
 line (glassine-shell launch glassine-settings new PAGE). Exit 1 on a failed check.
    files.py REPO"""
 import os
+import re
 import sys
 import tempfile
 
@@ -42,4 +43,19 @@ for page, want in (("updates", "pkg-updates"), ("packages", "packages"), ("power
                    ("network", "wifi"), ("pkg-changes", "pkg-changes"), ("../x", None), ("nope", None), ("", None),
                    ("pkg-updates#1", None), ("app", None)):
     check("start page %r" % page, A.start_page(page), want)
+
+# the shell checks the page name before it starts Settings (launch_arg_bad in src/glassine-shell.c): its lists
+# are copies of these, kept the same here
+src = open(sys.argv[1] + "/src/glassine-shell.c").read()
+
+
+def c_strings(name, rows=False):
+    body = src.split(name + "[]", 1)[1].split("};", 1)[0] if not rows else src.split(name + "[][2]", 1)[1].split("};", 1)[0]
+    return re.findall(r'"([^"]+)"', body)
+
+
+tabs, subs, alias = c_strings("SETTINGS_TABS"), c_strings("SETTINGS_SUBS"), c_strings("SETTINGS_ALIAS", True)
+check("the shell's Settings pages: the tabs", tabs, A.TOPICS)
+check("the shell's Settings pages: the sub-pages", subs, [p for p in A.START if p not in A.TOPICS])
+check("the shell's Settings pages: the aliases", dict(zip(alias[::2], alias[1::2])), A.START_ALIAS)
 sys.exit(fail)

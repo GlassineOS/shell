@@ -244,6 +244,9 @@ kill_ recf
 launch_arg glassine-settings here updates
 expect "Settings: the page as its argument" "$(argv glassine-settings)" "updates|"
 kill_ glassine-settings; rm -f /tmp/running-glassine-settings
+launch_arg glassine-settings here network#1
+expect "Settings: an alias with a section is a page" "$(argv glassine-settings)" "network#1|"
+kill_ glassine-settings; rm -f /tmp/running-glassine-settings
 # refused: nothing starts, no `next`, a log line
 : > /tmp/data/ok.epub; chmod +x /tmp/data/ok.epub    # (it could be run)
 for bad_ in "recn here book.epub:relative" "recn here /tmp/data/none.epub:nonexistent" \
@@ -251,6 +254,9 @@ for bad_ in "recn here book.epub:relative" "recn here /tmp/data/none.epub:nonexi
             "recn over /tmp/data/ok.epub:neither new nor here" "recn here /tmp/data/ok.epub /tmp/data/ok.epub:two arguments" \
             "nosuchapp here /tmp/data/ok.epub:no such app" \
             "badq new:an Exec line with an unbalanced quote" "badf new:an Exec line of only a field code" \
+            "recn here /tmp/data:a directory" "recn here /dev/null:a device" \
+            "glassine-settings here nope:an unknown Settings page" "glassine-settings here packages#1:a section of a sub-page" \
+            "glassine-settings here power#:a section without a number" \
             "badf here /tmp/data/ok.epub:an Exec line whose first word is the field code (the file would be the command)"; do
     a=${bad_%%:*} why=${bad_#*:}
     rm -f /out/argv-*; mark

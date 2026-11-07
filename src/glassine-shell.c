@@ -2616,21 +2616,56 @@ static char **launch_argv(const App *a, const char *arg)
     return argv;
 }
 
-/* why ARG can't go to the app (NULL: it can): Settings takes a page name,
- * every other app an absolute path of a file that is there (FR-045, FR-047) */
+/* why ARG can't go to the app (NULL: it can): Settings takes the name of a page it opens on, every
+ * other app an absolute path of a regular file that is there (FR-045, FR-047). The page names are
+ * Settings' own (settings/app.py: TOPICS, START, START_ALIAS; test/settings/files.py checks that
+ * these lists are the same): a tab or sub-page, an alias, a tab's section as "power#2" */
 #define SETTINGS_ID "glassine-settings"
+static const char *const SETTINGS_TABS[] = { /* TOPICS */
+    "eink", "apps", "power", "appearance", "wifi", "sound", "light", "bt", "keyboard", "gestures", "time",
+    "storage", "about", NULL };
+static const char *const SETTINGS_SUBS[] = { /* START without TOPICS */
+    "packages", "pkg-updates", "pkg-changes", "origins", "render-apps", "light-range", "time-zone", "bt-add", NULL };
+static const char *const SETTINGS_ALIAS[][2] = { /* START_ALIAS */
+    { "network", "wifi" }, { "bluetooth", "bt" }, { "display", "eink" }, { "clock", "time" },
+    { "updates", "pkg-updates" }, { NULL, NULL } };
+
+static int in_list(const char *const *l, const char *w, size_t n)
+{
+    for (; *l; l++) if (strlen(*l) == n && !strncmp(*l, w, n)) return 1;
+    return 0;
+}
+
+static int settings_page_ok(const char *arg)
+{
+    size_t n = strlen(arg);
+    if (!n || n > 64 || !isalnum((unsigned char)arg[0])) return 0;
+    for (const char *p = arg; *p; p++)
+        if (!isalnum((unsigned char)*p) && !strchr("-_#", *p)) return 0;
+    const char *h = strchr(arg, '#');
+    size_t bn = h ? (size_t)(h - arg) : n;
+    const char *base = arg;
+    char mapped[65];
+    for (int i = 0; SETTINGS_ALIAS[i][0]; i++)
+        if (strlen(SETTINGS_ALIAS[i][0]) == bn && !strncmp(arg, SETTINGS_ALIAS[i][0], bn)) {
+            snprintf(mapped, sizeof mapped, "%s", SETTINGS_ALIAS[i][1]);
+            base = mapped; bn = strlen(mapped);
+        }
+    int topic = in_list(SETTINGS_TABS, base, bn);
+    if (!topic && !in_list(SETTINGS_SUBS, base, bn)) return 0;
+    if (!h) return 1;                   /* a section: only of a tab, and its number */
+    if (!topic || !h[1]) return 0;
+    for (const char *p = h + 1; *p; p++) if (!isdigit((unsigned char)*p)) return 0;
+    return 1;
+}
+
 static const char *launch_arg_bad(const App *a, const char *arg)
 {
-    if (!strcmp(a->id, SETTINGS_ID)) {
-        size_t n = strlen(arg);
-        if (!n || n > 64 || !isalnum((unsigned char)arg[0])) return "not a Settings page";
-        for (const char *p = arg; *p; p++)
-            if (!isalnum((unsigned char)*p) && !strchr("-_#", *p)) return "not a Settings page";
-        return NULL;
-    }
+    if (!strcmp(a->id, SETTINGS_ID)) return settings_page_ok(arg) ? NULL : "not a Settings page";
     struct stat sb;
     if (arg[0] != '/') return "not an absolute path";
     if (stat(arg, &sb)) return "no such file";
+    if (!S_ISREG(sb.st_mode)) return "not a regular file";
     return NULL;
 }
 
