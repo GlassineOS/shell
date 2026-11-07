@@ -52,7 +52,10 @@
  * process_madvise(MADV_PAGEOUT) over their anonymous mappings (in a thread: it
  * takes a while), so the kernel swaps them into zram at once instead of under
  * the next app start's memory pressure; a thaw pages them back in as they are
- * touched. Not memory.reclaim on the frozen group: cgroup v2 leaves a moved
+ * touched. The page-out goes through a pidfd taken at the freeze, and only while
+ * the process is still in the frozen group (checked before each batch of
+ * mappings): one thawed meanwhile, or a pid that is now another process's, is
+ * left alone. Not memory.reclaim on the frozen group: cgroup v2 leaves a moved
  * process's pages charged where they were allocated (its home group), so the
  * frozen group holds next to nothing. Only while a swap device is on (reclaim
  * swap, the default). park_after seconds after an app froze (600),
@@ -191,7 +194,7 @@ static char *infg;                    /* per pid: 1 in glassine-fg */
 enum { RECLAIM_OFF, RECLAIM_SWAP, RECLAIM_ALWAYS };
 static int reclaim_mode = RECLAIM_SWAP, can_reclaim = 1, writeback_s = WRITEBACK_AFTER_S;
 #define MAXFROZE 512
-static int froze[MAXFROZE], nfroze;             /* frozen in this pass */
+static int froze[MAXFROZE], froze_fd[MAXFROZE], nfroze;   /* frozen in this pass, their pidfds */
 static double wb_at, last_freeze;               /* the pending writeback; the latest freeze */
 static pid_t wb_pid;
 static int park_s = PARK_AFTER_S;
@@ -205,6 +208,7 @@ static char excl[64][16];
 static int nexcl;
 static volatile sig_atomic_t quit;
 static double now(void);
+static int pidfd_of(int pid);
 
 static void logf_(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 static void logf_(const char *fmt, ...)
@@ -384,7 +388,8 @@ static void freeze(int pid, int owner, int loud)
     parkst[pid] = 0;
     int v = oom_adj(pid);
     if (v != OOM_NONE && v != 1000) { oomsave[pid] = (short)v; set_oom_adj(pid, 1000); }
-    if (nfroze < MAXFROZE) froze[nfroze++] = pid;
+    /* the pidfd now: the page-out comes later, when the pid may be someone else's */
+    if (nfroze < MAXFROZE) { froze[nfroze] = pid; froze_fd[nfroze++] = pidfd_of(pid); }
     if (loud) logf_("frozen %s (%d)", comm[pid], pid);
 }
 
@@ -418,6 +423,9 @@ static int swap_on(void)
 #ifndef SYS_process_madvise
 #define SYS_process_madvise 440
 #endif
+#ifndef SYS_pidfd_send_signal
+#define SYS_pidfd_send_signal 424
+#endif
 #ifndef MADV_PAGEOUT
 #define MADV_PAGEOUT 21
 #endif
@@ -435,16 +443,35 @@ static long rss_anon(int pid)
     return v;
 }
 
+static int pidfd_of(int pid) { return (int)syscall(SYS_pidfd_open, pid, 0); }
+
+/* pid is still the process pidfd was taken for, and still in the frozen group.
+ * The pidfd check comes last: while that process lives its pid can't be
+ * reused, so what was read by pid before it (cgroup, maps) was its own. */
+static int still_frozen(int pid, int pidfd)
+{
+    char p[64], l[320];
+    int in = 0;
+    snprintf(p, sizeof p, "/proc/%d/cgroup", pid);
+    FILE *f = fopen(p, "r");
+    while (f && fgets(l, sizeof l, f))
+        if (!strncmp(l, "0::", 3)) { l[strcspn(l, "\n")] = 0; in = !strcmp(l + 3, FROZEN_GROUP); break; }
+    if (f) fclose(f);
+    return in && !syscall(SYS_pidfd_send_signal, pidfd, 0, NULL, 0);
+}
+
 /* MADV_PAGEOUT over pid's anonymous mappings (no file behind them: heap,
- * stacks, anonymous mmaps; not [vdso]/[vvar]). 0 = advised, -1 = refused */
-static int page_out(int pid)
+ * stacks, anonymous mmaps; not [vdso]/[vvar]), checked to be still frozen
+ * before each batch. 0 = advised, -1 = refused, 1 = not frozen (any more) */
+static int page_out(int pid, int fd)
 {
     char p[64], l[512];
+    if (fd < 0) return -1;            /* no pidfd: no process_madvise either */
     snprintf(p, sizeof p, "/proc/%d/maps", pid);
     FILE *f = fopen(p, "r");
-    if (!f) return -1;
-    int fd = (int)syscall(SYS_pidfd_open, pid, 0), r = 0;
-    if (fd < 0) { fclose(f); return -1; }
+    if (!f) return 1;
+    if (!still_frozen(pid, fd)) { fclose(f); return 1; }
+    int r = 0;
     struct iovec iov[256];
     int n = 0;
     while (fgets(l, sizeof l, f)) {
@@ -457,52 +484,64 @@ static int page_out(int pid)
         if (n == 256) {
             if (syscall(SYS_process_madvise, fd, iov, n, MADV_PAGEOUT, 0) < 0 && errno != ENOMEM) r = -1;
             n = 0;
+            if (!still_frozen(pid, fd)) { fclose(f); return 1; }   /* thawed meanwhile: stop */
         }
     }
     if (n && syscall(SYS_process_madvise, fd, iov, n, MADV_PAGEOUT, 0) < 0 && errno != ENOMEM) r = -1;
-    close(fd);
     fclose(f);
     return r;
 }
 
 static pthread_mutex_t rc_mu = PTHREAD_MUTEX_INITIALIZER;
-static int rc_pids[MAXFROZE], rc_n, rc_running;
+static int rc_pids[MAXFROZE], rc_fds[MAXFROZE], rc_n, rc_running;
 
-/* page out what the passes froze (more may come while it runs) */
+/* page out what the passes froze (more may come while it runs); a process
+ * thawed, gone or replaced by another with its pid by now is left alone */
 static void *reclaim_thread(void *arg)
 {
     (void)arg;
     for (;;) {
-        int pids[MAXFROZE], n;
+        int pids[MAXFROZE], fds[MAXFROZE], n;
         pthread_mutex_lock(&rc_mu);
         n = rc_n;
         memcpy(pids, rc_pids, sizeof(int) * n);
+        memcpy(fds, rc_fds, sizeof(int) * n);
         rc_n = 0;
         if (!n) { rc_running = 0; pthread_mutex_unlock(&rc_mu); return NULL; }
         pthread_mutex_unlock(&rc_mu);
         long before = 0, after = 0;
-        int refused = 0;
+        int refused = 0, tried = 0, skipped = 0;
         double t0 = now();
         for (int i = 0; i < n; i++) {
-            long b = rss_anon(pids[i]);
-            if (b < 0) continue;
+            long b = rss_anon(pids[i]), a;
+            int r;
+            if (b < 0 || (fds[i] >= 0 && !still_frozen(pids[i], fds[i]))) { skipped++; goto next; }
+            r = page_out(pids[i], fds[i]);
+            if (r > 0) { skipped++; goto next; }
+            tried++;
+            if (r < 0) refused++;
             before += b;
-            if (page_out(pids[i])) refused++;
-            long a = rss_anon(pids[i]);
+            a = rss_anon(pids[i]);
             after += a < 0 ? 0 : a;
+        next:
+            if (fds[i] >= 0) close(fds[i]);
         }
-        logf_("paged out %d frozen process(es): anon %ld -> %ld MiB in %.1f s%s", n, before >> 10, after >> 10,
-              now() - t0, refused ? " (some refused: no process_madvise?)" : "");
-        if (refused == n) can_reclaim = 0;  /* the kernel can't: don't try again */
+        logf_("paged out %d frozen process(es): anon %ld -> %ld MiB in %.1f s%s%s", tried, before >> 10, after >> 10,
+              now() - t0, refused ? " (some refused: no process_madvise?)" : "",
+              skipped ? " (others thawed or gone first: left alone)" : "");
+        if (tried && refused == tried) can_reclaim = 0;  /* the kernel can't: don't try again */
     }
 }
 
 static void reclaim_parked(void)
 {
-    if (!can_reclaim || reclaim_mode == RECLAIM_OFF || (reclaim_mode == RECLAIM_SWAP && !swap_on())) return;
+    int on = can_reclaim && reclaim_mode != RECLAIM_OFF && (reclaim_mode != RECLAIM_SWAP || swap_on());
     pthread_mutex_lock(&rc_mu);
-    for (int i = 0; i < nfroze && rc_n < MAXFROZE; i++) rc_pids[rc_n++] = froze[i];
-    if (!rc_running) {
+    for (int i = 0; i < nfroze; i++) {
+        if (on && rc_n < MAXFROZE) { rc_pids[rc_n] = froze[i]; rc_fds[rc_n++] = froze_fd[i]; }
+        else if (froze_fd[i] >= 0) close(froze_fd[i]);
+    }
+    if (on && rc_n && !rc_running) {
         pthread_t th;
         pthread_attr_t a;
         pthread_attr_init(&a);
