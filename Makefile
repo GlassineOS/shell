@@ -25,6 +25,7 @@ $(OUT)/glassine-zpark: $(S)/glassine-zpark.c
 check:
 	sh test/swayd/test.sh
 	sh test/shell/test.sh
+	sh test/e2e/test.sh
 	sh test/settings/test.sh
 	sh test/setup/test.sh
 	sh test/admin-auth/test.sh

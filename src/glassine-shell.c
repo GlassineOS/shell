@@ -3105,6 +3105,13 @@ static void request(char *msg, int len)
             if (sscanf(w[i], "%d,%d,%d,%d,%d,%d,%lx,%lx,%lf", &d->x, &d->y, &d->w, &d->h, &d->vert, &d->level, &d->a, &d->b, &d->pos) >= 8)
                 st.ndv++;
         }
+        if (verbose) {                  /* the list as parsed: "LEVEL:A:B" per line (the host tests read it) */
+            char dl[256] = "";
+            size_t k = 0;
+            for (int i = 0; i < st.ndv && k < sizeof dl; i++)
+                k += snprintf(dl + k, sizeof dl - k, " %d:%lx:%lx", st.dv[i].level, (unsigned long)st.dv[i].a, (unsigned long)st.dv[i].b);
+            LOG("%s %d,%d%s", w[0], st.dv_n, st.dv_o, dl);
+        }
         if (w[0][7] == '-') { if (st.ndv) set_view(V_DIV); }    /* the tap: open, or (again) close */
         else if (st.view == V_DIV) { if (st.ndv) { render_pop(); div_input(); } else set_view(V_IDLE); }
     } else if (!strcmp(w[0], "change")) {    /* a system change: "change PID 3/12"; "change" alone: over */
