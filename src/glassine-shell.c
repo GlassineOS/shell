@@ -2507,6 +2507,8 @@ static pid_t run_launch(char **argv)
     if (bmin) LOG("launch boost: uclamp.min %d for %d ms", bmin, bms);
     int pf[2];
     if (pipe2(pf, O_CLOEXEC)) pf[0] = pf[1] = -1;   /* started all the same, its pid unknown */
+    int ef[2];                              /* the exec's errno, closed by a good exec (O_CLOEXEC) */
+    if (pipe2(ef, O_CLOEXEC)) ef[0] = ef[1] = -1;
     pid_t p = fork(), g = 0;
     if (p == 0) {
         setsid();
@@ -2514,12 +2516,22 @@ static pid_t run_launch(char **argv)
         if (c == 0) {
             int fd = open("/dev/null", O_RDWR);
             dup2(fd, 0); dup2(fd, 1);
-            for (int i = 3; i < 256; i++) close(i);
+            for (int i = 3; i < 256; i++) if (i != ef[1]) close(i);
             if (bmin && set_umin(0, bmin)) bmin = 0;
             execvp(argv[0], argv);          /* never a shell: a file name stays one word (FR-046) */
+            int e = errno;
+            if (ef[1] >= 0 && write(ef[1], &e, sizeof e) != sizeof e) {}
             _exit(127);
         }
         if (pf[1] >= 0 && write(pf[1], &c, sizeof c) != sizeof c) {}
+        if (ef[1] >= 0) {                   /* a failed exec says why, in the shell's log (stderr) */
+            int e = 0;
+            close(ef[1]);
+            if (c > 0 && read(ef[0], &e, sizeof e) == sizeof e) {
+                fprintf(stderr, "glassine-shell: launch: can't run \"%s\": %s\n", argv[0], strerror(e));
+                c = -1;                     /* (no boost helper for a process that never ran) */
+            }
+        }
         if (bmin && c > 0 && fork() == 0) {     /* the helper: reparented when we exit */
             for (int i = 0; i < 256; i++) close(i);
             struct timespec ts = { bms / 1000, (bms % 1000) * 1000000L };
@@ -2530,6 +2542,7 @@ static pid_t run_launch(char **argv)
         _exit(0);
     }
     if (pf[1] >= 0) close(pf[1]);
+    if (ef[0] >= 0) { close(ef[0]); close(ef[1]); }
     if (p > 0) {
         if (pf[0] < 0 || read(pf[0], &g, sizeof g) != sizeof g) g = 0;
         waitpid(p, NULL, 0);

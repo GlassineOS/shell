@@ -101,6 +101,10 @@ app recq "\"$B/argrec\" recq \"two words\" %u"
 # an unbalanced quote; only a field code (no program word, FR-046)
 app badq "$B/argrec badq \"unbalanced"
 app badf "%f"
+# Exec lines that are made into a command line but can't run: the reason is logged (a bare VAR=x prog
+# worked under sh -c and is a program called "VAR=x" now)
+app badx "/tmp/no-such-program --flag"
+app badv "FOO=1 $B/argrec badv"
 # Settings runs once (SingleMainWindow, as its own desktop file): argsingle hands a second
 # start's argv over (records it) and exits, as a GApplication does
 cat > $B/argsingle <<'S'
@@ -299,6 +303,17 @@ sm -q "workspace number 1"; sleep 0.8
 kill_ extra
 kill_ glassine-settings; rm -f /tmp/running-glassine-settings
 expect "the extra screens went with their apps" "$(cur) $(tree count)" "1 2 3 focus 1 2 3 4"
+
+# ---- an Exec line that can't run says why (the child's errno) ---------------------------------
+for bad_ in "badx:/tmp/no-such-program" "badv:FOO=1"; do
+    a=${bad_%%:*} w=${bad_#*:}
+    rm -f /out/argv-*; mark
+    $B/glassine-shell-wl launch $a here; sleep 1.5
+    expect "an Exec that can't run ($w): logged with the reason, nothing started" \
+        "$(logsince | grep -c "can't run \"$w\": No such file or directory") $(ls /out/argv-* 2>/dev/null | wc -l)" "1 0"
+    sleep 6                            # the placeholder of a process that is gone leaves by itself (PH_GONE_S)
+    expect "... its placeholder went" "$(tree count)" "2 3 4"
+done
 
 kill $SWAYPID 2>/dev/null
 sleep 0.5
