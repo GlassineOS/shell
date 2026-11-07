@@ -2555,16 +2555,14 @@ void ev_placeholder_draw(cairo_t *cr, int w, int h, const App *a)
     cairo_restore(cr);
 }
 
-/* the app's command line (its desktop entry's Exec, in a terminal if it asks
- * for one) with ARG (NULL: none) where a field code for files or URLs (%f %F
- * %u %U) stands, else appended; the other field codes give nothing. Quoting as
- * the desktop entry spec has it; the words go to execvp, never to a shell.
- * NULL: no command line (logged). */
-static char **launch_argv(const App *a, const char *arg)
+/* the words of an Exec line with ARG (NULL: none) where a field code for files or URLs (%f %F
+ * %u %U) stands, else appended; the other field codes give nothing. Quoting as the desktop
+ * entry spec has it. NULL: no words (err set) */
+static char **exec_words(const char *exec, const char *arg, GError **err)
 {
-    GString *s = g_string_new(a->terminal ? "foot " : "");
+    GString *s = g_string_new("");
     int used = 0;
-    for (const char *p = a->exec; *p; p++) {
+    for (const char *p = exec; *p; p++) {
         if (*p != '%') { g_string_append_c(s, *p); continue; }
         if (!p[1]) break;
         p++;
@@ -2583,13 +2581,38 @@ static char **launch_argv(const App *a, const char *arg)
         g_free(q);
     }
     gchar **argv = NULL;
+    if (!g_shell_parse_argv(s->str, NULL, &argv, err)) argv = NULL;
+    g_string_free(s, TRUE);
+    return argv;
+}
+
+/* the app's command line (its desktop entry's Exec, in a terminal if it asks for one) with ARG
+ * where the entry wants a file, the words going to execvp, never to a shell. The program is the
+ * entry's own: an Exec whose first word is a field code (or empty) with a file would make the
+ * file the command, so it is refused. NULL: no command line (logged, "refused") */
+static char **launch_argv(const App *a, const char *arg)
+{
     GError *err = NULL;
-    if (!g_shell_parse_argv(s->str, NULL, &argv, &err)) {
-        fprintf(stderr, "glassine-shell: launch %s: refused: its Exec line can't be read (%s)\n", a->id, err ? err->message : "empty");
-        g_clear_error(&err);
+    char **argv = exec_words(a->exec, arg, &err);
+    char **bare = argv && arg ? exec_words(a->exec, NULL, NULL) : NULL;     /* without ARG: the program the entry names */
+    const char *why = NULL;
+    if (!argv) why = err ? err->message : "empty";
+    else if (arg && (!bare || strcmp(bare[0], argv[0]))) why = "no program word before the field code";
+    if (why) {
+        fprintf(stderr, "glassine-shell: launch %s: refused: its Exec line can't be run (%s)\n", a->id, why);
+        g_strfreev(argv);
         argv = NULL;
     }
-    g_string_free(s, TRUE);
+    g_clear_error(&err);
+    g_strfreev(bare);
+    if (argv && a->terminal) {          /* foot runs the words after it as the command */
+        guint n = g_strv_length(argv);
+        char **t = g_new0(char *, n + 2);
+        t[0] = g_strdup("foot");
+        for (guint i = 0; i < n; i++) t[i + 1] = argv[i];
+        g_free(argv);
+        argv = t;
+    }
     return argv;
 }
 

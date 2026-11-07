@@ -245,12 +245,13 @@ launch_arg glassine-settings here updates
 expect "Settings: the page as its argument" "$(argv glassine-settings)" "updates|"
 kill_ glassine-settings; rm -f /tmp/running-glassine-settings
 # refused: nothing starts, no `next`, a log line
-: > /tmp/data/ok.epub
+: > /tmp/data/ok.epub; chmod +x /tmp/data/ok.epub    # (it could be run)
 for bad_ in "recn here book.epub:relative" "recn here /tmp/data/none.epub:nonexistent" \
             "glassine-settings here ../x:not a page" "glassine-settings here /etc/passwd:a file for Settings" \
             "recn over /tmp/data/ok.epub:neither new nor here" "recn here /tmp/data/ok.epub /tmp/data/ok.epub:two arguments" \
             "nosuchapp here /tmp/data/ok.epub:no such app" \
-            "badq new:an Exec line with an unbalanced quote" "badf new:an Exec line of only a field code"; do
+            "badq new:an Exec line with an unbalanced quote" "badf new:an Exec line of only a field code" \
+            "badf here /tmp/data/ok.epub:an Exec line whose first word is the field code (the file would be the command)"; do
     a=${bad_%%:*} why=${bad_#*:}
     rm -f /out/argv-*; mark
     # shellcheck disable=SC2086

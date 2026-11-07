@@ -149,7 +149,9 @@ or opening an app hides it.
 - **FR-046**: The shell hands a file to the app the way the app's desktop entry asks for files (its single-file,
   file-list or URL field codes); an entry without one gets the file as its last argument. The command line is never
   given to a shell, so no character in a file name has a meaning beyond the name. Apps installed as Flatpaks go the
-  same way, through their own desktop entry.
+  same way, through their own desktop entry. The program is always the entry's own: an entry whose command line
+  has no program word before the field code is refused when it is given a file (FR-047), never run with the file as
+  the command.
 - **FR-047**: A launch with an argument that is not an absolute path of an existing file (or, for Settings, not a page
   name), or with more than one argument, starts nothing, changes nothing about where the next window goes, and is
   logged with the reason.
