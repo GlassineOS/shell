@@ -97,7 +97,19 @@ app recf "$B/argrec recf --open %f --end"
 app recn "$B/argrec recn"
 app recu "$B/argrec recu @@u %U @@"
 app recq "\"$B/argrec\" recq \"two words\" %u"
-app glassine-settings "$B/argrec glassine-settings"
+# Settings runs once (SingleMainWindow, as its own desktop file): argsingle hands a second
+# start's argv over (records it) and exits, as a GApplication does
+cat > $B/argsingle <<'S'
+#!/bin/sh
+id=$1; shift
+if [ -e /tmp/running-$id ]; then for a in "$@"; do printf '%s\n' "$a"; done > /out/handover-$id; exit 0; fi
+: > /tmp/running-$id
+for a in "$@"; do printf '%s\n' "$a"; done > /out/argv-$id
+exec foot -a "$id" sleep 600
+S
+chmod +x $B/argsingle
+app glassine-settings "$B/argsingle glassine-settings"
+echo SingleMainWindow=true >> $HOME/.local/share/applications/glassine-settings.desktop
 
 cat > /tmp/sway.conf <<C
 output HEADLESS-1 resolution 1404x1872 scale 2 bg #ffffff solid_color
@@ -227,7 +239,7 @@ expect "no argument: the field code gives nothing" "$(argv recf)" "--open|--end|
 kill_ recf
 launch_arg glassine-settings here updates
 expect "Settings: the page as its argument" "$(argv glassine-settings)" "updates|"
-kill_ glassine-settings
+kill_ glassine-settings; rm -f /tmp/running-glassine-settings
 # refused: nothing starts, no `next`, a log line
 : > /tmp/data/ok.epub
 for bad_ in "recn here book.epub:relative" "recn here /tmp/data/none.epub:nonexistent" \
@@ -242,6 +254,39 @@ for bad_ in "recn here book.epub:relative" "recn here /tmp/data/none.epub:nonexi
         "$(ls /out/argv-* 2>/dev/null | wc -l) $(since | grep -c next) $(logsince | grep -c 'refused')" "0 0 1"
 done
 expect "after the refusals: screen 1 as it was" "$(tree count)" "2 3 4"
+
+# ---- an app that runs once and is open (FR-049) ------------------------------------------
+focused() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+def w(n):
+    if n.get("focused"): print(n.get("app_id") or n.get("name"))
+    for c in n.get("nodes",[])+n.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin))'; }
+handover() { for i in $(seq 1 30); do [ -s /out/handover-$1 ] && break; sleep 0.1; done; tr '\n' '|' < /out/handover-$1 2>/dev/null; }
+sm -q "workspace number 1"; sleep 0.5
+launch_arg glassine-settings here
+expect "Settings started beside the two on screen 1" "$(tree count)" "3 3 4"
+sm -q "workspace number 3"; sleep 0.8
+rm -f /out/handover-*; mark
+$B/glassine-shell-wl launch glassine-settings new updates; sleep 2
+expect "Settings open, launch new updates: no next, no placeholder, no new screen" \
+    "$(since | grep -c next) $(logsince | grep -c 'placeholder for') $(tree count)" "0 0 3 3 4"
+expect "... its screen shown, its window focused" "$(cur) $(focused)" "1 2 3 focus 1 glassine-settings"
+expect "... the running Settings got the page" "$(handover glassine-settings)" "updates|"
+sm -q "workspace number 2"; sleep 0.8
+rm -f /out/handover-*; mark
+$B/glassine-shell-wl launch glassine-settings here power; sleep 2
+expect "Settings open, launch here power: focused the same way" \
+    "$(since | grep -c next) $(tree count) $(cur) $(focused) $(handover glassine-settings)" "0 3 3 4 1 2 3 focus 1 glassine-settings power|"
+sm -q "workspace number 1"; sleep 0.5
+mark; $B/glassine-shell-wl launch extra new; waitapp extra
+mark; $B/glassine-shell-wl launch extra new; sleep 3
+expect "an app that doesn't run once, open already: a second window on a new screen" \
+    "$(since | grep -o 'next new') $(cur) $(geo | tr '|' '\n' | grep -c '^ *extra ')" "next new 1 2 3 4 5 focus 3 2"
+sm -q "workspace number 1"; sleep 0.8
+kill_ extra
+kill_ glassine-settings; rm -f /tmp/running-glassine-settings
+expect "the extra screens went with their apps" "$(cur) $(tree count)" "1 2 3 focus 1 2 3 4"
 
 kill $SWAYPID 2>/dev/null
 sleep 0.5

@@ -61,7 +61,9 @@
  * places it. ARG (spec 001 FR-045..048): an absolute path of
  * an existing file, where the Exec line's %f %F %u %U is (else
  * appended), or Settings' page; anything else: refused, logged,
- * no "next"
+ * no "next". An app that runs once (DBusActivatable or
+ * SingleMainWindow) and has a window: no "next", no placeholder,
+ * the launch runs and its window is focused (FR-049)
  * open ID its window if it has one, else launch
  * light up|down|warmer|cooler the front light one step, as the quick settings'
  * sliders do (the keyboard's brightness keys, sway keys.conf)
@@ -425,6 +427,7 @@ static void load_app(const char *dir, const char *fn)
         else if (!strcmp(l, "Categories")) snprintf(cats, sizeof cats, "%s", v);
         else if (!strcmp(l, "StartupWMClass")) snprintf(a.wmclass, sizeof a.wmclass, "%s", v);
         else if (!strcmp(l, "Terminal")) a.terminal = !strcmp(v, "true");
+        else if (!strcmp(l, "DBusActivatable") || !strcmp(l, "SingleMainWindow")) a.single |= !strcmp(v, "true");
         else if (!strcmp(l, "NoDisplay") || !strcmp(l, "Hidden")) nodisp |= !strcmp(v, "true");
         else if (!strcmp(l, "Type")) app = !strcmp(v, "Application");
         else if (!strcmp(l, "OnlyShowIn")) notshown |= !desktop_listed(v);
@@ -2629,8 +2632,19 @@ static void launch_app(App *a, const char *arg)
  * (its launch placeholder takes it): the empty screen under Home if there is
  * one, else where (new: a screen of its own after this one, here: beside the
  * apps on this one; NULL: as glassine-swayd places it) */
+static int focus_window_of(App *a);
+
 static void launch_where(App *a, const char *where, const char *arg)
 {
+    /* runs once and is open (FR-049): the new process hands its argv to the running one
+     * and exits, so no "next" and no placeholder (it would hold an empty screen): run
+     * it all the same, then go to the window it has */
+    if (a->single && focus_window_of(a)) {
+        char **argv = launch_argv(a, arg);
+        if (argv) { run_launch(argv); g_strfreev(argv); }
+        LOG("launch %s: runs once and has a window: focused, no new place", a->id);
+        return;
+    }
     if (st.home_vis && st.hole > 0) tile_cmd("next hole");
     else if (where && (!strcmp(where, "new") || !strcmp(where, "here"))) tile_cmd("next %s", where);
     launch_app(a, arg);
@@ -2656,25 +2670,32 @@ static void overview(void)
     set_view(V_WS);
 }
 
-/* an app that already has a window comes forward (minimized: back here)
- * instead of a second copy (KOReader ran twice on one book); else it starts */
-static void open_app(App *a)
+/* a's window comes forward: one here first, then one on another screen, a
+ * minimized one last (back here). Home over it goes. 0: a has no window */
+static int focus_window_of(App *a)
 {
     be_read_desktop();
-    /* several: one here first, then one on another workspace, a minimized one last */
     int best = -1, rank = 3;
     for (int k = 0; k < ncl; k++) {
         if (app_of(cl[k].w) != a) continue;
         int r = cl[k].desk == curdesk ? 0 : cl[k].desk >= 0 ? 1 : 2;
         if (r < rank) { rank = r; best = k; }
     }
-    if (best >= 0) {
-        LOG("open %s: its window %lu is there", a->id, (unsigned long)cl[best].w);
-        if (cl[best].desk < 0) { be_restore(cl[best].w); return; }
-        if (cl[best].desk != curdesk) be_goto_desk(cl[best].desk);
-        be_activate(cl[best].w);
-        return;
-    }
+    if (best < 0) return 0;
+    LOG("%s: its window %lu is there", a->id, (unsigned long)cl[best].w);
+    if (st.view != V_IDLE) set_view(V_IDLE);
+    if (st.home_vis) tile_cmd("home hide");
+    if (cl[best].desk < 0) { be_restore(cl[best].w); return 1; }
+    if (cl[best].desk != curdesk) be_goto_desk(cl[best].desk);
+    be_activate(cl[best].w);
+    return 1;
+}
+
+/* an app that already has a window comes forward (minimized: back here)
+ * instead of a second copy (KOReader ran twice on one book); else it starts */
+static void open_app(App *a)
+{
+    if (focus_window_of(a)) return;
     /* glassine-settings > Appearance > Windows: a workspace of its own (*; the default since design, the file
      * app-shared-workspace turns it off); an empty current one is used as it is */
     char shared[512];

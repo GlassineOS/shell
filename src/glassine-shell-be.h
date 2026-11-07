@@ -53,7 +53,7 @@ const char *be_osk_cmd(int show);
 typedef struct {
     char id[96], name[96], exec[512], icon[160], wmclass[64], exe[64], comment[160];
     const char *cat;
-    int terminal;
+    int terminal, single;               /* single: runs once (DBusActivatable / SingleMainWindow) */
 } App;
 /* the app of a window by its class and instance names ("" = none) */
 App *app_match(const char *cls, const char *inst);
