@@ -12,7 +12,7 @@ import re
 
 import cairo
 
-from . import paint as P
+from glassine_ui import paint as P
 from .theme import OFF
 
 LH_LBL = LH_SUB = None                  # the fonts carry their CSS line-heights (KS row 1.3, sub 1.4)

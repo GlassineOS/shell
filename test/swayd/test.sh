@@ -5,6 +5,10 @@
 # checks the tiling (1-4 windows), the 4-apps rule, renumbering, swap/orient,
 # a floating dialog, the hints glassine-epdd-desktop gets (a FIFO stand-in), swapdir, the
 # physical-keyboard rule (fixtures) and sway's bare-Super release binding (wtype);
+# the window model of spec 001: a position per line (a test-only drag,
+# GLASSINE_SWAYD_TEST), swapin/cross/direction/full, place on the own screen,
+# scrmove/scrclose, next, Home (a foot stand-in) and the empty screen, with the
+# dividers and home requests a stand-in glassine-shell socket gets;
 # the device's sway config + keys.conf pass `sway -C`, the key scripts shellcheck.
 # test.sh exit 1 on a failed check
 set -eu

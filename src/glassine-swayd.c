@@ -11,9 +11,10 @@
  * Two levels: the first | the rest (4: the first two |
  * the other two); each level stacked or side by side ("orient",
  * remembered per workspace; default stacked, then side by side).
- * With 4 the inner splits are always across the outer one and
- * share one boundary (design one split each
- * way), so the quarters line up. Rebuilt whenever a workspace's
+ * With 3-4 the inner splits are always across the outer one.
+ * Each line has its own position (spec 001 FR-021): r between
+ * the halves, ri[0] and ri[1] inside half 0 and half 1 (Keep.frac;
+ * a 2x2 screen's inner lines line up only when equal). Rebuilt whenever a workspace's
  * windows change, in one sway command list (one transaction:
  * one panel update).
  * workspaces at most APPS_PER_WS tiled app windows each: one beyond that
@@ -40,16 +41,38 @@
  * moves nothing else.
  * handles a drag handle in each gap between the visible workspace's
  * tiles (swayd-handles.c; needs `gaps inner 20` + `gaps outer
- * -20` in the sway config): drag = the split moves there (kept
- * per workspace across rebuilds), tap = glassine-shell's divider sheet.
+ * -20` in the sway config), level 0 the main line, 1/2 the inner
+ * line of half 0/1: drag = that line moves there (kept per
+ * workspace across rebuilds; an inner line of a 2x2 screen snaps
+ * to the other), tap = glassine-shell's divider buttons. The shell
+ * gets "dividers N,ORIENT0 x,y,w,h,vert,level,a,b,pos ...".
+ * Home an app (app_id: home_app) kept in the scratchpad, shown
+ * floating over the work area under the bar. Empty screen (spec
+ * 001 FR-040): the last window on the focused screen closes -> the
+ * screen stays under Home; Home hidden any other way than by an app
+ * opening there -> that screen goes (not the only one). The shell
+ * gets "home VISIBLE HOLE" on every change.
  * commands datagrams on $XDG_RUNTIME_DIR/glassine-swayd (glassine-shell's divider
- * sheet):
+ * buttons, the overview, Home):
  * swap HEXID HEXID the two windows trade places
+ * swapin HEXID the two windows of its split half trade, ri mirrors
+ * cross HEXID a 2x2 screen: the other axis runs through, every
+ * window keeps its quarter (FR-023)
+ * direction HEXID a 2-window screen: rows <-> side by side
+ * full HEXID toggle: floating over its screen's work area (the
+ * bar stays; not sway's fullscreen), the others tiled underneath
+ * scrmove N -1|1 screen N trades places with the one before/after
+ * scrclose N every app on screen N closes, the screen goes (not the last)
+ * home show|hide|toggle
+ * next new|here|hole the next new window goes to a new screen after the
+ * current one / beside the apps on the current one / into the
+ * empty screen; used once, forgotten after 10 s
  * orient LEVEL 0|1 level 0 (the first | the rest) or 1
  * (the rest) stacked (0) / side by side (1)
  * swaphalves HEXID that window's screen: the halves trade places
  * place HEXID HEXID up|down|left|right the first window to that
- * side of the second, on the second's screen
+ * side of the second, on the second's screen (its own too: worked
+ * out without it; a move that changes nothing is refused)
  * turn HEXID the workspace of that window: both levels
  * the other way (the overview's Turn)
  * swapdir left|right|up|down the focused window trades places
@@ -71,6 +94,7 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -106,15 +130,42 @@ static int cmd_fd = -1, ev_fd = -1, scale = 2;
 /* ---- the tree ------------------------------------------------------------------ */
 typedef struct {
     long id; int r[4]; int floating, fullscreen, focused; char cls[128];
+    int full;                           /* `full`: floating over the work area, still one of the layout's */
     long pid; long ph_pid; char ph_ids[192];    /* ph_pid: a launch placeholder for that pid */
 } View;
 #define PH_APP_ID "glassine-placeholder"
+#define FULL_MARK "_glassine_full"      /* `full W`: W floats over the work area (the bar stays), kept in the order */
+
+/* Home: an app kept in the scratchpad, shown floating over the work area (under the bar,
+ * never sway's fullscreen: that covers the bar). Its app_id: $GLASSINE_HOME_APP_ID, else
+ * /etc/glassine/home-app, else glassine-home (any app can be the home) */
+static char home_app[128] = "glassine-home";
+static long home_id;                    /* its con_id, 0: not running */
+static char home_on[64];                /* the workspace it is shown on, "": hidden */
+static int home_r[4];                   /* where it is (device px) */
+static int home_tiled;                  /* it mapped tiled (no rule moved it yet) */
+
+static int has_mark(json_object *n, const char *m)
+{
+    json_object *a;
+    if (!json_object_object_get_ex(n, "marks", &a)) return 0;
+    for (size_t i = 0; i < json_object_array_length(a); i++)
+        if (!strcmp(json_object_get_string(json_object_array_get_idx(a, i)), m)) return 1;
+    return 0;
+}
+
+static int is_home(json_object *n)
+{
+    const char *id = sj_str(n, "app_id");
+    return id && !strcmp(id, home_app);
+}
 typedef struct {
     char name[64]; long num; int focused, visible;
     int r[4];                           /* the area windows get (without the bar) */
     View v[MAXV]; int nv;               /* tiled views, tree order */
     View f[MAXV]; int nf;               /* floating ones (dialogs) */
-    int fullscreen;                     /* a view is fullscreen: no tiling */
+    int fullscreen;                     /* a view is fullscreen or `full`: no tiling */
+    long full;                          /* the `full` one (FULL_MARK), 0: none */
     long unwrap[16]; int nun;           /* the only child of a single-child container (build) */
 } Ws;
 static Ws ws[MAXWS];
@@ -201,6 +252,7 @@ static void scratch_walk(json_object *n)
     if (!json_object_object_get_ex(n, "floating_nodes", &a)) return;
     for (size_t i = 0; i < json_object_array_length(a); i++) {
         json_object *e = json_object_array_get_idx(a, i);
+        if (sj_str(e, "shell") && is_home(e)) { home_id = sj_int(e, "id", 0); continue; }
         if (!sj_str(e, "shell") || nscr_ph >= 8) continue;
         View v = { .id = sj_int(e, "id", 0), .pid = sj_int(e, "pid", 0) };
         view_class(e, v.cls, sizeof v.cls);
@@ -223,8 +275,21 @@ static void walk(json_object *n, Ws *w, int floating)
         w->num = sj_int(n, "num", -1);
         sj_rect(n, "rect", scale, w->r);
     }
+    if (w && sj_str(n, "shell") && is_home(n)) {    /* Home: none of the layout's */
+        home_id = sj_int(n, "id", 0);
+        if (!floating) { home_tiled = 1; return; }
+        snprintf(home_on, sizeof home_on, "%s", w->name);
+        sj_rect(n, "rect", scale, home_r);
+        View v = { .id = home_id, .floating = 1 };
+        sj_rect(n, "rect", scale, v.r);
+        v.focused = sj_bool(n, "focused");
+        view_class(n, v.cls, sizeof v.cls);
+        if (w->nf < MAXV) w->f[w->nf++] = v;        /* (the hints and the app list see it) */
+        return;
+    }
     if (w && sj_str(n, "shell")) {      /* a view */
         View v = { .id = sj_int(n, "id", 0), .floating = floating, .fullscreen = sj_int(n, "fullscreen_mode", 0) != 0 };
+        if (floating && has_mark(n, FULL_MARK)) { v.full = 1; v.floating = 0; floating = 0; w->full = v.id; w->fullscreen = 1; }
         sj_rect(n, "rect", scale, v.r);
         v.focused = sj_bool(n, "focused");
         view_class(n, v.cls, sizeof v.cls);
@@ -312,6 +377,7 @@ static int read_tree(void)
     tree_bad = 0;
     nws = 0;
     nscr_ph = 0;
+    home_id = 0; home_on[0] = 0; home_tiled = 0;
     walk(t, NULL, 0);
     for (int i = 0; i < nws; i++)
         for (int k = 0; k < nwsflags; k++)
@@ -368,7 +434,9 @@ static void crun(void)
 /* ---- what we keep per workspace ----------------------------------------------------- */
 typedef struct {
     char name[64]; long order[MAXV]; int n; int orient[2]; int built;
-    double frac[2];                     /* a dragged split: where its boundary is (0: the middle) */
+    double frac[3];                     /* the lines' positions, as dragged (0: the middle): [0] r, between
+                                         * the halves (half 0's share); [1] ri[0], inside half 0; [2] ri[1],
+                                         * inside half 1 (the first window's share of its half) */
     int split;                          /* 3 windows: 1 = v0 | v1 v2, 0 = v0 v1 | v2 */
 } Keep;
 static Keep keep[MAXWS];
@@ -384,6 +452,34 @@ static Keep *keep_of(const char *name)
     k->orient[1] = 1;                   /* the rest side by side */
     k->split = 1;
     return k;
+}
+
+/* what we keep of workspaces sway dropped goes: a later rename to the same name
+ * would otherwise find the old one first (and its layout) */
+static void keep_prune(void)
+{
+    int o = 0;
+    for (int j = 0; j < nkeep; j++) {
+        int live = 0;
+        for (int i = 0; i < nws; i++) if (!strcmp(ws[i].name, keep[j].name)) live = 1;
+        if (live) keep[o++] = keep[j];
+    }
+    nkeep = o;
+}
+
+/* the empty screen under Home (spec 001 FR-040), "": none; and where the next new
+ * window goes (`next`): mode n(ew)/h(ere)/o (hole), 0: nowhere special, from the
+ * screen next_ws, armed at next_ms */
+static char hole[64];
+static char next_mode, next_ws[64];
+static long next_ms;
+
+/* a workspace's name changes (sway's rename in the same command list): what we keep follows it */
+static void ws_renamed(const char *from, const char *to)
+{
+    for (int j = 0; j < nkeep; j++) if (!strcmp(keep[j].name, from)) snprintf(keep[j].name, sizeof keep[j].name, "%s", to);
+    if (!strcmp(hole, from)) snprintf(hole, sizeof hole, "%s", to);
+    if (!strcmp(next_ws, from)) snprintf(next_ws, sizeof next_ws, "%s", to);
 }
 
 /* the halves (design shell.divider): g[half][i], gn[half] windows; returns the halves */
@@ -425,16 +521,21 @@ static void keep_remove(Keep *k, long id)
     for (int h = 0; h < 2; h++) {
         int o = 0;
         for (int i = 0; i < gn[h]; i++) if (g[h][i] != id) g[h][o++] = g[h][i];
+        if (o < gn[h]) k->frac[1 + h] = 0;  /* a split half lost one: whole, no inner line */
         gn[h] = o;
     }
-    if (!gn[0] && gn[1]) { g[0][0] = g[1][0]; g[0][1] = g[1][1]; gn[0] = gn[1]; gn[1] = 0; }
+    if (!gn[0] && gn[1]) {              /* half 0 went: half 1 (and its line) is half 0 now */
+        g[0][0] = g[1][0]; g[0][1] = g[1][1]; gn[0] = gn[1]; gn[1] = 0;
+        k->frac[1] = k->frac[2];
+        k->frac[2] = 0;
+    }
     if (gn[0] == 2 && !gn[1]) {         /* one half left: its split is the screen's now */
         g[1][0] = g[0][1]; gn[0] = gn[1] = 1;
         k->orient[0] = k->orient[1];
         k->frac[0] = k->frac[1];
-        k->frac[1] = 0;
+        k->frac[1] = k->frac[2] = 0;
         k->orient[1] = !k->orient[0];
-    } else if (gn[0] + gn[1] <= 2) k->frac[1] = 0;
+    } else if (gn[0] + gn[1] <= 2) k->frac[1] = k->frac[2] = 0;
     keep_from_groups(k, g, gn);
 }
 
@@ -471,14 +572,16 @@ static int order_update(Keep *k, const Ws *w)
         if (present) o[n++] = k->order[j];
         else changed = 1;
     }
-    int was = k->n;
+    int was = k->n, was_split = k->split;
     memcpy(k->order, o, n * sizeof *o);
     k->n = n;
     if (n == 3 && nn) k->split = 1;     /* a new one comes first: whole, the others split */
+    if (nn && n >= 3 && !(was == 3 && was_split && n == 4 && nn == 1)) k->frac[2] = 0;
+    if (nn && n >= 3) k->frac[1] = 0;   /* the halves are new (but half 1 of 3 -> 4 is the same pair) */
     if (n == 2 && was < 2 && nn) {      /* a new pair: rows in portrait, side by side in landscape */
         k->orient[0] = w->r[2] > w->r[3];
         k->orient[1] = !k->orient[0];
-        k->frac[0] = k->frac[1] = 0;
+        k->frac[0] = k->frac[1] = k->frac[2] = 0;
     }
     return changed;
 }
@@ -491,31 +594,26 @@ static Ws *ws_named(const char *name)
     return NULL;
 }
 
-/* the dragged splits again (after a rebuild): the first tile of each level to
- * its fraction of the level's range, as the drag left it */
+/* the dragged lines again (after a rebuild): the first window of each split to
+ * its fraction of the split's range, as the drag left it. r: half 0's first
+ * window along the outer direction; ri[h]: half h's first window across it
+ * (the halves span the whole workspace that way) */
+static double fr(double f) { return f > 0 ? f : 0.5; }
+
 static void splits(Keep *k)
 {
     Ws *w = ws_named(k->name);
-    if (!w || k->n < 2) return;
+    if (!w || k->n < 2 || k->n > 4) return;
+    long g[2][2];
+    int gn[2];
+    keep_groups(k, g, gn);
     int A = k->orient[0] ? w->r[2] : w->r[3];
-    int s0 = k->frac[0] > 0 ? (int)(k->frac[0] * A) - GAP / 2 : (A - GAP) / 2;
-    if (k->frac[0] > 0) cadd("[con_id=%ld] resize set %s %d px", k->order[0], k->orient[0] ? "width" : "height", s0 / scale);
-    if (k->n == 3 && !k->split && k->frac[1] > 0) {   /* the pair first: its first window */
-        int A1 = k->orient[1] ? w->r[2] : w->r[3];
-        int s1 = (int)(k->frac[1] * A1) - GAP / 2;
-        cadd("[con_id=%ld] resize set %s %d px", k->order[0], k->orient[1] ? "width" : "height", s1 / scale);
-    }
-    if (k->n == 3 && k->split && k->frac[1] > 0) {
-        int A1 = k->orient[1] == k->orient[0] ? A - s0 - GAP : (k->orient[1] ? w->r[2] : w->r[3]);
-        int s1 = (int)(k->frac[1] * A1) - GAP / 2;
-        cadd("[con_id=%ld] resize set %s %d px", k->order[1], k->orient[1] ? "width" : "height", s1 / scale);
-    }
-    if (k->n == 4 && k->frac[1] > 0) {   /* both inner splits: the first of each pair */
-        int A1 = k->orient[1] ? w->r[2] : w->r[3];
-        int s1 = (int)(k->frac[1] * A1) - GAP / 2;
-        for (int j = 0; j <= 2; j += 2)
-            cadd("[con_id=%ld] resize set %s %d px", k->order[j], k->orient[1] ? "width" : "height", s1 / scale);
-    }
+    if (k->frac[0] > 0)
+        cadd("[con_id=%ld] resize set %s %d px", g[0][0], k->orient[0] ? "width" : "height", ((int)(k->frac[0] * A) - GAP / 2) / scale);
+    int A1 = k->orient[1] ? w->r[2] : w->r[3];
+    for (int h = 0; h < 2; h++)
+        if (gn[h] == 2 && k->frac[1 + h] > 0)
+            cadd("[con_id=%ld] resize set %s %d px", g[h][0], k->orient[1] ? "width" : "height", ((int)(k->frac[1 + h] * A1) - GAP / 2) / scale);
 }
 
 /* the layout of one workspace, as commands (see the top). No focus changes
@@ -526,6 +624,8 @@ static void build(Keep *k)
 {
     long *v = k->order;
     if (k->n < 2) return;
+    Ws *fw = ws_named(k->name);
+    if (fw && fw->full) { k->built = 0; return; }   /* `full`: laid out again when it ends */
     /* the single-child containers earlier builds left go first ("split none" on
      * the only child flattens its parent): "layout" on a workspace's child wraps
      * the workspace's children in a new container, so each rebuild nested the
@@ -779,11 +879,10 @@ static int renumber(void)
     for (int a = 0; a < n; a++)
         if (nums[a] != a + 1) {
             cadd("rename workspace \"%ld\" to \"%d\"", nums[a], a + 1);
-            for (int j = 0; j < nkeep; j++) {           /* what we keep follows the name */
-                char o[32];
-                snprintf(o, sizeof o, "%ld", nums[a]);
-                if (!strcmp(keep[j].name, o)) snprintf(keep[j].name, sizeof keep[j].name, "%d", a + 1);
-            }
+            char o[32], t[32];
+            snprintf(o, sizeof o, "%ld", nums[a]);
+            snprintf(t, sizeof t, "%d", a + 1);
+            ws_renamed(o, t);           /* what we keep follows the name */
             did = 1;
         }
     if (did) { LOG("renumbering"); crun(); }
@@ -932,7 +1031,8 @@ static int gap_def(HandleDef *d, const int a[4], const int b[4], const int range
     return (vert ? d->w : d->h) >= GAP / 2;       /* sway's gaps are there */
 }
 
-/* the visible screen's dividers to glassine-shell: "<verb> N,ORIENT0 x,y,w,h,vert,level,a,b ..." */
+/* the visible screen's dividers to glassine-shell: "<verb> N,ORIENT0 x,y,w,h,vert,level,a,b,pos ..."
+ * (level 0 main, 1/2 the inner line of half 0/1; pos: r or ri, 3 decimals) */
 static HandleDef div_now[3];
 static int div_n, div_wins, div_orient;
 static void dividers_send(const char *verb)
@@ -942,7 +1042,7 @@ static void dividers_send(const char *verb)
     snprintf(a[0], sizeof a[0], "%d,%d", div_wins, div_orient);
     for (int j = 0; j < div_n && j < 3; j++) {
         const HandleDef *h = &div_now[j];
-        snprintf(a[j + 1], sizeof a[j + 1], "%d,%d,%d,%d,%d,%d,%lx,%lx", h->x, h->y, h->w, h->h, h->vert, h->level, h->a, h->b);
+        snprintf(a[j + 1], sizeof a[j + 1], "%d,%d,%d,%d,%d,%d,%lx,%lx,%.3f", h->x, h->y, h->w, h->h, h->vert, h->level, h->a, h->b, h->pos);
     }
     glassine_shell(av, 2 + div_n);
 }
@@ -955,6 +1055,7 @@ static void handles_update(int force)
     for (int i = 0; i < nws && hd_fd >= 0; i++) {
         Ws *w = &ws[i];
         if (!w->focused) continue;
+        if (home_on[0] && !strcmp(home_on, w->name)) { snprintf(why, sizeof why, "Home shown"); continue; }
         if (w->fullscreen || w->nv < 2 || w->nv > APPS_PER_WS) {
             if (w->fullscreen || w->nv > APPS_PER_WS)    /* (one window: no gap, nothing to say) */
                 snprintf(why, sizeof why, "%s, %d tiled", w->fullscreen ? "fullscreen" : "more than 4 tiles", w->nv);
@@ -965,31 +1066,35 @@ static void handles_update(int force)
             snprintf(why, sizeof why, "the order knows %d windows, sway has %d", k ? k->n : -1, w->nv);
             continue;
         }
-        const View *v[4] = { 0 };
-        for (int j = 0; j < k->n; j++)
-            if (!(v[j] = view_by_id(w, k->order[j]))) {
-                WARN("workspace %s: window %ld of the order not in sway's tree: handles left as they were", w->name, k->order[j]);
-                return;
+        long g[2][2];
+        int gn[2];
+        keep_groups(k, g, gn);
+        const View *v[2][2] = { { 0 } };
+        int half[2][4];                 /* each half's rect: its windows' union */
+        for (int h = 0; h < 2; h++)
+            for (int j = 0; j < gn[h]; j++) {
+                if (!(v[h][j] = view_by_id(w, g[h][j]))) {
+                    WARN("workspace %s: window %ld of the order not in sway's tree: handles left as they were", w->name, g[h][j]);
+                    return;
+                }
+                if (j) rect_union(half[h], v[h][j]->r, half[h]);
+                else memcpy(half[h], v[h][j]->r, sizeof half[h]);
             }
-        int first[4], rest[4];
-        if (k->n == 3 && !k->split) {   /* the pair first: v0+v1 | v2 */
-            rect_union(v[0]->r, v[1]->r, first);
-            memcpy(rest, v[2]->r, sizeof rest);
-        } else if (k->n == 4) {         /* the pairs: v0+v1 | v2+v3 */
-            rect_union(v[0]->r, v[1]->r, first);
-            rect_union(v[2]->r, v[3]->r, rest);
-        } else {
-            memcpy(first, v[0]->r, sizeof first);
-            if (k->n == 3) rect_union(v[1]->r, v[2]->r, rest);      /* the union of the other two */
-            else memcpy(rest, v[1]->r, sizeof rest);
-        }
         memset(d, 0, sizeof d);
-        if (gap_def(&d[n], first, rest, w->r)) { d[n].level = 0; d[n].a = v[0]->id; d[n].b = v[k->n == 4 || (k->n == 3 && !k->split) ? 2 : 1]->id; n++; }
-        if (k->n == 3 && !k->split && gap_def(&d[n], v[0]->r, v[1]->r, first)) { d[n].level = 1; d[n].a = v[0]->id; d[n].b = v[1]->id; n++; }
-        if (k->n == 3 && k->split && gap_def(&d[n], v[1]->r, v[2]->r, rest)) { d[n].level = 1; d[n].a = v[1]->id; d[n].b = v[2]->id; n++; }
-        if (k->n == 4)                  /* one level-1 handle per pair; a drag moves both */
-            for (int j = 0; j <= 2; j += 2)
-                if (gap_def(&d[n], v[j]->r, v[j + 1]->r, j ? rest : first)) { d[n].level = 1; d[n].a = v[j]->id; d[n].b = v[j + 1]->id; n++; }
+        if (gap_def(&d[n], half[0], half[1], w->r)) {
+            d[n].level = 0; d[n].a = g[0][0]; d[n].b = g[1][0]; d[n].pos = fr(k->frac[0]); d[n].snap = -1; n++;
+        }
+        int inner[2] = { -1, -1 };      /* one line per split half, each on its own */
+        for (int h = 0; h < 2; h++)
+            if (gn[h] == 2 && gap_def(&d[n], v[h][0]->r, v[h][1]->r, half[h])) {
+                d[n].level = 1 + h; d[n].a = g[h][0]; d[n].b = g[h][1]; d[n].pos = fr(k->frac[1 + h]); d[n].snap = -1;
+                inner[h] = n++;
+            }
+        if (inner[0] >= 0 && inner[1] >= 0)     /* 2x2: each inner line snaps to the other */
+            for (int h = 0; h < 2; h++) {
+                const HandleDef *o = &d[inner[!h]];
+                d[inner[h]].snap = o->vert ? o->x : o->y;
+            }
         if (!n) LOG("workspace %s: no gaps between the tiles (sway config: gaps inner): no handles", w->name);
     }
     static HandleDef last[3];
@@ -999,7 +1104,8 @@ static void handles_update(int force)
         if (*why) WARN("no handles: %s", why);
         snprintf(lastwhy, sizeof lastwhy, "%s", why);
     }
-    if (!force && n == nlast && !memcmp(last, d, n * sizeof *d)) return;
+    if (!force && n == nlast && !memcmp(last, d, n * sizeof *d)) return;   /* (pos included: a drag that
+                                         * only snapped to where the line was changes nothing) */
     memcpy(last, d, sizeof last);
     nlast = n;
     memcpy(div_now, d, sizeof div_now);
@@ -1023,17 +1129,19 @@ void hd_dragged(const HandleDef *h, int pos)
     if (!read_tree()) { WARN("handle level %d dragged: sway's tree unreadable, nothing done", h->level); return; }
     Keep *k = keep_focused();
     int l = h->level;
-    if (!k || k->n < l + 2 || h->alen <= 0) {
-        WARN("handle level %d dragged: no layout of %d+ windows kept for the focused workspace (%d), nothing done",
-             l, l + 2, k ? k->n : -1);
+    long g[2][2];
+    int gn[2] = { 0, 0 };
+    if (k && k->n >= 2 && k->n <= APPS_PER_WS) keep_groups(k, g, gn);
+    if (!k || k->n < 2 || l < 0 || l > 2 || (l && gn[l - 1] != 2) || h->alen <= 0) {
+        WARN("handle level %d dragged: the focused workspace's layout (%d windows) has no such line, nothing done",
+             l, k ? k->n : -1);
         return;
     }
     int size = pos - h->a0;
     k->frac[l] = (size + GAP / 2.0) / h->alen;
     WARN("handle level %d dragged: %d px (%.2f)", l, size, k->frac[l]);
-    if (k->n == 4 && l == 1)            /* the shared inner boundary: both pairs */
-        for (int j = 0; j <= 2; j += 2) cadd("[con_id=%ld] resize set %s %d px", k->order[j], h->vert ? "width" : "height", size / scale);
-    else cadd("[con_id=%ld] resize set %s %d px", k->order[k->n == 3 && !k->split ? 0 : l], h->vert ? "width" : "height", size / scale);
+    /* the line's first window: half 0's for the main line, the half's own for an inner one */
+    cadd("[con_id=%ld] resize set %s %d px", l ? g[l - 1][0] : g[0][0], h->vert ? "width" : "height", size / scale);
     crun();
     /* a resize sends no window event: move the handles into the new gaps now
      * (they are BOTTOM-layer, under the tiles: left in the old gap they'd be
@@ -1332,7 +1440,8 @@ static long neighbour(int dx, int dy)
     return 0;
 }
 
-/* the halves change places: 2 windows swap, 3 the whole one and the pair, 4 the pairs */
+/* the halves change places: 2 windows swap, 3 the whole one and the pair, 4 the
+ * pairs; the main line mirrors, the inner lines go with their halves */
 static void swap_halves(long a)
 {
     int ia;
@@ -1346,49 +1455,195 @@ static void swap_halves(long a)
     tn[0] = gn[1]; tn[1] = gn[0];
     keep_from_groups(k, t, tn);
     if (k->frac[0] > 0) k->frac[0] = 1 - k->frac[0];
+    double f = k->frac[1]; k->frac[1] = k->frac[2]; k->frac[2] = f;
     build(k); crun();
 }
 
-/* the overview's arrows: window m to that side of window t on another screen
- * (design shell.overview.move). t alone: any side, the side sets the split;
- * t a whole half: the two sides that split it; else refused. */
+/* the workspace of window a with its kept layout (2..4 windows); NULL: none */
+static Keep *keep_of_view(long a, Ws **wp, const char *verb)
+{
+    int ia;
+    Ws *w = ws_of_view(a, &ia);
+    Keep *k = w ? keep_of(w->name) : NULL;
+    if (!k || k->n != w->nv || k->n < 2 || k->n > APPS_PER_WS) {
+        WARN("%s: window %lx has no layout of 2-4 windows", verb, (unsigned long)a);
+        return NULL;
+    }
+    if (wp) *wp = w;
+    return k;
+}
+
+/* swapin: the two windows of w's split half trade places; the half's line mirrors */
+static void swap_in(long a)
+{
+    Keep *k = keep_of_view(a, NULL, "swapin");
+    if (!k) return;
+    long g[2][2];
+    int gn[2];
+    keep_groups(k, g, gn);
+    for (int h = 0; h < 2; h++) {
+        if (gn[h] != 2 || (g[h][0] != a && g[h][1] != a)) continue;
+        long t = g[h][0]; g[h][0] = g[h][1]; g[h][1] = t;
+        keep_from_groups(k, g, gn);
+        if (k->frac[1 + h] > 0) k->frac[1 + h] = 1 - k->frac[1 + h];
+        build(k); crun();
+        return;
+    }
+    WARN("swapin: window %lx is not in a split half", (unsigned long)a);
+}
+
+/* cross (spec 001 FR-023): a 2x2 screen's other axis runs through; every window
+ * keeps its quarter. The two inner lines meet at their mean, the old through-line
+ * splits in two at its own position */
+static void cross(long a)
+{
+    Keep *k = keep_of_view(a, NULL, "cross");
+    if (!k) return;
+    if (k->n != 4) { WARN("cross: %d windows, not 2x2", k->n); return; }
+    long g[2][2];
+    int gn[2];
+    keep_groups(k, g, gn);
+    double r = fr(k->frac[0]), ri0 = fr(k->frac[1]), ri1 = fr(k->frac[2]);
+    long o[4] = { g[0][0], g[1][0], g[0][1], g[1][1] };
+    memcpy(k->order, o, sizeof o);
+    k->orient[0] = !k->orient[0];
+    k->orient[1] = !k->orient[0];
+    k->frac[0] = (ri0 + ri1) / 2;
+    k->frac[1] = k->frac[2] = r;
+    build(k); crun();
+}
+
+/* direction: a two-window screen, rows <-> side by side */
+static void direction(long a)
+{
+    Keep *k = keep_of_view(a, NULL, "direction");
+    if (!k) return;
+    if (k->n != 2) { WARN("direction: %d windows, not 2", k->n); return; }
+    k->orient[0] = !k->orient[0];
+    k->orient[1] = !k->orient[0];
+    build(k); crun();
+}
+
+/* `full` ends for window id (it leaves or is placed): back into the tiling */
+static void unfull(long id)
+{
+    for (int i = 0; i < nws; i++)
+        if (ws[i].full == id) {
+            cadd("[con_id=%ld] unmark " FULL_MARK, id);
+            cadd("[con_id=%ld] floating disable", id);
+            ws[i].full = 0;
+            ws[i].fullscreen = 0;
+            for (int a = 0; a < ws[i].nv; a++) if (ws[i].v[a].fullscreen) ws[i].fullscreen = 1;
+        }
+}
+
+/* a floating window over workspace w's area (device px; under the bar) */
+static void cover(long id, const Ws *w)
+{
+    cadd("[con_id=%ld] border none", id);
+    cadd("[con_id=%ld] resize set width %d px height %d px", id, w->r[2] / scale, w->r[3] / scale);
+    cadd("[con_id=%ld] move absolute position %d px %d px", id, w->r[0] / scale, w->r[1] / scale);
+}
+
+/* full (spec 001 FR-019): window a over its whole screen, the bar still above it;
+ * the others stay tiled underneath. Not sway's fullscreen (that covers the bar):
+ * a floating window over the work area, marked, kept in the layout's order */
+static void full(long a)
+{
+    int ia;
+    Ws *w = ws_of_view(a, &ia);
+    Keep *k = w ? keep_of(w->name) : NULL;
+    if (!k) { WARN("full: no window %lx", (unsigned long)a); return; }
+    if (w->full == a) {                 /* off: back to its tile */
+        unfull(a);
+        crun();
+        if (read_tree() && (w = ws_named(k->name)) && !w->fullscreen) { build(k); crun(); }
+        return;
+    }
+    if (w->full) unfull(w->full);
+    for (int i = 0; i < w->nv; i++) if (w->v[i].fullscreen) cadd("[con_id=%ld] fullscreen disable", w->v[i].id);
+    cadd("[con_id=%ld] mark --add " FULL_MARK, a);
+    cadd("[con_id=%ld] floating enable", a);
+    cover(a, w);
+    cadd("[con_id=%ld] focus", a);
+    crun();
+}
+
+/* the overview's arrows: window m to that side of window t (design
+ * shell.overview.move). t alone: any side, the side sets the split; t a whole
+ * half: the two sides that split it; else refused. On m's own screen the same,
+ * on the screen as it is without m; a move that changes nothing is refused */
 static void place(long m, long t, const char *dir)
 {
     int im, it;
     Ws *wm = ws_of_view(m, &im), *wt = ws_of_view(t, &it);
-    if (!wm || !wt || wm == wt) { WARN("place: no such target"); return; }
+    if (!wm || !wt || m == t) { WARN("place: no such target"); return; }
     Keep *kt = keep_of(wt->name), *km = keep_of(wm->name);
-    if (!kt || !km || kt->n != wt->nv || kt->n < 1 || kt->n >= APPS_PER_WS) { WARN("place: workspace %s can't take it", wt->name); return; }
+    int same = wm == wt;
+    if (!kt || !km || kt->n != wt->nv) { WARN("place: workspace %s can't take it", wt->name); return; }
+    Keep b = *kt;                       /* the target screen, as it would be */
+    if (same) keep_remove(&b, m);
+    if (b.n < 1 || b.n >= APPS_PER_WS) { WARN("place: workspace %s can't take it", wt->name); return; }
     int up = !strcmp(dir, "up"), down = !strcmp(dir, "down"), left = !strcmp(dir, "left"), right = !strcmp(dir, "right");
     if (!up && !down && !left && !right) return;
     int before = up || left, across_v = up || down;
     long g[2][2];
     int gn[2];
-    if (kt->n == 1) {
+    if (b.n == 1) {
         g[0][0] = before ? m : t; g[1][0] = before ? t : m;
         gn[0] = gn[1] = 1;
-        kt->orient[0] = !across_v;
-        kt->orient[1] = across_v;
-        kt->frac[0] = kt->frac[1] = 0;
+        b.orient[0] = !across_v;
+        b.orient[1] = across_v;
+        b.frac[0] = b.frac[1] = b.frac[2] = 0;
     } else {
-        keep_groups(kt, g, gn);
+        keep_groups(&b, g, gn);
         int h = g[0][0] == t && gn[0] == 1 ? 0 : g[1][0] == t && gn[1] == 1 ? 1 : -1;
         /* stacked halves split left/right, side-by-side halves up/down */
-        if (h < 0 || kt->orient[0] != across_v) { WARN("place: side %s not offered on %s", dir, wt->name); return; }
+        if (h < 0 || b.orient[0] != across_v) { WARN("place: side %s not offered on %s", dir, wt->name); return; }
         g[h][0] = before ? m : t; g[h][1] = before ? t : m;
         gn[h] = 2;
-        kt->orient[1] = !kt->orient[0];
+        b.orient[1] = !b.orient[0];
+        b.frac[1 + h] = 0;
     }
-    int gone = km->n == 1, follow = gone && wm->focused;
-    keep_remove(km, m);
-    keep_from_groups(kt, g, gn);
-    for (int i = 0; i < wt->nv; i++)    /* it shares now: a maximized one comes back to its tile */
+    keep_from_groups(&b, g, gn);
+    if (same && b.n == kt->n && !memcmp(b.order, kt->order, b.n * sizeof *b.order) &&
+        b.orient[0] == kt->orient[0] && (b.n < 3 || b.split == kt->split)) {
+        WARN("place: %s of the same window changes nothing", dir);
+        return;
+    }
+    int gone = !same && km->n == 1, follow = gone && wm->focused;
+    if (!same) keep_remove(km, m);
+    *kt = b;
+    for (int i = 0; i < wt->nv; i++) {  /* it shares now: a maximized one comes back to its tile */
         if (wt->v[i].fullscreen) cadd("[con_id=%ld] fullscreen disable", wt->v[i].id);
-    cadd("[con_id=%ld] move container to workspace \"%s\"", m, wt->name);
+    }
+    if (wt->full) unfull(wt->full);
+    if (!same) {
+        unfull(m);
+        cadd("[con_id=%ld] move container to workspace \"%s\"", m, wt->name);
+    }
     if (follow) cadd("workspace \"%s\"", wt->name);
-    build(kt);
-    if (!gone) build(km);
     crun();
+    if (!read_tree()) return;
+    if ((kt = keep_of(b.name))) build(kt);
+    if (!same && !gone && (km = keep_of(wm->name))) build(km);
+    crun();
+}
+
+/* a numbered workspace after at: the later ones move up one (renames, top
+ * down; what we keep follows). Returns its number */
+static long insert_after(long at)
+{
+    long top = max_num();
+    if (at < 1) at = top;               /* a named one: after the numbered ones */
+    for (long n = top; n > at; n--)
+        for (int i = 0; i < nws; i++) {
+            char b[32], t[32];
+            snprintf(b, sizeof b, "%ld", n);
+            snprintf(t, sizeof t, "%ld", n + 1);
+            if (ws[i].num == n && !strcmp(ws[i].name, b)) { cadd("rename workspace \"%s\" to \"%s\"", b, t); ws_renamed(b, t); }
+        }
+    return at + 1;
 }
 
 /* Full and the overview's New screen: window m on a new screen right after its
@@ -1399,26 +1654,264 @@ static void new_screen(long m, int follow)
     int im;
     Ws *wm = ws_of_view(m, &im);
     if (!wm || wm->nv < 2) { WARN("newscreen: window %ld has no screen to leave", m); return; }
-    Keep *km = keep_of(wm->name);
-    long at = wm->num, top = 0;
-    for (int i = 0; i < nws; i++) if (ws[i].num > top) top = ws[i].num;
-    if (at < 1) at = top;               /* a named one: after the numbered ones */
-    for (long n = top; n > at; n--)
-        for (int i = 0; i < nws; i++) {
-            char b[32];
-            snprintf(b, sizeof b, "%ld", n);
-            if (ws[i].num == n && !strcmp(ws[i].name, b)) cadd("rename workspace \"%ld\" to \"%ld\"", n, n + 1);
-        }
-    for (int j = 0; j < nkeep; j++) {   /* what we keep follows the name */
-        char *e;
-        long n = strtol(keep[j].name, &e, 10);
-        if (!*e && n > at) snprintf(keep[j].name, sizeof keep[j].name, "%ld", n + 1);
-    }
+    char name[64];
+    snprintf(name, sizeof name, "%s", wm->name);
+    long at = insert_after(wm->num);
+    Keep *km = keep_of(name);
     if (km) keep_remove(km, m);
-    cadd("[con_id=%ld] move container to workspace \"%ld\"", m, at + 1);
-    if (follow) { cadd("workspace \"%ld\"", at + 1); cadd("[con_id=%ld] focus", m); }
-    if (km) build(km);
+    unfull(m);
+    cadd("[con_id=%ld] move container to workspace \"%ld\"", m, at);
+    if (follow) { cadd("workspace \"%ld\"", at); cadd("[con_id=%ld] focus", m); }
     crun();
+    if (km && read_tree()) { build(km); crun(); }
+}
+
+/* the numbered workspaces: count, and the one numbered n */
+static int ws_count(void)
+{
+    int c = 0;
+    for (int i = 0; i < nws; i++) if (ws[i].num >= 1) c++;
+    return c;
+}
+
+static Ws *ws_num(long n)
+{
+    for (int i = 0; i < nws; i++) if (ws[i].num == n) return &ws[i];
+    return NULL;
+}
+
+static Ws *ws_focused(void)
+{
+    for (int i = 0; i < nws; i++) if (ws[i].focused) return &ws[i];
+    return NULL;
+}
+
+/* scrmove: screen n trades places with the one before (d -1) or after (d 1) */
+static void scr_move(long n, int d)
+{
+    Ws *a = ws_num(n), *b = ws_num(n + d);
+    if ((d != 1 && d != -1) || !a || !b) { WARN("scrmove %ld %d: no screen there", n, d); return; }
+    char an[64], bn[64];
+    snprintf(an, sizeof an, "%s", a->name);
+    snprintf(bn, sizeof bn, "%s", b->name);
+    const char *tmp = "glassine-scrmove";
+    cadd("rename workspace \"%s\" to \"%s\"", an, tmp); ws_renamed(an, tmp);
+    cadd("rename workspace \"%s\" to \"%s\"", bn, an); ws_renamed(bn, an);
+    cadd("rename workspace \"%s\" to \"%s\"", tmp, bn); ws_renamed(tmp, bn);
+    crun();
+}
+
+/* ---- Home and the empty screen ------------------------------------------------------------ */
+static void home_send(int force)
+{
+    static int lv = -1, lh = -1;
+    Ws *h = hole[0] ? ws_named(hole) : NULL;
+    int v = home_on[0] != 0, hn = h && h->num > 0 ? (int)h->num : 0;
+    if (!force && v == lv && hn == lh) return;
+    lv = v; lh = hn;
+    char a[16], b[16];
+    snprintf(a, sizeof a, "%d", v);
+    snprintf(b, sizeof b, "%d", hn);
+    const char *av[3] = { "home", a, b };
+    LOG("home %d %d", v, hn);
+    glassine_shell(av, 3);
+}
+
+static void home_show(void)
+{
+    Ws *f = ws_focused();
+    if (!home_id) { WARN("home: no Home window (app_id %s) runs", home_app); return; }
+    if (!f || !strcmp(home_on, f->name)) return;
+    if (home_on[0]) cadd("[con_id=%ld] move scratchpad", home_id);
+    cadd("[con_id=%ld] scratchpad show", home_id);
+    cover(home_id, f);
+    crun();
+    snprintf(home_on, sizeof home_on, "%s", f->name);
+}
+
+/* Home goes back to the scratchpad. by_app: an app opened (it fills the hole);
+ * else the hole goes too: Home hides while on it, then the view goes to `go`
+ * (NULL: the screen before the hole, or after it for the first), and sway drops
+ * the empty workspace it leaves. The only screen keeps Home: refused */
+static void home_hide(int by_app, const char *go)
+{
+    if (!home_on[0]) return;
+    Ws *hw = hole[0] ? ws_named(hole) : NULL;
+    if (hw && !by_app) {
+        char to[80] = "";
+        if (go) snprintf(to, sizeof to, "%s", go);
+        else {
+            Ws *t = ws_num(hw->num - 1);
+            if (!t) t = ws_num(hw->num + 1);
+            if (!t) for (int i = 0; i < nws && !t; i++) if (&ws[i] != hw) t = &ws[i];
+            if (!t) { WARN("home: the only screen is empty: Home stays until an app opens"); return; }
+            snprintf(to, sizeof to, "%s", t->name);
+        }
+        if (!hw->focused) cadd("workspace \"%s\"", hw->name);
+        cadd("[con_id=%ld] move scratchpad", home_id);
+        cadd("workspace \"%s\"", to);
+    } else cadd("[con_id=%ld] move scratchpad", home_id);
+    hole[0] = 0;
+    home_on[0] = 0;
+    crun();
+}
+
+/* `next`: where the next new window goes */
+static void next_set(const char *m)
+{
+    Ws *f = ws_focused();
+    next_mode = 0;
+    if (!f) return;
+    if (!strcmp(m, "new")) next_mode = 'n';
+    else if (!strcmp(m, "here")) {
+        if (f->nv >= APPS_PER_WS) { WARN("next here: screen %s is full", f->name); return; }
+        next_mode = 'h';
+    } else if (!strcmp(m, "hole")) {
+        if (!hole[0]) { WARN("next hole: no empty screen"); return; }
+        next_mode = 'o';
+    } else { WARN("next %s: new, here or hole", m); return; }
+    snprintf(next_ws, sizeof next_ws, "%s", f->name);
+    next_ms = mono_ms();
+}
+
+/* the views of the last pass: the focused workspace and its windows (for "the last
+ * one closed"), and the highest tiled view id (a higher one is new) */
+static char pf_name[64];
+static long pf_ids[MAXV];
+static int pf_n, seen_init;
+static long seen_view;
+
+static int view_exists(long id)
+{
+    for (int i = 0; i < nws; i++) {
+        for (int a = 0; a < ws[i].nv; a++) if (ws[i].v[a].id == id) return 1;
+        for (int a = 0; a < ws[i].nf; a++) if (ws[i].f[a].id == id) return 1;
+    }
+    return 0;
+}
+
+/* new tiled windows: `next` sends the first where it was asked to go; any hides
+ * Home (filling the hole if it is there). 1: something moved (read again) */
+static int fresh(void)
+{
+    long nid = 0, top = seen_view;
+    Ws *nw = NULL;
+    for (int i = 0; i < nws; i++)
+        for (int a = 0; a < ws[i].nv; a++) {
+            long id = ws[i].v[a].id;
+            if (id > top) top = id;
+            if (seen_init && id > seen_view && (!nid || id < nid)) { nid = id; nw = &ws[i]; }
+        }
+    seen_view = top;
+    if (!seen_init) { seen_init = 1; return 0; }
+    if (!nid) return 0;
+    char where[64];
+    snprintf(where, sizeof where, "%s", nw->name);
+    int did = 0;
+    if (next_mode && nid != launch_view) {
+        char mode = next_mode;
+        next_mode = 0;
+        if (mono_ms() - next_ms > 10000) LOG("next: forgotten (over 10 s)");
+        else if (mode == 'n') {
+            Ws *from = ws_named(next_ws);
+            long at = insert_after(from ? from->num : nw->num);
+            cadd("[con_id=%ld] move container to workspace \"%ld\"", nid, at);
+            cadd("workspace \"%ld\"", at);
+            cadd("[con_id=%ld] focus", nid);
+            snprintf(where, sizeof where, "%ld", at);
+            LOG("next new: window %ld on a new screen %ld", nid, at);
+            did = 1;
+        } else {
+            const char *to = mode == 'o' ? hole : next_ws;
+            Ws *t = to[0] ? ws_named(to) : NULL;
+            if (t && t != nw && t->nv < APPS_PER_WS) {
+                cadd("[con_id=%ld] move container to workspace \"%s\"", nid, t->name);
+                cadd("workspace \"%s\"", t->name);
+                cadd("[con_id=%ld] focus", nid);
+                snprintf(where, sizeof where, "%s", t->name);
+                did = 1;
+            }
+            LOG("next %s: window %ld to %s", mode == 'o' ? "hole" : "here", nid, t ? t->name : "(gone)");
+        }
+        crun();
+        if (did && !read_tree()) return 1;  /* (the focus moved: home_hide must see it) */
+    }
+    if (home_on[0]) {                   /* an app opened: Home hides */
+        if (hole[0] && strcmp(hole, where)) home_hide(0, where);    /* not into the hole: it goes */
+        else home_hide(1, NULL);
+        did = 1;
+    }
+    return did;
+}
+
+/* the empty screen (FR-040): the last window on the focused screen closed -> it
+ * stays, Home on it. Home left anywhere but on the focused screen hides (an empty
+ * screen under it goes). Home mapped tiled goes to the scratchpad. 1: changed */
+static int empty_screen(void)
+{
+    if (home_tiled && home_id) {
+        cadd("[con_id=%ld] move scratchpad", home_id);
+        crun();
+        return 1;
+    }
+    Ws *f = ws_focused();
+    if (home_on[0] && f && strcmp(home_on, f->name)) {
+        LOG("home: the view left it (%s): hidden", home_on);
+        if (hole[0] && !strcmp(hole, home_on)) home_hide(0, f->name);
+        else home_hide(1, NULL);
+        return 1;
+    }
+    if (hole[0] && !ws_named(hole)) hole[0] = 0;
+    if (hole[0] && f && !strcmp(hole, f->name) && f->nv) hole[0] = 0;   /* (filled) */
+    if (!f || !home_id || hole[0] || f->nv || strcmp(f->name, pf_name) || !pf_n) return 0;
+    for (int i = 0; i < f->nf; i++) if (f->f[i].id != home_id) return 0;
+    for (int j = 0; j < pf_n; j++) if (view_exists(pf_ids[j])) return 0;   /* moved away, not closed */
+    LOG("workspace %s: its last window closed: empty, under Home", f->name);
+    snprintf(hole, sizeof hole, "%s", f->name);
+    if (!home_on[0]) home_show();
+    return 1;
+}
+
+static void pf_note(void)
+{
+    Ws *f = ws_focused();
+    pf_n = 0;
+    pf_name[0] = 0;
+    if (!f) return;
+    snprintf(pf_name, sizeof pf_name, "%s", f->name);
+    for (int a = 0; a < f->nv && pf_n < MAXV; a++) pf_ids[pf_n++] = f->v[a].id;
+    for (int a = 0; a < f->nf && pf_n < MAXV; a++) if (f->f[a].id != home_id) pf_ids[pf_n++] = f->f[a].id;
+}
+
+/* scrclose: every app on screen n closes, the screen goes (the view first leaves it) */
+static void scr_close(long n)
+{
+    Ws *w = ws_num(n);
+    if (!w) { WARN("scrclose %ld: no such screen", n); return; }
+    if (ws_count() < 2) { WARN("scrclose %ld: the last screen stays", n); return; }
+    if (hole[0] && !strcmp(hole, w->name)) { home_hide(0, NULL); return; }
+    if (w->focused) {
+        Ws *t = ws_num(n - 1);
+        if (!t) t = ws_num(n + 1);
+        if (home_on[0]) { cadd("[con_id=%ld] move scratchpad", home_id); home_on[0] = 0; }
+        if (t) cadd("workspace \"%s\"", t->name);
+    }
+    for (int a = 0; a < w->nv; a++) cadd("[con_id=%ld] kill", w->v[a].id);
+    for (int a = 0; a < w->nf; a++) if (w->f[a].id != home_id) cadd("[con_id=%ld] kill", w->f[a].id);
+    crun();
+}
+
+/* (tests, GLASSINE_SWAYD_TEST=1) the line of that level dragged to fraction f */
+static void test_drag(int level, double f)
+{
+    handles_update(0);
+    for (int j = 0; j < div_n; j++)
+        if (div_now[j].level == level) {
+            HandleDef d = div_now[j];
+            hd_dragged(&d, hd_snap(&d, (int)lround(d.a0 + f * d.alen - GAP / 2.0)));
+            return;
+        }
+    WARN("testdrag: no line of level %d", level);
 }
 
 static void command(char *m)
@@ -1426,10 +1919,28 @@ static void command(char *m)
     LOG("command: %s", m);
     unsigned long a, b;
     int lv, side;
+    long n;
+    double f;
     char dir[8];
     if (sscanf(m, "place %lx %lx %7s", &a, &b, dir) == 3) { place((long)a, (long)b, dir); return; }
     if (sscanf(m, "newscreen %lx %d", &a, &lv) == 2) { new_screen((long)a, lv); return; }
     if (sscanf(m, "swaphalves %lx", &a) == 1) { swap_halves((long)a); return; }
+    if (sscanf(m, "swapin %lx", &a) == 1) { swap_in((long)a); return; }
+    if (sscanf(m, "cross %lx", &a) == 1) { cross((long)a); return; }
+    if (sscanf(m, "direction %lx", &a) == 1) { direction((long)a); return; }
+    if (sscanf(m, "full %lx", &a) == 1) { full((long)a); return; }
+    if (sscanf(m, "scrmove %ld %d", &n, &lv) == 2) { scr_move(n, lv); return; }
+    if (sscanf(m, "scrclose %ld", &n) == 1) { scr_close(n); return; }
+    if (sscanf(m, "next %7s", dir) == 1) { next_set(dir); return; }
+    if (sscanf(m, "home %7s", dir) == 1) {
+        if (!strcmp(dir, "show") || (!strcmp(dir, "toggle") && !home_on[0])) home_show();
+        else if (!strcmp(dir, "hide") || !strcmp(dir, "toggle")) home_hide(0, NULL);
+        return;
+    }
+    if (sscanf(m, "testdrag %d %lf", &lv, &f) == 2) {
+        if (getenv("GLASSINE_SWAYD_TEST")) test_drag(lv, f);
+        return;
+    }
     if (sscanf(m, "swap %lx %lx", &a, &b) == 2) {
         swap_ids((long)a, (long)b);
     } else if (sscanf(m, "swapdir %7s", dir) == 1) {
@@ -1465,18 +1976,56 @@ static void command(char *m)
 static volatile sig_atomic_t quit;
 static void on_term(int s) { (void)s; quit = 1; }
 
+/* a `full` window or Home that no longer covers its workspace's area (the output
+ * turned): over it again. 1: changed */
+static int covers(void)
+{
+    int did = 0;
+    for (int i = 0; i < nws; i++) {
+        const View *v = ws[i].full ? view_by_id(&ws[i], ws[i].full) : NULL;
+        if (v && memcmp(v->r, ws[i].r, sizeof v->r)) { cover(v->id, &ws[i]); did = 1; }
+        if (home_on[0] && !strcmp(home_on, ws[i].name) && memcmp(home_r, ws[i].r, sizeof home_r)) { cover(home_id, &ws[i]); did = 1; }
+    }
+    if (did) crun();
+    return did;
+}
+
 static void settle_state(void)
 {
     /* the rules until nothing changes (each may move windows: re-read) */
-    for (int round = 0; round < 6 && read_tree(); round++) {
+    for (int round = 0; round < 8 && read_tree(); round++) {
+        keep_prune();
         ph_arm();
         ph_substitute();
+        if (fresh()) continue;
+        if (empty_screen()) continue;
         if (overflow()) continue;
         if (renumber()) continue;
         layout_all();
+        if (covers()) continue;
         break;
     }
-    if (read_tree()) { hints(); handles_update(0); }
+    if (read_tree()) { hints(); handles_update(0); pf_note(); home_send(0); }
+}
+
+/* Home's app_id (see home_app) and the rule that keeps it in the scratchpad from its map */
+static void home_init(void)
+{
+    const char *e = getenv("GLASSINE_HOME_APP_ID");
+    char b[128] = "";
+    if (e && *e) snprintf(b, sizeof b, "%s", e);
+    else {
+        FILE *f = fopen("/etc/glassine/home-app", "r");
+        if (f) { if (!fgets(b, sizeof b, f)) b[0] = 0; fclose(f); }
+        b[strcspn(b, " \t\r\n")] = 0;
+    }
+    if (*b) snprintf(home_app, sizeof home_app, "%s", b);
+    char re[sizeof home_app];
+    snprintf(re, sizeof re, "%s", home_app);
+    for (char *q = re; *q; q++) if (!isalnum((unsigned char)*q) && *q != '_' && *q != '-') *q = '.';
+    cadd("for_window [app_id=\"^%s$\"] move scratchpad", re);
+    crun();
+    LOG("home: app_id %s", home_app);
 }
 
 int main(int argc, char **argv)
@@ -1525,10 +2074,12 @@ int main(int argc, char **argv)
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);           /* glassine-osk runs (hd_text_focus): no zombies */
     read_tree();                        /* the output scale first */
+    home_init();
     hd_fd = hd_init(scale);
     int ino = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);  /* the shell's theme: the handles' look */
     if (ino >= 0 && rt && *rt) inotify_add_watch(ino, rt, IN_MOVED_TO | IN_CLOSE_WRITE);
     settle_state();
+    home_send(1);
     kbd_update();
     LOG("running%s", hd_fd >= 0 ? " (drag handles)" : "");
     while (!quit) {

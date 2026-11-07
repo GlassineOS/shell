@@ -2,6 +2,7 @@
 # (see test.sh) inside the glassine-settingstest container: /src = repo (ro), /out = results
 set -u
 P=/src
+export PYTHONPATH=/ui/python      # GlassineOS/ui: glassine_ui (the voices, the drawing)
 mkdir -p /out/fonts /out/shots
 [ "$(ls /out/fonts | wc -l)" -ge 6 ] || sh $P/fonts/fetch-fonts.sh /out/fonts
 mkdir -p /usr/share/fonts/glassine && cp /out/fonts/* /usr/share/fonts/glassine/ && fc-cache -f >/dev/null
@@ -16,6 +17,15 @@ for t in ${THEMES:-white editorial stationery}; do
     GLASSINE_SETUP_DEMO_NEEDS=network,software run --demo --render /out/shots/$t-reset-software.png --step software --theme $t 2>/out/err.txt || { echo "FAIL $t reset"; cat /out/err.txt; fail=1; }
     run --demo --render /out/shots/$t-look-big.png --step look --big --theme $t 2>/out/err.txt || { echo "FAIL $t big"; cat /out/err.txt; fail=1; }
 done
+# setup stands alone: only its own package and GlassineOS/ui, no glassine-settings beside it
+mkdir -p /tmp/alone && cp -a $P/rootfs/usr/lib/glassine/setup /tmp/alone/
+if python3 -c "import sys; sys.path[:0]=['/tmp/alone']; from setup.app import main; sys.exit(main(sys.argv))" \
+        --demo --render /tmp/alone/look.png --step look --theme stationery 2>/out/err.txt &&
+        python3 -c "import sys; sys.path[:0]=['/tmp/alone']; import setup.app; sys.exit('settings' in sys.modules)"; then
+    echo "ok   setup draws without glassine-settings"
+else
+    echo "FAIL setup needs glassine-settings"; cat /out/err.txt; fail=1
+fi
 # the real backend end to end (this container is throwaway, root): packs.conf, the apply
 # behind a doas shim, apk/flatpak faked
 mkdir -p /usr/share/glassine/setup && cp $P/rootfs/usr/share/glassine/setup/packs.conf /usr/share/glassine/setup/

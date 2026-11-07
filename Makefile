@@ -1,4 +1,4 @@
-# glassine-shell-wl: the bar, launcher, overview, quick settings
+# glassine-shell-wl: the bar, overview, divider mode, quick settings
 # glassine-swayd: the window model over sway's IPC
 # glassine-bgprio: hidden apps deprioritized, frozen and paged out
 # glassine-zpark: one parked app's zram slots to disk (glassine-zram park)
@@ -24,6 +24,7 @@ $(OUT)/glassine-zpark: $(S)/glassine-zpark.c
 # The tests build what they need in their own containers.
 check:
 	sh test/swayd/test.sh
+	sh test/shell/test.sh
 	sh test/settings/test.sh
 	sh test/setup/test.sh
 	sh test/admin-auth/test.sh

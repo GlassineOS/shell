@@ -28,7 +28,7 @@ import threading
 import time
 
 from . import blocks as B
-from . import paint as P
+from glassine_ui import paint as P
 from .blocks import Block, _bw
 from .theme import OFF
 

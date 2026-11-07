@@ -86,6 +86,10 @@ exec /usr/bin/glassine-shell-wl-run
 # tiling (newest on top, 3 apps per workspace, no empty
 # workspaces, drag handles), window hints for glassine-epdd-desktop; restarted if it fails
 exec sh -c 'until /usr/bin/glassine-swayd; do sleep 2; done'
+# Home (glassine-swayd keeps it in the scratchpad and shows it over the work area,
+# under the bar; its app_id: /etc/glassine/home-app, default glassine-home). Only if
+# it is installed; restarted when it dies
+exec sh -c '[ -x /usr/bin/glassine-home ] || exit 0; until /usr/bin/glassine-home; do sleep 2; done'
 # the on-screen keyboard: wvkbd, hidden until glassine-osk shows it (the bar's
 # keyboard button, the shell's search)
 exec /usr/bin/glassine-wvkbd

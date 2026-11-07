@@ -29,7 +29,7 @@ gi.require_version("Gdk", "3.0")
 from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import blocks as B  # noqa: E402
-from . import paint as P  # noqa: E402
+from glassine_ui import paint as P  # noqa: E402
 from . import pages  # noqa: E402
 from . import packages  # noqa: E402
 from .theme import THEMES  # noqa: E402

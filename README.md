@@ -2,7 +2,7 @@
 
 The desktop around the apps on an e-ink device running sway:
 
-- **`glassine-shell-wl`:** the bar, launcher, overview, quick settings, power view and notifications, drawn natively.
+- **`glassine-shell-wl`:** the bar (Home button, screen button), Overview, divider mode, quick settings, power view and notifications, drawn natively. Its requests and the verbs it sends to `glassine-swayd` are listed at the top of `src/glassine-shell.c`.
 - **`glassine-swayd`:** the window model over sway's IPC: tiles, drag handles, dividers and when the on-screen keyboard shows.
 - **`glassine-settings`:** the touch settings app (Python, GTK3, cairo), with its root helper.
 - **`glassine-setup`:** the first-run setup, with its root helper.
@@ -22,7 +22,7 @@ make            # glassine-shell-wl, glassine-swayd, glassine-bgprio and glassin
 make check      # compiles, then the host tests in Docker
 ```
 
-`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper), `test/swayd` (the window model on stock sway, headless), `test/admin-auth` (the administrator tiers of the root helpers, with real accounts), `test/health` (the boot health check with BusyBox), `test/session-dispatch` (the session's restart loop), `test/bgprio` (glassine-bgprio on headless sway in a privileged container with its own cgroup v2 tree; the page-out check is skipped on a host without swap) and `test/zram` (the zram service against a fake root with stubbed tools). None of them need a device. What they can't show: real zram, writeback and recompression, `glassine-zpark` finding real zram slots, and the spill on a device's userdata.
+`make check` runs `test/settings` (renders every page), `test/setup` (the first-run flow and its root helper), `test/swayd` (the window model on stock sway, headless), `test/shell` (the bar, Overview and divider mode on stock sway with screenshots of each voice, portrait and landscape, in `test/shell/out/shots`), `test/admin-auth` (the administrator tiers of the root helpers, with real accounts), `test/health` (the boot health check with BusyBox), `test/session-dispatch` (the session's restart loop), `test/bgprio` (glassine-bgprio on headless sway in a privileged container with its own cgroup v2 tree; the page-out check is skipped on a host without swap) and `test/zram` (the zram service against a fake root with stubbed tools). None of them need a device. What they can't show: real zram, writeback and recompression, `glassine-zpark` finding real zram slots, and the spill on a device's userdata.
 
 ## Installing
 
@@ -52,9 +52,11 @@ To turn the spill off on a device: `rc-service glassine-zram stop`, then `WB_SIZ
 Other repositories use these, so renaming one means changing them in the same release:
 
 - `/run/glassine-epdd-desktop.ctl`, `/run/glassine-epdd-desktop.classes`, `/run/glassine-rotation`, `/run/glassine-light`, `/run/glassine-bgprio.sock`
-- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram` and the session's renderer flags
+- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram`, `home-app` (Home's app_id, default `glassine-home`; or `$GLASSINE_HOME_APP_ID`) and the session's renderer flags
 - the OpenRC service `glassine-zram`, its spill directory `<USERDATA_PREFIX>/zram/` on userdata, and `glassine-zram park|writeback|status`
 - `$XDG_RUNTIME_DIR/glassine-swayd`, `~/.config/glassine-shell/theme`
+- `glassine-swayd VERB ARGS` (one datagram on `$XDG_RUNTIME_DIR/glassine-swayd`; window ids in hex): `place M T up|down|left|right` (also on M's own screen), `newscreen M FOLLOW`, `swaphalves W`, `swapin W`, `swap A B`, `cross W`, `direction W`, `orient L S`, `turn W`, `full W`, `swapdir D`, `scrmove N -1|1`, `scrclose N`, `home show|hide|toggle`, `next new|here|hole`, `apps?`
+- glassine-swayd to glassine-shell (`$XDG_RUNTIME_DIR/glassine-shell`): `dividers N,ORIENT0 D...` and `divider-tap ...`, each divider `x,y,w,h,vert,level,a,b,pos` (level 0 the main line, 1 and 2 the inner line of half 0 and 1; pos its position as a fraction); `home VISIBLE HOLE` (HOLE: the empty screen's number under Home, 0 none)
 - `glassine-shell-wl`, started by the sway config through `glassine-shell-wl-run`
 
 ## Licence
