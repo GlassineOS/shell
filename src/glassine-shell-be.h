@@ -63,6 +63,14 @@ typedef struct { WinId w; long desk; int x, y, wd, ht, maxed; char name[96]; cha
 #define MAXCL 64
 extern Client cl[MAXCL];                /* the app windows, as be_read_desktop found them */
 extern int ncl;
+/* a screen's tiling as the tree has it: its groups (the screen's children:
+ * a window or a split half) in order, each with its windows in order; side: the
+ * groups sit side by side (else stacked). Floating windows, launch
+ * placeholders and Home are not in it; full: the window glassine-swayd shows
+ * full screen over the others (`full`: floating, marked), 0: none */
+#define MAXDESK 32
+typedef struct { int side, ng, gn[4]; WinId w[4][4]; WinId full; } Layout;
+extern Layout lay[MAXDESK];
 extern long ndesk, curdesk;
 extern WinId active;
 extern int warea[4];
@@ -77,7 +85,6 @@ void be_snap_fresh(void);               /* before the overview opens: the visibl
 int be_sheet_window(WinId w);           /* can get the window sheet: an app window or a dialog */
 void be_activate(WinId w);
 void be_close(WinId w);
-void be_toggle_max(WinId w);
 void be_restore(WinId w);               /* a minimized window (sway's scratchpad) back, tiled, here */
 void be_goto_desk(long d);
 void be_set_desk(WinId w, long d);      /* no switch */

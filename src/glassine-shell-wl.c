@@ -719,8 +719,8 @@ static void swaycmd(const char *fmt, ...)
 /* ============================================================================
  * windows and workspaces
  * ========================================================================== */
-#define MAXDESK 32
 static struct { char name[64]; long num; } desk[MAXDESK];
+Layout lay[MAXDESK];
 static struct { WinId id; char cls[96], inst[96], title[160]; } info[MAXCL];
 static int ninfo;
 static char active_title[160];
@@ -740,6 +740,88 @@ static long desk_max(void)
     return m;
 }
 
+/* the home app's app_id (spec 001 FR-029), as glassine-swayd finds it:
+ * $GLASSINE_HOME_APP_ID, else the first word of /etc/glassine/home-app, else glassine-home */
+static const char *home_app(void)
+{
+    static char id[128];
+    if (id[0]) return id;
+    const char *e = getenv("GLASSINE_HOME_APP_ID");
+    if (e && *e) snprintf(id, sizeof id, "%s", e);
+    else {
+        FILE *f = fopen("/etc/glassine/home-app", "r");
+        if (f) { if (!fgets(id, sizeof id, f)) id[0] = 0; fclose(f); }
+        id[strcspn(id, " \t\r\n")] = 0;
+    }
+    if (!id[0]) snprintf(id, sizeof id, "glassine-home");
+    return id;
+}
+
+/* not an app window of the screen: a launch placeholder (its app takes the tile
+ * over), Home (shown over a screen from the scratchpad) */
+static int skip_view(json_object *n)
+{
+    const char *a = sj_str(n, "app_id");
+    return a && (!strcmp(a, "glassine-placeholder") || !strcmp(a, home_app()));
+}
+
+/* glassine-swayd's `full`: the window floats over the work area, marked */
+static int full_marked(json_object *n)
+{
+    json_object *m;
+    if (!json_object_object_get_ex(n, "marks", &m)) return 0;
+    for (size_t i = 0; i < json_object_array_length(m); i++) {
+        const char *s = json_object_get_string(json_object_array_get_idx(m, i));
+        if (s && !strcmp(s, "_glassine_full")) return 1;
+    }
+    return 0;
+}
+
+/* the views under n in tree order (tiled only), at most max */
+static int lay_views(json_object *n, WinId *out, int max)
+{
+    if (sj_str(n, "shell")) {
+        if (skip_view(n) || max < 1) return 0;
+        out[0] = sj_int(n, "id", 0);
+        return 1;
+    }
+    json_object *a;
+    int k = 0;
+    if (!json_object_object_get_ex(n, "nodes", &a)) return 0;
+    for (size_t i = 0; i < json_object_array_length(a); i++) k += lay_views(json_object_array_get_idx(a, i), out + k, max - k);
+    return k;
+}
+
+/* lay[d] from workspace node n: a container with a single child stands for
+ * that child (glassine-swayd unwraps them; stock sway may not) */
+static void lay_read(json_object *n, long d)
+{
+    Layout *L = &lay[d];
+    memset(L, 0, sizeof *L);
+    json_object *a;
+    for (;;) {
+        int kids = 0;
+        json_object *only = NULL;
+        if (json_object_object_get_ex(n, "nodes", &a))
+            for (size_t i = 0; i < json_object_array_length(a); i++) {
+                WinId t[16];
+                if (lay_views(json_object_array_get_idx(a, i), t, 16)) { kids++; only = json_object_array_get_idx(a, i); }
+            }
+        if (kids != 1 || !only || sj_str(only, "shell")) break;
+        n = only;
+    }
+    const char *l = sj_str(n, "layout");
+    L->side = l && !strcmp(l, "splith");
+    if (!json_object_object_get_ex(n, "nodes", &a)) return;
+    for (size_t i = 0; i < json_object_array_length(a) && L->ng < 4; i++) {
+        WinId t[16];
+        int k = lay_views(json_object_array_get_idx(a, i), t, 16);
+        if (!k) continue;
+        for (int j = 0; j < k && j < 4; j++) L->w[L->ng][j] = t[j];
+        L->gn[L->ng++] = k < 4 ? k : 4;
+    }
+}
+
 /* the views under n (tiled and floating) on workspace index d (D_SCRATCH:
  * sway's scratchpad = the minimized ones, Client.desk -1) */
 #define D_SCRATCH (-2)
@@ -751,10 +833,11 @@ static void walk(json_object *n, long d)
         d = nm && !strcmp(nm, "__i3_scratch") ? D_SCRATCH : -1;
         for (int i = 0; nm && i < ndesk; i++) if (!strcmp(desk[i].name, nm)) d = i;
         if (d == -1) return;
+        if (d >= 0) lay_read(n, d);
     }
     if (sj_str(n, "shell") && d != -1) {   /* a view */
         WinId id = sj_int(n, "id", 0);
-        if (sj_str(n, "app_id") && !strcmp(sj_str(n, "app_id"), "glassine-placeholder")) return;   /* a launch placeholder */
+        if (skip_view(n)) return;      /* a launch placeholder, Home */
         if (sj_bool(n, "focused")) { active = id; snprintf(active_title, sizeof active_title, "%s", sj_str(n, "name") ? sj_str(n, "name") : ""); }
         if (ncl >= MAXCL) return;
         const char *app = sj_str(n, "app_id"), *cls = NULL, *inst = NULL;
@@ -771,6 +854,7 @@ static void walk(json_object *n, long d)
         k->w = id; k->desk = d == D_SCRATCH ? -1 : d;
         k->x = r[0]; k->y = r[1]; k->wd = r[2]; k->ht = r[3];
         k->maxed = sj_int(n, "fullscreen_mode", 0) != 0;
+        if (d >= 0 && full_marked(n)) { k->maxed = 1; lay[d].full = id; }
         App *ap = app_of(id);
         if (ap) { snprintf(k->name, sizeof k->name, "%s", ap->name); snprintf(k->icon, sizeof k->icon, "%s", ap->icon); }
         else { snprintf(k->name, sizeof k->name, "%s", f->title); k->icon[0] = 0; }
@@ -807,6 +891,7 @@ void be_read_desktop(void)
     if (ndesk < 1) { ndesk = 1; snprintf(desk[0].name, sizeof desk[0].name, "1"); desk[0].num = 1; }
     json_object *tree = ipc_call(SIPC_GET_TREE, NULL);
     ncl = 0; ninfo = 0; active = 0; active_title[0] = 0;
+    memset(lay, 0, sizeof lay);
     if (tree) walk(tree, -1);
     json_object_put(tree);
 }
@@ -842,7 +927,6 @@ void be_close(WinId w)
     if (fd >= 0) close(fd);
     swaycmd("[con_id=%lu] kill", w);
 }
-void be_toggle_max(WinId w) { swaycmd("[con_id=%lu] fullscreen toggle", w); }
 /* minimized = sway's scratchpad (the three-finger swipe down): shown here,
  * then tiled (floating disable takes it out of the scratchpad) */
 void be_restore(WinId w) { swaycmd("[con_id=%lu] scratchpad show, floating disable, focus", w); }
@@ -1175,10 +1259,10 @@ static int snap_take(void)
     be_read_desktop();
     snap_key(curdesk, &cap.k);
     if (!cap.k.n) return 0;
-    for (int i = 0; i < cap.k.n; i++) {     /* a fullscreen window covers the bar: no still of the work area */
+    for (int i = 0; i < cap.k.n; i++) {     /* a sway fullscreen window covers the bar: no still of the work area */
         Client *c = NULL;
         for (int k = 0; k < ncl; k++) if (cl[k].w == cap.k.id[i]) c = &cl[k];
-        if (c && c->maxed) return 0;
+        if (c && c->maxed && !(curdesk >= 0 && curdesk < MAXDESK && lay[curdesk].full == c->w)) return 0;
     }
     cap.busy = 1; cap.done = 0; cap.yinv = 0;
     cap.f = zwlr_screencopy_manager_v1_capture_output(scm, 0, out);

@@ -12,10 +12,19 @@ for i in $(seq 1 50); do ls $XDG_RUNTIME_DIR/sway-ipc.* >/dev/null 2>&1 && break
 export SWAYSOCK=$(ls $XDG_RUNTIME_DIR/sway-ipc.*) WAYLAND_DISPLAY=wayland-1
 mkfifo /run/glassine-epdd-desktop.ctl
 (while :; do cat /run/glassine-epdd-desktop.ctl; done) > /tmp/hints.log 2>/dev/null &
-/tmp/glassine-swayd -v 2>/tmp/swayd.log &
+# glassine-shell stand-in: its requests (NUL-separated words), one line each
+python3 -c '
+import socket,os
+s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM); s.bind(os.environ["XDG_RUNTIME_DIR"]+"/glassine-shell")
+f=open("/tmp/shell.log","a")
+while True:
+    m=s.recv(4096); f.write(m.replace(b"\0",b" ").decode()+"\n"); f.flush()' &
+sleep 0.3
+GLASSINE_SWAYD_TEST=1 /tmp/glassine-swayd -v 2>/tmp/swayd.log &
 sleep 0.5
 fail=0
-term() { swaymsg -q "exec foot -a $1 sleep 600"; sleep 1.2; }
+# a window opens (waits up to 5 s for it: foot is slow to map under load), then the layout settles
+term() { swaymsg -q "exec foot -a $1 sleep 600"; sleep 0.4; for i in $(seq 1 46); do swaymsg -t get_tree | grep -q "\"app_id\": \"$1\"" && break; sleep 0.1; done; sleep 0.8; }
 kill_() { swaymsg -q "[app_id=$1] kill"; sleep 1.2; }
 # "app ws x y w h" per view (logical px), sorted by app
 geo() { swaymsg -t get_tree -r | python3 -c '
@@ -46,7 +55,7 @@ expect "3 windows: newest on top, the rest side by side" "$(geo)" "A 1 361 478 3
 term Q
 expect "4 windows: quarters, the newest two on top" "$(geo)" "A 1 361 478 341 458 | B 1 0 478 341 458 | C 1 361 0 341 458 | Q 1 0 0 341 458"
 sleep 0.5
-expect "4 windows: 3 handles (the outer split + one per pair)" "$(grep 'handle [0-9]: level' /tmp/swayd.log | tail -3 | sed 's/.*handle \([0-9]\): level \([01]\) \([a-z]*\).*/\1\2\3/' | tr '\n' ' ')" "00horizontal 11vertical 21vertical "
+expect "4 windows: 3 handles (the outer split + one per pair, levels 1 and 2)" "$(grep 'handle [0-9]: level' /tmp/swayd.log | tail -3 | sed 's/.*handle \([0-9]\): level \([012]\) \([a-z]*\).*/\1\2\3/' | tr '\n' ' ')" "00horizontal 11vertical 22vertical "
 cmd "orient 0 1"
 expect "4 windows turned: still quarters, pairs side by side" "$(geo)" "A 1 361 478 341 458 | B 1 361 0 341 458 | C 1 0 478 341 458 | Q 1 0 0 341 458"
 cmd "orient 0 0"
@@ -168,7 +177,22 @@ WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/sway -d
 expect "sway -C: keys.conf read" "$(grep -c 'Loading config from /o/usr/share/glassine/sway/keys.conf' /tmp/devcfg.log)" "1"
 expect "sway -C: no errors, no binding bound twice" "$(grep -E '\[ERROR\]|Overwriting' /tmp/devcfg.log | head -3)" ""
 expect "keys.conf: its glassine scripts are in the overlay" "$(grep -o '/usr/s\?bin/glassine-[a-z0-9-]*' /o/usr/share/glassine/sway/keys.conf | sort -u | while read -r f; do [ -e /o$f ] || [ $f = /usr/bin/glassine-shell-wl ] || [ $f = /usr/bin/glassine-swayd ] || echo $f; done)" ""
-expect "shellcheck: glassine-screenshot, glassine-kbd-layout" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout 2>&1)" ""
+expect "keys.conf: no sway fullscreen (full screen is glassine-swayd's full: the bar stays)" "$(grep -E '^bindsym .* fullscreen' /o/usr/share/glassine/sway/keys.conf)" ""
+expect "shellcheck: glassine-screenshot, glassine-kbd-layout, glassine-home-start" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout /o/usr/bin/glassine-home-start 2>&1)" ""
+# the home app the session starts (glassine-home-start -n: the command): the app_id as
+# glassine-swayd finds it, its desktop entry, else a command of that name, else nothing
+HS=/tmp/hs; mkdir -p $HS/data/applications $HS/bin
+hs() { env -u GLASSINE_HOME_APP_ID HOME=$HS XDG_DATA_HOME=$HS/data XDG_DATA_DIRS=/nonexistent PATH=$HS/bin:/usr/bin:/bin "$@" sh /o/usr/bin/glassine-home-start -n; echo "rc $?"; }
+expect "home app: none installed, nothing set: nothing starts" "$(hs)" "rc 0"
+printf '#!/bin/sh\n' > $HS/bin/glassine-home; chmod +x $HS/bin/glassine-home
+expect "home app: glassine-home by default" "$(hs | tr '\n' ' ')" "glassine-home rc 0 "
+mkdir -p /etc/glassine; printf 'other.Home extra\n' > /etc/glassine/home-app
+printf '[Desktop Entry]\nType=Application\nName=Other\nExec=other-home --page %%U\n[Desktop Action x]\nExec=nope\n' > $HS/data/applications/other.Home.desktop
+expect "home app: /etc/glassine/home-app's first word, from its desktop entry (field codes dropped)" "$(hs | tr '\n' ' ')" "other-home --page rc 0 "
+printf '#!/bin/sh\n' > $HS/bin/mine; chmod +x $HS/bin/mine
+expect "home app: \$GLASSINE_HOME_APP_ID first, a command of that name" "$(hs GLASSINE_HOME_APP_ID=mine | tr '\n' ' ')" "mine rc 0 "
+rm -f /etc/glassine/home-app
+expect "sway config: starts the home app with glassine-home-start" "$(grep -c '^exec /usr/bin/glassine-home-start$' /o/usr/share/glassine/sway/config)" "1"
 # the hardware keyboard layout (glassine-kbd-layout): as the OSK's first language, or the
 # user's choice; the include sway loads, and set live (a libinput keyboard: none here,
 # so the IPC command's success is what can be checked)
@@ -221,6 +245,203 @@ swaymsg -q "workspace 2"; sleep 0.5
 cmd "newscreen $(id Q) 1"; sleep 1.2
 expect "newscreen with follow" "$(cur)" "1 2 3 focus 3"
 expect "... Q on 3, R alone" "$(geo)" "P 1 0 0 702 936 | Q 3 0 0 702 936 | R 2 0 0 702 936"
+# ---- spec 001 window model: a position per line, the new verbs, Home and the empty screen
+lastdiv() { grep '^dividers ' /tmp/shell.log | tail -1; }
+divs() { lastdiv | cut -d' ' -f2- | tr ' ' '\n' | sed 's/^\([0-9-]*,[0-9-]*,[0-9-]*,[0-9-]*,[01],[012]\),[0-9a-f]*,[0-9a-f]*,/\1,A,B,/' | tr '\n' ' '; }
+# the shell's last `home` request; with an argument, waits up to 3 s for that one (swayd may lag)
+lasthome() { for i in $(seq 1 30); do l=$(grep '^home ' /tmp/shell.log | tail -1); [ "$l" = "${1:-}" ] && break; [ -z "${1:-}" ] && break; sleep 0.1; done; echo "$l"; }
+# views in sway's fullscreen (it covers the bar; workspaces report 1 always)
+fsviews() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+n=0
+def w(x):
+    global n
+    if x.get("shell") and x.get("fullscreen_mode"): n+=1
+    for c in x.get("nodes",[])+x.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin)); print(n)'; }
+warned() { [ "$(grep -c "$1" /tmp/swayd.log)" -gt 0 ] && echo yes; }
+# "app ws WxH" per view, sorted by app; the views marked `full`
+sizes() { geo | tr '|' '\n' | awk '{ printf "%s%s %s %sx%s", (NR > 1 ? " | " : ""), $1, $2, $5, $6 }'; }
+fullmarked() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+n=0
+def w(x):
+    global n
+    if x.get("shell") and "_glassine_full" in x.get("marks",[]): n+=1
+    for c in x.get("nodes",[])+x.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin)); print(n)'; }
+swaymsg -q '[shell=".*"] kill'; sleep 1.5
+swaymsg -q 'workspace 1'; sleep 0.3
+term A; term B; term C; term E
+Q0="A 1 361 478 341 458 | B 1 0 478 341 458 | C 1 361 0 341 458 | E 1 0 0 341 458"
+expect "model: quarters (E C / B A)" "$(geo)" "$Q0"
+cmd "testdrag 1 0.4"
+expect "inner line of half 0 drags alone" "$(geo)" "A 1 361 478 341 458 | B 1 0 478 341 458 | C 1 291 0 411 458 | E 1 0 0 271 458"
+cmd "testdrag 2 0.415"
+G1="A 1 291 478 411 458 | B 1 0 478 271 458 | C 1 291 0 411 458 | E 1 0 0 271 458"
+expect "inner line of half 1 snaps to the other one" "$(geo)" "$G1"
+expect "dividers: x,y,w,h,vert,level,a,b,pos (level 0 main, 1/2 inner)" "$(divs)" "4,0 0,916,1404,40,0,0,A,B,0.500 542,0,40,916,1,1,A,B,0.400 542,956,40,916,1,2,A,B,0.400 "
+cmd "cross $(id A)"
+expect "cross: every window keeps its quarter" "$(geo)" "$G1"
+expect "cross: the other axis runs through (main line vertical, at the inner lines' mean)" "$(divs | cut -d' ' -f1-2)" "4,1 542,0,40,1872,1,0,A,B,0.400"
+cmd "cross $(id A)"
+expect "cross again: back, quarters kept" "$(geo)" "$G1"
+expect "... the main line across again" "$(divs | cut -d' ' -f1-2)" "4,0 0,916,1404,40,0,0,A,B,0.500"
+cmd "testdrag 2 0.6"
+expect "inner lines separate (half 1 at 0.6)" "$(geo)" "A 1 431 478 271 458 | B 1 0 478 411 458 | C 1 291 0 411 458 | E 1 0 0 271 458"
+cmd "cross $(id A)"
+expect "cross with separate lines: they meet at their mean (0.5), quarters kept" "$(geo)" "A 1 361 478 341 458 | B 1 0 478 341 458 | C 1 361 0 341 458 | E 1 0 0 341 458"
+cmd "swapin $(id E)"
+expect "swapin: the two of E's half trade (left column)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 458 | C 1 361 0 341 458 | E 1 0 478 341 458"
+cmd "direction $(id E)"
+expect "direction on 4 windows: refused" "$(warned 'direction: 4 windows')" "yes"
+cmd "full $(id E)"
+expect "full: E over the work area, the others tiled underneath (sway fills its tile)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 936 | C 1 361 0 341 458 | E 1 0 0 702 936"
+expect "full: no sway fullscreen (the bar stays above)" "$(fsviews)" "0"
+expect "full: no handles under it" "$(grep 'handle [0-9]: level\|no handles' /tmp/swayd.log | tail -1 | grep -c 'no handles')" "1"
+cmd "full $(id E)"
+expect "full off: E back in its tile" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 458 | C 1 361 0 341 458 | E 1 0 478 341 458"
+cmd "full $(id E)"
+kill_ E
+expect "a full window closes: its gap closes (its column whole)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 936 | C 1 361 0 341 458"
+# a window opens on a screen with a full one: full ends (a floating window would hide it)
+cmd "full $(id C)"
+term F
+expect "a window opens while one is full: full ends, quarters" "$(sizes)" "A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458"
+expect "... no window left marked full" "$(fullmarked)" "0"
+cmd "full $(id C)"
+expect "... C full again" "$(fullmarked)" "1"
+term G
+expect "a fifth window while one is full: the 4-apps rule, a new screen, the view follows" "$(cur) $(geo_of G)" "1 2 focus 2 2 0 0 702 936"
+expect "... full ended on screen 1" "$(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+swaymsg -q 'workspace 1'; sleep 0.5
+# sway's own fullscreen (an app asked, or a gesture): the shell shows it as full screen, and
+# its Exit full screen (`full W`) ends it in one tap
+swaymsg -q "[app_id=F] fullscreen enable"; sleep 0.8
+expect "an app in sway's fullscreen" "$(fsviews)" "1"
+cmd "full $(id F)"
+expect "full on a window in sway's fullscreen: back in its tile, not full" "$(fsviews) $(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+# `full` with no window (keys.conf's Super+F): the focused one
+swaymsg -q "[app_id=A] focus"; sleep 0.5
+cmd "full"
+expect "full, no window named: the focused one, over the work area" "$(fullmarked) $(fsviews) $(geo_of A)" "1 0 1 0 0 702 936"
+cmd "full"
+expect "full, no window named, again: back in its tile" "$(fullmarked) $(geo_of A | cut -d' ' -f4-)" "0 341 458"
+# two windows: direction, and place on the window's own screen
+swaymsg -q '[shell=".*"] kill'; sleep 1.5
+term P; term Q
+expect "2 windows stacked" "$(geo)" "P 1 0 478 702 458 | Q 1 0 0 702 458"
+cmd "direction $(id P)"
+expect "direction: side by side" "$(geo)" "P 1 361 0 341 936 | Q 1 0 0 341 936"
+cmd "direction $(id P)"
+expect "direction again: rows" "$(geo)" "P 1 0 478 702 458 | Q 1 0 0 702 458"
+cmd "place $(id Q) $(id P) up"
+expect "place on its own screen, changing nothing: refused" "$(geo) $(warned 'changes nothing')" "P 1 0 478 702 458 | Q 1 0 0 702 458 yes"
+cmd "place $(id Q) $(id P) right"
+expect "place on its own screen: Q right of P" "$(geo)" "P 1 0 0 341 936 | Q 1 361 0 341 936"
+term R
+expect "3 windows: R the whole half" "$(geo)" "P 1 361 0 341 458 | Q 1 361 478 341 458 | R 1 0 0 341 936"
+cmd "place $(id Q) $(id R) up"
+expect "place on its own screen (3): Q above R, R's half splits" "$(geo)" "P 1 361 0 341 936 | Q 1 0 0 341 458 | R 1 0 478 341 458"
+cmd "swapin $(id R)"
+expect "swapin (3 windows): the pair trades" "$(geo)" "P 1 361 0 341 936 | Q 1 0 478 341 458 | R 1 0 0 341 458"
+cmd "swapin $(id P)"
+expect "swapin on the whole half: refused" "$(warned 'not in a split half')" "yes"
+# screens: scrmove, scrclose (kept layouts follow the move)
+swaymsg -q '[shell=".*"] kill'; sleep 1.5
+term S1
+swaymsg -q "workspace number 2"; term S2a; term S2b
+cmd "direction $(id S2a)"
+swaymsg -q "workspace number 3"; term S3
+expect "screens: 3" "$(cur)" "1 2 3 focus 3"
+L2="S2a 2 0 0 341 936 | S2b 2 361 0 341 936"
+cmd "scrmove 2 -1"
+expect "scrmove 2 -1: screen 2 is first, its layout with it" "$(geo)" "S1 2 0 0 702 936 | S2a 1 361 0 341 936 | S2b 1 0 0 341 936 | S3 3 0 0 702 936"
+expect "... the view stays" "$(cur)" "1 2 3 focus 3"
+swaymsg -q "workspace 1"; sleep 0.8
+expect "... the kept layout survives a rebuild there" "$(geo | tr '|' '\n' | grep -c ' 1 ')" "2"
+cmd "swaphalves $(id S2a)"
+expect "... its kept layout followed (a rebuild there stays side by side)" "$(geo)" "S1 2 0 0 702 936 | S2a 1 0 0 341 936 | S2b 1 361 0 341 936 | S3 3 0 0 702 936"
+swaymsg -q "workspace 3"; sleep 0.5
+cmd "scrmove 1 1"
+expect "scrmove 1 1: back" "$(geo)" "S1 1 0 0 702 936 | $L2 | S3 3 0 0 702 936"
+cmd "scrmove 3 1"
+expect "scrmove past the end: nothing" "$(cur)" "1 2 3 focus 3"
+cmd "scrclose 2"
+expect "scrclose 2: its apps closed, renumbered" "$(geo)" "S1 1 0 0 702 936 | S3 2 0 0 702 936"
+expect "... the view stays" "$(cur)" "1 2 focus 2"
+cmd "scrclose 2"
+expect "scrclose the current screen: the view goes to the one before" "$(cur) $(geo)" "1 focus 1 S1 1 0 0 702 936"
+cmd "scrclose 1"
+expect "scrclose the last screen: refused" "$(geo) $(warned 'the last screen stays')" "S1 1 0 0 702 936 yes"
+# next: where the next new window goes
+cmd "next new"; term N1
+expect "next new: a new screen after the current one, followed" "$(cur) $(geo_of N1)" "1 2 focus 2 2 0 0 702 936"
+swaymsg -q "workspace 1"; sleep 0.5
+cmd "next new"; term N2
+expect "next new: inserted, the later screens move up" "$(cur) $(geo_of N2) $(geo_of N1)" "1 2 3 focus 2 2 0 0 702 936 3 0 0 702 936"
+swaymsg -q "workspace 1"; sleep 0.5
+cmd "next here"
+swaymsg -q "workspace 3"; sleep 0.5
+term H
+expect "next here: beside the apps of the screen it was asked on" "$(geo_of H) | $(geo_of S1) | $(cur)" "1 0 0 702 458 | 1 0 478 702 458 | 1 2 3 focus 1"
+term H2
+expect "next is used once: the next window opens where the view is" "$(geo_of H2 | cut -d' ' -f1)" "1"
+term H3
+cmd "next here"
+expect "next here on a full screen: refused" "$(warned 'next here: screen 1 is full')" "yes"
+swaymsg -q "workspace 2"; sleep 0.5
+cmd "next new"; sleep 10
+term N3
+expect "next is forgotten after 10 s" "$(cur) $(geo_of N3 | cut -d' ' -f1)" "1 2 3 focus 2 2"
+cmd "next hole"
+expect "next hole without an empty screen: refused" "$(warned 'next hole: no empty screen')" "yes"
+# Home (a foot stand-in with its app_id) and the empty screen
+swaymsg -q '[shell=".*"] kill'; sleep 1.5
+swaymsg -q "workspace 1"; term A
+swaymsg -q 'exec foot -a glassine-home sleep 600'; sleep 1.2
+expect "home: kept in the scratchpad from its map" "$(geo_of glassine-home | cut -d' ' -f1)" "__i3_scratch"
+cmd "home show"
+expect "home show: over the work area of the current screen" "$(geo_of glassine-home)" "1 0 0 702 936"
+expect "... not sway fullscreen (the bar stays above)" "$(fsviews)" "0"
+expect "... told to the shell" "$(lasthome "home 1 0")" "home 1 0"
+cmd "home hide"
+expect "home hide" "$(geo_of glassine-home | cut -d' ' -f1) $(lasthome "home 0 0")" "__i3_scratch home 0 0"
+cmd "home toggle"
+expect "home toggle: shown" "$(lasthome "home 1 0")" "home 1 0"
+cmd "home toggle"
+expect "home toggle: hidden" "$(lasthome "home 0 0") $(geo_of A) $(geo_of glassine-home | cut -d' ' -f1)" "home 0 0 1 0 0 702 936 __i3_scratch"
+swaymsg -q "workspace number 2"; term B
+kill_ B
+expect "the last window on the current screen closed: it stays, empty, under Home" "$(cur) $(geo_of glassine-home) $(lasthome "home 1 2")" "1 2 focus 2 2 0 0 702 936 home 1 2"
+cmd "home hide"
+expect "Home hidden: the empty screen goes" "$(cur) $(lasthome "home 0 0")" "1 focus 1 home 0 0"
+swaymsg -q "workspace number 2"; term B; kill_ B
+term C
+expect "an app opening on the empty screen fills it, Home hides" "$(cur) $(geo_of C) $(lasthome "home 0 0")" "1 2 focus 2 2 0 0 702 936 home 0 0"
+kill_ C
+expect "empty again" "$(lasthome "home 1 2")" "home 1 2"
+swaymsg -q "workspace 1"; sleep 1
+expect "the view leaves the empty screen: Home hides, the screen goes" "$(cur) $(geo_of glassine-home | cut -d' ' -f1) $(lasthome "home 0 0")" "1 focus 1 __i3_scratch home 0 0"
+swaymsg -q "workspace number 2"; term B; kill_ B
+cmd "next hole"; term D
+expect "next hole: into the empty screen" "$(cur) $(geo_of D) $(lasthome "home 0 0")" "1 2 focus 2 2 0 0 702 936 home 0 0"
+cmd "scrclose 2"
+expect "scrclose the current screen: no empty screen left behind" "$(cur) $(lasthome "home 0 0")" "1 focus 1 home 0 0"
+swaymsg -q "workspace number 2"; term B; kill_ B
+cmd "next new"; term N
+expect "next new while on the empty screen: a new screen, the empty one goes" "$(cur) $(geo_of N) $(lasthome "home 0 0")" "1 2 focus 2 2 0 0 702 936 home 0 0"
+kill_ N
+expect "the last window of screen 2 closed: empty under Home" "$(lasthome "home 1 2")" "home 1 2"
+cmd "home hide"
+kill_ A
+expect "the only screen emptied: under Home" "$(cur) $(lasthome "home 1 1")" "1 focus 1 home 1 1"
+cmd "home hide"; cmd "home toggle"
+expect "... Home stays until an app opens" "$(geo_of glassine-home) $(warned 'Home stays until an app opens')" "1 0 0 702 936 yes"
+term F
+expect "... an app opens: it fills the screen, Home hides" "$(geo_of F) $(lasthome "home 0 0")" "1 0 0 702 936 home 0 0"
+cmd "home show"; term G
+expect "a new window while Home is shown hides it" "$(lasthome "home 0 0") $(geo_of G | cut -d' ' -f1)" "home 0 0 1"
 echo "--- handle history"; grep -n "handle [0-9]: level\|no handles\|placeholder\|closed" /tmp/swayd.log | tail -40
 grep -iE "error|fail" /tmp/swayd.log | grep -v "FIFO write failed" | head -5
 [ $fail = 0 ] || { echo "--- swayd.log"; grep -n "placeholder\|kill" /tmp/swayd.log | head -20; tail -30 /tmp/swayd.log; }

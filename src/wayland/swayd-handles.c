@@ -4,7 +4,8 @@
  * window, so dialogs and fullscreen apps cover it, and above the wallpaper.
  *
  * Drag it (finger, pen or pointer): a TOP-layer "ghost" the size of the bar (no
- * input) shows it where it would go, snapped to 1/3, 1/2, 2/3. It moves by its
+ * input) shows it where it would go, snapped to 1/3, 1/2, 2/3 (an inner line of a
+ * 2x2 screen also to the other inner line: hd_snap). It moves by its
  * margins, with the one buffer: only the old and new place count as damage (until
  * a buffer of the split's whole range per step, all of it damaged); the windows are resized once, on release (every resize is an
  * e-ink repaint). The handle itself never moves during a drag: touch and
@@ -326,13 +327,8 @@ static void press(Surf *s, double lx, double ly)
     dr.pos = s->d.vert ? s->x : s->y;
 }
 
-static void move(double lx, double ly)
+int hd_snap(const HandleDef *d, int p)
 {
-    if (!dr.on) return;
-    Surf *s = dr.s;
-    const HandleDef *d = &s->d;
-    int ax = s->x + (int)(lx * scale), ay = s->y + (int)(ly * scale);
-    int p = (d->vert ? ax : ay) - GAP / 2;
     if (p < d->lo) p = d->lo;
     if (p > d->hi) p = d->hi;
     static const double snaps[3] = { 1 / 3.0, 0.5, 2 / 3.0 };
@@ -340,6 +336,18 @@ static void move(double lx, double ly)
         double sn = d->a0 + d->alen * snaps[k] - GAP / 2.0;
         if (fabs(p - sn) < 0.02 * d->alen && sn >= d->lo && sn <= d->hi) p = (int)lround(sn);
     }
+    /* an inner line: the other one, so the two can line up again */
+    if (d->snap >= d->lo && d->snap <= d->hi && abs(p - d->snap) < 0.02 * d->alen) p = d->snap;
+    return p;
+}
+
+static void move(double lx, double ly)
+{
+    if (!dr.on) return;
+    Surf *s = dr.s;
+    const HandleDef *d = &s->d;
+    int ax = s->x + (int)(lx * scale), ay = s->y + (int)(ly * scale);
+    int p = hd_snap(d, (d->vert ? ax : ay) - GAP / 2);
     if (!dr.moved && (abs(ax - dr.px) >= 16 || abs(ay - dr.py) >= 16)) {
         dr.moved = 1;
         draw(s);                        /* the gap empties; the ghost shows the bar */

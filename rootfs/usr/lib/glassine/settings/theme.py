@@ -1,20 +1,20 @@
 """The three voices of glassine-settings in the E-ink scheme (claude.ai
-design "E-ink Shell": EinkSettingsCard). The values come from theme_gen.py, generated
-from the design (test/settings/gen-theme.py); this file only maps them
+design "E-ink Shell": EinkSettingsCard). The values are GlassineOS/ui's voice data
+(glassine_ui.voices: scheme, shell, card); this file only maps them
 onto the keys the blocks draw with, plus the widget constants the design writes inline
 in its markup (toggle 64x36, pills 48 high, radius 999px, 1.5px ink keylines...).
-Only E-ink: no colour palettes, no paper/night schemes, the pen choice is moot. CSS-like strings are interpreted by paint.py.
+Only E-ink: no colour palettes, no paper/night schemes, the pen choice is moot. CSS-like strings are interpreted by glassine_ui.paint.
 """
 import re
 
-from .theme_gen import GEN
+from glassine_ui import voices
 
-NAMES = {"white": "White", "editorial": "Editorial", "stationery": "Stationery"}
+NAMES = {v: voices.title(v) for v in voices.NAMES}
 
 
 def _voice(v):
-    g = GEN[v]
-    il, s, k = g["il"], g["t"], g["k"]
+    g = voices.voice(v)
+    il, s, k = g["scheme"], g["shell"], g["card"]
     ink, paper, soft = il["ink"], il["paper"], il["ink-soft"]
     acc, on_acc, dim, sheet = il["accent"], il["on-accent"], il["dim"], il["sheet"]
     line = "1.5px solid " + ink                     # the markup's keyline (border:1.5px solid ink)
@@ -69,5 +69,5 @@ def _voice(v):
     return t
 
 
-THEMES = {v: _voice(v) for v in ("white", "editorial", "stationery")}
+THEMES = {v: _voice(v) for v in voices.NAMES}
 OFF = THEMES["white"]["dim"]          # disabled controls (the design's DIM, var(--il-dim))
