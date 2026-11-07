@@ -22,6 +22,7 @@ while swaymsg -t get_version >/dev/null 2>&1; do
     t0=$(mtime)
     if command -v wvkbd-glassine >/dev/null; then
         case "$(cat "$TF" 2>/dev/null)" in     # the theme's look
+            # >>> gen-apps: GlassineOS/ui tools/gen-apps writes these lines (its voices/voices.json, apps.wvkbd)
             editorial) set -- --fn "Source Serif 4 17" -R 0 --gap 2 --stroke-width 1 \
                 --bg ffffff --fg ffffff --fg-sp dedede --stroke 111111 --stroke-sp 111111 \
                 --press 111111 --press-sp 111111 --swipe 11111160 --swipe-sp 11111160 \
@@ -34,6 +35,7 @@ while swaymsg -t get_version >/dev/null 2>&1; do
                 --bg ffffff --fg ffffff --fg-sp e4e4e4 --stroke 111111 --stroke-sp 111111 \
                 --press 111111 --press-sp 111111 --swipe 11111160 --swipe-sp 11111160 \
                 --text 111111 --text-sp 111111 --text-press ffffff --text-press-sp ffffff ;;
+            # <<< gen-apps
         esac
         # shellcheck disable=SC2086
         L=$(cat "$LF" 2>/dev/null || cat /etc/glassine/osk-layers 2>/dev/null); L=${L:-german,special}

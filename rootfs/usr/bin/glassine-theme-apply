@@ -13,9 +13,11 @@
 # GTK4 apps read it too
 t=$1
 case $t in
+    # >>> gen-apps: GlassineOS/ui tools/gen-apps writes these lines (its voices/voices.json, apps.gtkFont)
     white) font="IBM Plex Sans 10" ;;
     editorial) font="Source Serif 4 10" ;;
     stationery) font="EB Garamond 11" ;;
+    # <<< gen-apps
     *) echo "usage: glassine-theme-apply white|editorial|stationery" >&2; exit 2 ;;
 esac
 # set only what differs: every change restyles all GTK apps (a full e-ink repaint)

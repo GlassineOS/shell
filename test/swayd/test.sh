@@ -14,5 +14,6 @@
 set -eu
 D=$(cd "$(dirname "$0")" && pwd)
 SRC=$(cd "$D/../../src" && pwd)
+UI=$(sh "$D/../ui.sh")             # GlassineOS/ui: the drag handles' look (test/ui.sh)
 docker build -q -t glassine-swaydtest "$D" >/dev/null
-docker run --rm -v "$SRC":/src:ro -v "$D/../../rootfs":/o:ro -v "$D":/t:ro glassine-swaydtest sh /t/run.sh
+docker run --rm -v "$SRC":/src:ro -v "$UI":/ui:ro -v "$D/../../rootfs":/o:ro -v "$D":/t:ro glassine-swaydtest sh /t/run.sh
