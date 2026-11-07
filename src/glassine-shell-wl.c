@@ -740,12 +740,29 @@ static long desk_max(void)
     return m;
 }
 
+/* the home app's app_id (spec 001 FR-029), as glassine-swayd finds it:
+ * $GLASSINE_HOME_APP_ID, else the first word of /etc/glassine/home-app, else glassine-home */
+static const char *home_app(void)
+{
+    static char id[128];
+    if (id[0]) return id;
+    const char *e = getenv("GLASSINE_HOME_APP_ID");
+    if (e && *e) snprintf(id, sizeof id, "%s", e);
+    else {
+        FILE *f = fopen("/etc/glassine/home-app", "r");
+        if (f) { if (!fgets(id, sizeof id, f)) id[0] = 0; fclose(f); }
+        id[strcspn(id, " \t\r\n")] = 0;
+    }
+    if (!id[0]) snprintf(id, sizeof id, "glassine-home");
+    return id;
+}
+
 /* not an app window of the screen: a launch placeholder (its app takes the tile
  * over), Home (shown over a screen from the scratchpad) */
 static int skip_view(json_object *n)
 {
     const char *a = sj_str(n, "app_id");
-    return a && (!strcmp(a, "glassine-placeholder") || !strcmp(a, "glassine-home"));
+    return a && (!strcmp(a, "glassine-placeholder") || !strcmp(a, home_app()));
 }
 
 /* glassine-swayd's `full`: the window floats over the work area, marked */

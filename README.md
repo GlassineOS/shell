@@ -52,7 +52,7 @@ To turn the spill off on a device: `rc-service glassine-zram stop`, then `WB_SIZ
 Other repositories use these, so renaming one means changing them in the same release:
 
 - `/run/glassine-epdd-desktop.ctl`, `/run/glassine-epdd-desktop.classes`, `/run/glassine-rotation`, `/run/glassine-light`, `/run/glassine-bgprio.sock`
-- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram`, `home-app` (Home's app_id, default `glassine-home`; or `$GLASSINE_HOME_APP_ID`) and the session's renderer flags
+- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram`, `home-app` (the home app's app_id, default `glassine-home`; or `$GLASSINE_HOME_APP_ID`; glassine-swayd, glassine-shell-wl and `glassine-home-start` read it the same way, and the session starts it from `ID.desktop`, else a command of that name) and the session's renderer flags
 - the OpenRC service `glassine-zram`, its spill directory `<USERDATA_PREFIX>/zram/` on userdata, and `glassine-zram park|writeback|status`
 - `$XDG_RUNTIME_DIR/glassine-swayd`, `~/.config/glassine-shell/theme`
 - `glassine-swayd VERB ARGS` (one datagram on `$XDG_RUNTIME_DIR/glassine-swayd`; window ids in hex): `place M T up|down|left|right` (also on M's own screen), `newscreen M FOLLOW`, `swaphalves W`, `swapin W`, `swap A B`, `cross W`, `direction W`, `orient L S`, `turn W`, `full [W]` (no W: the focused window), `swapdir D`, `scrmove N -1|1`, `scrclose N`, `home show|hide|toggle`, `next new|here|hole`, `apps?`

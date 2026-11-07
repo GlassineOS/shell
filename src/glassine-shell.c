@@ -237,6 +237,7 @@ static const char *act_name(int a)
     case A_OV_PREV: return "ov-prev";
     case A_OV_NEXT: return "ov-next";
     case A_WS_GOTO: return "ov-goto";
+    case A_WS_RESTORE: return "ov-restore";
     case A_SCR_PREV: return "scr-prev";
     case A_SCR_CLOSE: return "scr-close";
     case A_SCR_NEXT: return "scr-next";

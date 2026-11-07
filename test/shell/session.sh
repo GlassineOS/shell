@@ -65,6 +65,8 @@ export SWAYSOCK=$(ls $XDG_RUNTIME_DIR/sway-ipc.*) WAYLAND_DISPLAY=wayland-1
 python3 $T/proxy.py $XDG_RUNTIME_DIR/glassine-swayd $RT2/glassine-swayd $VERBS &
 ln -sf $XDG_RUNTIME_DIR/glassine-shell $RT2/glassine-shell
 ln -sf $XDG_RUNTIME_DIR/glassine-shell.theme $RT2/glassine-shell.theme
+# the home app is a setting (FR-029): not glassine-home here, both look it up the same way
+export GLASSINE_HOME_APP_ID=test-home
 XDG_RUNTIME_DIR=$RT2 WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/wayland-1 $B/glassine-swayd -v 2>/out/swayd-$O.log &
 GLASSINE_SHELL_HITS=$HITS $B/glassine-shell-wl -v >$L 2>&1 &
 mkfifo $XDG_RUNTIME_DIR/vptr
@@ -128,6 +130,15 @@ PY
 )" "left-top"
 tap bar screen
 expect "the screen button again closes Overview" "$(view)" "0"
+# the home app (its own app_id, kept in the scratchpad by glassine-swayd) is not an app of a
+# screen: not among the minimized ones, which a minimized app is
+sm -q "exec foot -a test-home sleep 600; exec foot -a extra sleep 600"; sleep 2
+sm -q "[app_id=extra] move scratchpad"; sleep 1
+tap bar screen
+expect "the home app (GLASSINE_HOME_APP_ID) is not listed as minimized, a minimized app is" "$(nh pop ov-restore) $(python3 $T/hit.py --all $HITS/pop ov-restore | cut -d' ' -f2)" "1 $(tree id extra)"
+expect "... nor among the screens' apps" "$(nh pop ov-pick)" "10"
+tap bar screen
+sm -q "[app_id=extra] kill; [app_id=test-home] kill"; sleep 1
 send home 1 0
 mark; tap bar screen; sent "Overview over Home: Home hides" "home hide"
 key Escape

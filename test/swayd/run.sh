@@ -178,7 +178,21 @@ expect "sway -C: keys.conf read" "$(grep -c 'Loading config from /o/usr/share/gl
 expect "sway -C: no errors, no binding bound twice" "$(grep -E '\[ERROR\]|Overwriting' /tmp/devcfg.log | head -3)" ""
 expect "keys.conf: its glassine scripts are in the overlay" "$(grep -o '/usr/s\?bin/glassine-[a-z0-9-]*' /o/usr/share/glassine/sway/keys.conf | sort -u | while read -r f; do [ -e /o$f ] || [ $f = /usr/bin/glassine-shell-wl ] || [ $f = /usr/bin/glassine-swayd ] || echo $f; done)" ""
 expect "keys.conf: no sway fullscreen (full screen is glassine-swayd's full: the bar stays)" "$(grep -E '^bindsym .* fullscreen' /o/usr/share/glassine/sway/keys.conf)" ""
-expect "shellcheck: glassine-screenshot, glassine-kbd-layout" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout 2>&1)" ""
+expect "shellcheck: glassine-screenshot, glassine-kbd-layout, glassine-home-start" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout /o/usr/bin/glassine-home-start 2>&1)" ""
+# the home app the session starts (glassine-home-start -n: the command): the app_id as
+# glassine-swayd finds it, its desktop entry, else a command of that name, else nothing
+HS=/tmp/hs; mkdir -p $HS/data/applications $HS/bin
+hs() { env -u GLASSINE_HOME_APP_ID HOME=$HS XDG_DATA_HOME=$HS/data XDG_DATA_DIRS=/nonexistent PATH=$HS/bin:/usr/bin:/bin "$@" sh /o/usr/bin/glassine-home-start -n; echo "rc $?"; }
+expect "home app: none installed, nothing set: nothing starts" "$(hs)" "rc 0"
+printf '#!/bin/sh\n' > $HS/bin/glassine-home; chmod +x $HS/bin/glassine-home
+expect "home app: glassine-home by default" "$(hs | tr '\n' ' ')" "glassine-home rc 0 "
+mkdir -p /etc/glassine; printf 'other.Home extra\n' > /etc/glassine/home-app
+printf '[Desktop Entry]\nType=Application\nName=Other\nExec=other-home --page %%U\n[Desktop Action x]\nExec=nope\n' > $HS/data/applications/other.Home.desktop
+expect "home app: /etc/glassine/home-app's first word, from its desktop entry (field codes dropped)" "$(hs | tr '\n' ' ')" "other-home --page rc 0 "
+printf '#!/bin/sh\n' > $HS/bin/mine; chmod +x $HS/bin/mine
+expect "home app: \$GLASSINE_HOME_APP_ID first, a command of that name" "$(hs GLASSINE_HOME_APP_ID=mine | tr '\n' ' ')" "mine rc 0 "
+rm -f /etc/glassine/home-app
+expect "sway config: starts the home app with glassine-home-start" "$(grep -c '^exec /usr/bin/glassine-home-start$' /o/usr/share/glassine/sway/config)" "1"
 # the hardware keyboard layout (glassine-kbd-layout): as the OSK's first language, or the
 # user's choice; the include sway loads, and set live (a libinput keyboard: none here,
 # so the IPC command's success is what can be checked)
