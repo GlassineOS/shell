@@ -20,10 +20,16 @@ cp /usr/bin/foot /tmp/footc                 # its own process name for the "free
 cp /usr/bin/foot /tmp/glassine-shell-wl     # a desktop name longer than comm keeps (15)
 # glassine-zram stub: records the calls; a park takes 61 s (to be stopped by a thaw)
 mkdir -p /usr/sbin && printf '#!/bin/sh\necho "$*" >> /tmp/zram.calls\n[ "$1" = park ] && exec sleep 61\nexit 0\n' > /usr/sbin/glassine-zram && chmod 755 /usr/sbin/glassine-zram
-export XDG_RUNTIME_DIR=/run/user/0; mkdir -p -m 700 $XDG_RUNTIME_DIR
+# sway and its apps run as a desktop user, as in the session (bgprio only touches that user's processes)
+adduser -D -u 1000 desk
+printf '#!/usr/bin/python3\nimport os, sys\nos.setgroups([]); os.setgid(1000); os.setuid(1000)\nos.environ.update(HOME="/home/desk", USER="desk")\nos.execvp(sys.argv[1], sys.argv[1:])\n' > /tmp/asuser; chmod 755 /tmp/asuser
+# a setuid-root runner, as doas: what it starts has every uid 0
+printf '#include <unistd.h>\nint main(int c, char **v) { (void)c; if (setgid(0) || setuid(0)) return 1; execvp(v[1], v + 1); return 127; }\n' > /tmp/asroot.c
+gcc -o /tmp/asroot /tmp/asroot.c && chmod 4755 /tmp/asroot || exit 1
+export XDG_RUNTIME_DIR=/run/user/1000; mkdir -p -m 700 $XDG_RUNTIME_DIR; chown desk $XDG_RUNTIME_DIR
 printf 'output HEADLESS-1 resolution 1404x1872 scale 2\n' > /tmp/c
 cp /usr/bin/sway /tmp/sway          # the package has cap_sys_nice: no exec in a container
-WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/sway -c /tmp/c >/tmp/sway.log 2>&1 &
+WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/asuser /tmp/sway -c /tmp/c >/tmp/sway.log 2>&1 &
 SW=$!
 for i in $(seq 1 50); do ls $XDG_RUNTIME_DIR/sway-ipc.* >/dev/null 2>&1 && break; sleep 0.2; done
 export SWAYSOCK=$(ls $XDG_RUNTIME_DIR/sway-ipc.*) WAYLAND_DISPLAY=wayland-1
@@ -41,6 +47,7 @@ swaymsg -q "workspace number 2; exec foot -a B python3 /tmp/hog.py"; sleep 1.2
 set -- $(pid_of A); PA=$1
 set -- $(pid_of D); PD=$1
 set -- $(pid_of B); PB=$1 IB=$2
+expect "A runs as the desktop user" "$(awk '/^Uid:/ { print $2 }' /proc/$PA/status)" "1000"
 SL0=$(cat /proc/$PA/timerslack_ns)  # this kernel's default for A
 expect "D's comm is cut to 15 characters" "$(cat /proc/$PD/comm)" "glassine-shell-"
 unset SWAYSOCK                      # bgprio finds the socket itself, as in the session
@@ -101,12 +108,31 @@ expect "freeze footc: C frozen once demoted (no freeze_after wait)" "$(where $PC
 swaymsg -q "workspace number 3"; sleep 0.5
 expect "C back in front: thawed" "$(where $PC)" "init"
 grep -q "frozen glassine-shell-" /tmp/bgprio.log && { echo "FAIL a desktop name was frozen"; fail=1; } || echo "ok   log: the desktop name never frozen"
+# E: a terminal with a root child (doas apk from the settings app), and one more
+# started once E is demoted (it inherits E's group: it records where it started)
+printf '%s\n' '/tmp/asroot sleep 601 &' 'while [ ! -e /tmp/go ]; do sleep 0.2; done' \
+    "/tmp/asroot sh -c 'cat /proc/self/cgroup > /tmp/e.cg; exec sleep 603' &" 'exec sleep 602' > /tmp/e.sh
+swaymsg -q "workspace number 5; exec foot -a E sh /tmp/e.sh"; sleep 1.2
+set -- $(pid_of E); PE=$1
+PR=$(pgrep -fx 'sleep 601')
+expect "E's child runs as root (every uid)" "$(awk '/^Uid:/ { print $2 $3 $4 $5 }' /proc/$PR/status)" "0000"
+swaymsg -q "workspace number 2"; sleep 4
+expect "E hidden: demoted, its root child left where it was" "$(where $PE) $(where $PR)" "glassine-bg init"
+touch /tmp/go
+for i in $(seq 1 20); do PR3=$(pgrep -fx 'sleep 603') && break; sleep 0.1; done
+PU=$(pgrep -fx 'sleep 602')
+expect "a root child started by demoted E: starts in glassine-bg (inherited)" "$(cat /tmp/e.cg)" "0::/glassine-bg"
+echo "     (waiting for the rescan: E frozen)"
+for i in $(seq 1 70); do [ "$(where $PE)" = glassine-bg/frozen ] && break; sleep 0.5; done
+expect "E and its user child hidden: frozen" "$(where $PE) $(where $PU)" "glassine-bg/frozen glassine-bg/frozen"
+expect "E's root children: never frozen, the inherited one moved home" "$(where $PR) $(where $PR3)" "init init"
+expect "E's root child: oom_score_adj untouched" "$(cat /proc/$PR/oom_score_adj)" "0"
 swaymsg -q "workspace number 2"; sleep 4
 hidden() { case $(where $1) in glassine-bg*) echo hidden ;; *) where $1 ;; esac; }
 expect "before the stop: A, C, D in the background (or frozen)" "$(hidden $PA) $(hidden $PC) $(hidden $PD)" "hidden hidden hidden"
 kill $BG; sleep 0.5
 expect "SIGTERM: bgprio exited" "$(kill -0 $BG 2>/dev/null && echo running || echo exited)" "exited"
-expect "SIGTERM: everything back in front" "$(where $PA) $(where $PC) $(where $PD)" "init init init"
+expect "SIGTERM: everything back in front" "$(where $PA) $(where $PC) $(where $PD) $(where $PE)" "init init init init"
 grep -q "stopped, everything back in front" /tmp/bgprio.log && echo "ok   log: stopped" || { echo "FAIL no stop log"; fail=1; }
 expect "SIGTERM: the thaw socket removed" "$([ -e /run/glassine-bgprio.sock ] && echo there || echo gone)" "gone"
 $B 2>/tmp/bgprio2.log &

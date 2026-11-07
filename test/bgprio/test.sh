@@ -6,7 +6,9 @@
 # (process_madvise; only where the host has swap), thaw by datagram and on an
 # output change, promote on a switch, the park and its stop by a thaw (a
 # glassine-zram stub), "freeze NAME", the desktop's own long-named processes
-# never frozen, bg_uclamp_max, and the exit with sway (everything released).
+# never frozen, only the desktop user's processes touched (a root child of a
+# hidden app is never demoted or frozen), bg_uclamp_max, and the exit with sway
+# (everything released). sway and its apps run as a desktop user, bgprio as root.
 #   test.sh            exit 1 on a failed check
 set -eu
 D=$(cd "$(dirname "$0")" && pwd)

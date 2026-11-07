@@ -5,11 +5,19 @@
  * Follows the sway session over its IPC (the desktop user's socket,
  * /run/user/(*)/sway-ipc.*.sock, waited for up to 60 s; exits when sway does).
  * A view's owner is its "pid" (the client's host pid from the socket's peer
- * credentials; an Xwayland window's is _NET_WM_PID). A process with a view on a
+ * credentials; for an Xwayland window wlroots 0.18 asks the X server's XRes for
+ * the X client's pid and ignores _NET_WM_PID). A process with a view on a
  * visible workspace (or a sticky view) is in front; one whose views are all
  * elsewhere (the scratchpad counts as elsewhere) is in the background. Processes
  * without a view of their own go with the nearest view owner among their
  * ancestors (a browser's content processes, a build started in a terminal).
+ *
+ * Only the session's processes are touched: a process is demoted, frozen or
+ * boosted only when its real, effective, saved and file uids and its view
+ * owner's are all sway's user (the peer of sway's IPC socket), and that user is
+ * not root. Anything else under a view owner (a root `apk` the settings app
+ * started through doas, a `doas` in a terminal, a pid an X client named) stays
+ * where it is, and goes back home if it was ours before (it inherited the group).
  *
  * Background processes move to the cgroup v2 group /sys/fs/cgroup/glassine-bg
  * (cpu.weight 1: almost nothing against the rest when the CPU is contended, all
@@ -173,6 +181,8 @@ static signed char *win;              /* per pid: 0 no view, 1 front, 2 backgrou
 static char *inbg;                    /* per pid: 1 in glassine-bg, 2 in glassine-bg/frozen */
 static double *bgsince;               /* per pid: when it was demoted (0 = unknown: now) */
 static char *exempt_logged;           /* per pid: "not freezing" already logged */
+static uid_t session_uid = (uid_t)-1; /* sway's user, from its IPC socket */
+static signed char *uidok;            /* per pid, this pass: 1 the session user's, -1 not, 0 not read */
 static char nofrz[64][128], alwfrz[64][128];   /* nofreeze / freeze names: comm or a Flatpak app id */
 static int nalwfrz, nnofrz, freeze_s = FREEZE_S, can_freeze;
 static int bg_clamp = BG_UCLAMP_MAX, bg_clamp_set = -1;   /* conf; what the group has (-1: not written) */
@@ -690,6 +700,7 @@ static void read_procs(void)
     DIR *d = opendir("/proc");
     struct dirent *e;
     for (int i = 0; i < pid_max; i++) ppid[i] = -1;
+    memset(uidok, 0, pid_max);
     if (!d) return;
     while ((e = readdir(d))) {
         int pid = atoi(e->d_name);
@@ -716,6 +727,28 @@ static void read_procs(void)
         ppid[pid] = pp;
     }
     closedir(d);
+}
+
+/* every uid of pid (real, effective, saved, file) is the session user's, who
+ * isn't root: only those processes are ours to demote, freeze or boost */
+static int session_proc(int pid)
+{
+    if (pid <= 0 || pid >= pid_max) return 0;
+    if (uidok[pid]) return uidok[pid] > 0;
+    char p[64], l[256];
+    unsigned u[4];
+    int ok = 0;
+    snprintf(p, sizeof p, "/proc/%d/status", pid);
+    FILE *f = fopen(p, "r");
+    while (f && fgets(l, sizeof l, f))
+        if (sscanf(l, "Uid: %u %u %u %u", &u[0], &u[1], &u[2], &u[3]) == 4) {
+            ok = session_uid != 0 && session_uid != (uid_t)-1;
+            for (int i = 0; i < 4; i++) if (u[i] != (unsigned)session_uid) ok = 0;
+            break;
+        }
+    if (f) fclose(f);
+    uidok[pid] = ok ? 1 : -1;
+    return ok;
 }
 
 static int excluded(int pid)
@@ -1142,6 +1175,8 @@ static int pass(int demote_ok)
             for (int i = 0; id[0] && i < nfo; i++)
                 if (!strcmp(id, fo_id[i]) && (!state || win[fo_pid[i]] == 1)) { state = win[fo_pid[i]]; owner = fo_pid[i]; }
         }
+        /* not the session user's (root, another user): left alone, back home if ours */
+        if (state && (!session_proc(owner) || !session_proc(pid))) state = 0;
         int bg = state == 2 && !excluded(owner) && !excluded(pid);
         if (bg && !inbg[pid]) {
             if (!demote_ok) pending = 1;
@@ -1207,11 +1242,12 @@ int main(int argc, char **argv)
     infg = calloc(pid_max, 1);
     bgsince = calloc(pid_max, sizeof *bgsince);
     exempt_logged = calloc(pid_max, 1);
+    uidok = calloc(pid_max, 1);
     frozat = calloc(pid_max, sizeof *frozat);
     frzown = calloc(pid_max, sizeof *frzown);
     parkst = calloc(pid_max, 1);
     oomsave = malloc(pid_max * sizeof *oomsave);
-    if (!ppid || !comm || !win || !inbg || !infg || !bgsince || !exempt_logged || !frozat || !frzown || !parkst || !oomsave)
+    if (!ppid || !comm || !win || !inbg || !infg || !bgsince || !exempt_logged || !uidok || !frozat || !frzown || !parkst || !oomsave)
         return 1;
     for (int i = 0; i < pid_max; i++) oomsave[i] = OOM_NONE;
 
@@ -1221,6 +1257,11 @@ int main(int argc, char **argv)
     signal(SIGHUP, on_signal);
     signal(SIGPIPE, SIG_IGN);
     if (sway_connect()) { logf_("no sway IPC socket"); return 1; }
+    struct ucred cr;
+    socklen_t crl = sizeof cr;
+    if (!getsockopt(sw_cmd, SOL_SOCKET, SO_PEERCRED, &cr, &crl)) session_uid = cr.uid;
+    if (session_uid == 0 || session_uid == (uid_t)-1)
+        logf_("sway runs as %s: no process is ever demoted, frozen or boosted", session_uid ? "an unknown user" : "root");
     thaw_sock_open();
     read_conf();
     release_all();
