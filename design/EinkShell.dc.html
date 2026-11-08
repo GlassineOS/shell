@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&amp;display=block" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;display=swap" rel="stylesheet"><style>[data-il-root] [tabindex]:focus-visible{outline:2px solid var(--il-ring,var(--il-focus));outline-offset:2px}[data-ring="leather"]{--il-ring:var(--il-focus-on-leather)}[data-ring="leather"] [data-cream="1"]:focus-visible{outline-color:var(--il-focus-on-cream);box-shadow:0 0 0 4px var(--il-focus-on-leather)!important}</style></helmet>
+<div style="display:flex;flex-direction:column;gap:12px;width:{{ devF.ow }}">
+<div style="width:{{ devF.ow }};background:#262626;border-radius:28px;padding:{{ devF.pad }};box-sizing:border-box">
+<div data-il-root="" onKeyDown="{{ escKey }}" style="width:{{ devF.sw }};height:{{ devF.sh }};{{ t.ilv }};position:relative;overflow:hidden;background:{{ t.screenBg }};font-family:{{ t.fontUI }};color:{{ t.ink }}">
+
+<div data-ring="leather" style="position:absolute;left:0;right:0;top:0;height:52px;display:flex;align-items:center;gap:6px;padding:0 10px;box-sizing:border-box;z-index:20;background:{{ t.barBg }};color:{{ t.barFg }};border-bottom:{{ t.barBorder }};box-shadow:{{ t.barShadow }}">
+<div style="display:{{ t.stitch }};position:absolute;left:6px;right:6px;top:5px;border-top:1.5px dashed {{ t.stitchColor }}"></div>
+<div style="display:{{ t.stitch }};position:absolute;left:6px;right:6px;bottom:5px;border-top:1.5px dashed {{ t.stitchColor }}"></div>
+<div tabindex="0" role="button" aria-label="Home" title="Home" aria-pressed="{{ homeOn }}" data-widget="home-button" onKeyDown="{{ ilKey }}" onClick="{{ goHome }}" style="position:relative;width:42px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:{{ t.plateR }};cursor:pointer;background:{{ bHome.bg }};color:{{ bHome.fg }};box-shadow:{{ bHome.sh }}" data-cream="{{ bHome.cream }}"><span style="font:400 24px/1 'Material Symbols Outlined'">home</span></div>
+<div style="position:relative;display:flex;gap:3px">
+</div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ goOv }}" aria-label="{{ barAria }}" aria-pressed="{{ ovOn }}" data-widget="screen-button" style="position:relative;flex:1;min-width:0;height:36px;display:flex;align-items:center;justify-content:center;gap:8px;padding:0 10px;border-radius:{{ t.plateR }};cursor:pointer;font:{{ t.titleFont }};background:{{ bOv.bg }};color:{{ bOv.fg }};box-shadow:{{ bOv.sh }}" data-cream="{{ bOv.cream }}"><span aria-hidden="true" data-widget="screen-number" style="flex:none;width:{{ barGW }};height:{{ barGH }};box-sizing:border-box;border:1.5px solid currentColor;border-top-width:5px;border-radius:4px;padding:1px 6px 0;display:flex;align-items:center;justify-content:center;font:{{ t.numFont }};font-size:13px;line-height:1">{{ scrNum }}</span><div aria-hidden="true" style="display:flex;align-items:center;gap:5px;min-width:0;overflow:hidden"><sc-for list="{{ barIcons }}" as="bi" hint-placeholder-count="2"><span style="font:400 20px/1 'Material Symbols Outlined'">{{ bi }}</span></sc-for></div></div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ goNotif }}" style="position:relative;height:36px;display:flex;align-items:center;gap:6px;padding:0 8px;border-radius:{{ t.plateR }};cursor:pointer;background:{{ bNotif.bg }};color:{{ bNotif.fg }};box-shadow:{{ bNotif.sh }}" data-cream="{{ bNotif.cream }}"><span style="font:{{ t.numFont }}">20:11</span><sc-if value="{{ hasNotif }}" hint-placeholder-val="{{ true }}"><span style="min-width:18px;height:18px;padding:0 4px;box-sizing:border-box;border-radius:9px;display:flex;align-items:center;justify-content:center;font:600 11px/1 'IBM Plex Mono';background:{{ bNotif.fg }};color:{{ bNotif.badgeFg }}">{{ notifCount }}</span></sc-if></div>
+<sc-if value="{{ chg.show }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ chg.go }}" aria-label="{{ chg.aria }}" data-widget="change-indicator" data-widget-label="Change running" style="position:relative;height:36px;box-sizing:border-box;display:flex;align-items:center;gap:6px;padding:0 9px;border:1.5px dashed currentColor;border-radius:{{ t.plateR }};cursor:pointer"><span style="font:400 20px/1 'Material Symbols Outlined'">deployed_code</span><span style="font:500 12px/1 'IBM Plex Mono',monospace;white-space:nowrap">{{ chg.label }}</span></div></sc-if>
+<span style="position:relative;font:400 20px/1 'Material Symbols Outlined';padding:0 2px">wifi</span>
+<div style="position:relative;display:flex;align-items:center;gap:5px"><div style="display:flex;align-items:center"><div style="width:24px;height:12px;border:1.5px solid currentColor;border-radius:2px;padding:1.5px;box-sizing:border-box"><div style="width:69%;height:100%;background:currentColor"></div></div><div style="width:2px;height:5px;background:currentColor"></div></div><span style="font:{{ t.numFont }}">69%</span></div>
+<div tabindex="0" role="button" aria-label="On-screen keyboard" aria-pressed="{{ kbOn }}" data-widget="keyboard-button" onKeyDown="{{ ilKey }}" onClick="{{ goKb }}" style="position:relative;width:38px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:{{ t.plateR }};cursor:pointer;background:{{ bKb.bg }};color:{{ bKb.fg }};box-shadow:{{ bKb.sh }}"><span style="font:400 22px/1 'Material Symbols Outlined'">keyboard</span></div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ refresh }}" style="position:relative;width:38px;height:36px;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 22px/1 'Material Symbols Outlined'">refresh</span></div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ goQS }}" style="position:relative;width:42px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:{{ t.plateR }};cursor:pointer;background:{{ bQS.bg }};color:{{ bQS.fg }};box-shadow:{{ bQS.sh }}" data-cream="{{ bQS.cream }}"><span style="font:400 22px/1 'Material Symbols Outlined'">tune</span></div>
+</div>
+
+<div style="position:absolute;left:0;right:0;top:52px;bottom:0">
+<sc-if value="{{ isSplit }}" hint-placeholder-val="{{ true }}">
+<div style="display:flex;flex-direction:{{ tileDir }};width:100%;height:100%">
+<div style="flex:{{ f1 }};min-width:0;min-height:0;overflow:hidden"><sc-if value="{{ isSet1 }}" hint-placeholder-val="{{ false }}"><dc-import name="EinkSettingsCard" theme="{{ sTheme }}" scheme="{{ sScheme }}" pen="{{ sPen }}" orient="{{ sOrient }}" pk="{{ sPk }}" page="{{ sPage }}" app="{{ sApp }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if><sc-if value="{{ notSet1 }}" hint-placeholder-val="{{ true }}"><dc-import name="EinkApp" app="{{ app1 }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if></div>
+<div onPointerDown="{{ pDown }}" onPointerMove="{{ pMove }}" onPointerUp="{{ pUp }}" style="flex:none;position:relative;z-index:2;width:{{ divW }};height:{{ divH }};background:{{ divBg }};box-shadow:{{ t.divSh }};display:flex;align-items:center;justify-content:center;touch-action:none;cursor:grab">
+<div style="display:{{ divStitch }};position:absolute;left:8px;right:8px;top:3px;border-top:1.5px dashed {{ t.stitchColor }}"></div>
+<div style="display:{{ divStitch }};position:absolute;left:8px;right:8px;bottom:3px;border-top:1.5px dashed {{ t.stitchColor }}"></div>
+<div style="position:relative;display:flex;flex-direction:{{ gripDir }};align-items:center;gap:12px"><sc-for list="{{ grips }}" as="g" hint-placeholder-count="1"><div style="width:{{ gripW }};height:{{ gripH }};box-sizing:border-box;border-radius:{{ t.gripR }};background:{{ gripBg }};box-shadow:{{ t.gripSh }}"></div></sc-for></div>
+</div>
+<div style="flex:{{ f2 }};min-width:0;min-height:0;overflow:hidden"><sc-if value="{{ isSet2 }}" hint-placeholder-val="{{ false }}"><dc-import name="EinkSettingsCard" theme="{{ sTheme }}" scheme="{{ sScheme }}" pen="{{ sPen }}" orient="{{ sOrient }}" pk="{{ sPk }}" page="{{ sPage }}" app="{{ sApp }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if><sc-if value="{{ notSet2 }}" hint-placeholder-val="{{ true }}"><dc-import name="EinkApp" app="{{ app2 }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if></div>
+</div>
+</sc-if>
+<sc-if value="{{ isMono }}" hint-placeholder-val="{{ false }}"><sc-if value="{{ isSetMono }}" hint-placeholder-val="{{ false }}"><dc-import name="EinkSettingsCard" theme="{{ sTheme }}" scheme="{{ sScheme }}" pen="{{ sPen }}" orient="{{ sOrient }}" pk="{{ sPk }}" page="{{ sPage }}" app="{{ sApp }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if><sc-if value="{{ notSetMono }}" hint-placeholder-val="{{ true }}"><dc-import name="EinkApp" app="{{ monoApp }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if></sc-if>
+<sc-if value="{{ isGrid }}" hint-placeholder-val="{{ false }}">
+<div style="position:relative;display:flex;flex-direction:{{ gOuter }};gap:20px;height:100%;background:{{ gridGut }}">
+<sc-for list="{{ groups }}" as="gr" hint-placeholder-count="2"><div style="min-width:0;flex:{{ gr.fg }} 1 0px;min-width:0;min-height:0;display:flex;flex-direction:{{ gInner }};gap:20px"><sc-for list="{{ gr.panes }}" as="pn" hint-placeholder-count="2"><div style="min-width:0;flex:{{ pn.fg }} 1 0px;min-width:0;min-height:0;overflow:hidden;background:var(--il-paper,#ffffff)"><sc-if value="{{ pn.isSet }}" hint-placeholder-val="{{ false }}"><dc-import name="EinkSettingsCard" theme="{{ sTheme }}" scheme="{{ sScheme }}" pen="{{ sPen }}" orient="{{ sOrient }}" pk="{{ sPk }}" page="{{ sPage }}" app="{{ sApp }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if><sc-if value="{{ pn.notSet }}" hint-placeholder-val="{{ true }}"><dc-import name="EinkApp" app="{{ pn.key }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if></div></sc-for></div></sc-for>
+<sc-for list="{{ gridDivs }}" as="gd" hint-placeholder-count="0"><div tabindex="0" role="button" aria-label="{{ gd.aria }}" data-widget="divider" onKeyDown="{{ ilKey }}" onClick="{{ gd.click }}" onPointerDown="{{ gd.down }}" onPointerMove="{{ gd.move }}" onPointerUp="{{ gd.up }}" style="position:absolute;left:{{ gd.l }};top:{{ gd.t }};width:{{ gd.w }};height:{{ gd.h }};z-index:{{ gd.z }};touch-action:none;background:{{ gd.bg }};box-shadow:{{ t.divSh }};display:flex;align-items:center;justify-content:center;cursor:pointer"><div style="flex:1;align-self:stretch;display:flex;flex-direction:{{ gd.cDir }};align-items:center;justify-content:{{ gd.jc }}"><sc-for list="{{ gd.clusters }}" as="cl" hint-placeholder-count="1"><div style="display:flex;flex-direction:{{ gd.gDir }};align-items:center;gap:12px"><sc-for list="{{ grips }}" as="g" hint-placeholder-count="1"><div style="width:{{ gd.gW }};height:{{ gd.gH }};box-sizing:border-box;border-radius:{{ t.gripR }};background:{{ gd.gBg }};box-shadow:{{ t.gripSh }}"></div></sc-for></div></sc-for></div></div></sc-for>
+</div>
+</sc-if>
+<sc-for list="{{ divBtns }}" as="db" hint-placeholder-count="0"><div data-widget="divider-actions" style="position:absolute;left:{{ db.cx }};top:{{ db.cy }};transform:translate(-50%,-50%);z-index:16;display:flex;gap:8px"><sc-for list="{{ db.btns }}" as="b" hint-placeholder-count="1"><div tabindex="0" role="button" aria-label="{{ b.aria }}" title="{{ b.aria }}" data-widget="{{ b.wid }}" onKeyDown="{{ ilKey }}" onClick="{{ b.on }}" style="width:{{ b.sz }};height:{{ b.sz }};box-sizing:border-box;border-radius:{{ b.rad }};background:{{ t.btnBg }};border:1.5px solid {{ t.ink }};box-shadow:{{ t.btnSh }};color:{{ t.ink }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 26px/1 'Material Symbols Outlined'">{{ b.icon }}</span><sc-if value="{{ b.gRows }}" hint-placeholder-val="{{ false }}"><div style="width:24px;height:26px;display:flex;flex-direction:column;gap:2px"><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div></div></sc-if><sc-if value="{{ b.gSide }}" hint-placeholder-val="{{ false }}"><div style="width:26px;height:24px;display:flex;gap:2px"><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div></div></sc-if><sc-if value="{{ b.crossH }}" hint-placeholder-val="{{ false }}"><div style="position:relative;width:26px;height:26px"><div style="position:absolute;left:0;right:0;top:11.5px;height:3px;border-radius:1.5px;background:currentColor"></div><div style="position:absolute;left:8px;top:1px;width:1.5px;height:8px;border-radius:1px;background:currentColor"></div><div style="position:absolute;left:16.5px;top:17px;width:1.5px;height:8px;border-radius:1px;background:currentColor"></div></div></sc-if><sc-if value="{{ b.crossV }}" hint-placeholder-val="{{ false }}"><div style="position:relative;width:26px;height:26px"><div style="position:absolute;top:0;bottom:0;left:11.5px;width:3px;border-radius:1.5px;background:currentColor"></div><div style="position:absolute;top:8px;left:1px;height:1.5px;width:8px;border-radius:1px;background:currentColor"></div><div style="position:absolute;top:16.5px;left:17px;height:1.5px;width:8px;border-radius:1px;background:currentColor"></div></div></sc-if></div></sc-for></div></sc-for>
+<sc-if value="{{ showResize }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;pointer-events:none;z-index:12">
+<div style="position:absolute;left:{{ lx }};top:{{ ly }};width:{{ lw }};height:{{ lh }};background:{{ t.ink }}"></div>
+<sc-if value="{{ resizeRows }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;right:10px;top:16px;bottom:16px;width:6px;border-radius:3px;background:{{ t.ink }}"><sc-for list="{{ snaps }}" as="sn" hint-placeholder-count="3"><div style="position:absolute;right:0;top:{{ sn.top }};transform:translateY(-50%);display:flex;align-items:center"><span style="font:{{ t.snapFont }};margin-right:10px;background:{{ t.screenBg }};padding:0 3px">{{ sn.l }}</span><div style="width:6px;height:1.5px;background:{{ t.screenBg }}"></div></div></sc-for></div></sc-if>
+</div>
+</sc-if>
+</div>
+
+<sc-if value="{{ any }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ close }}" style="position:absolute;left:0;right:0;top:52px;bottom:0;z-index:15">
+
+<sc-if value="{{ hasSheet }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ stop }}" style="position:absolute;left:50%;top:{{ sheetTop }};transform:{{ sheetTf }};width:580px;background:{{ t.cardBg }};border:{{ t.cardBorder }};border-radius:{{ t.cardR }};box-shadow:{{ t.cardSh }}">
+<div style="display:{{ t.emboss }};position:absolute;inset:6px;border:1px solid var(--il-rule,#d2d2d2);border-radius:2px;pointer-events:none"></div>
+<sc-for list="{{ sections }}" as="sec" hint-placeholder-count="0">
+<div data-widget="{{ sec.wid }}" data-widget-label="{{ sec.name }}" style="position:relative;padding:14px 22px;border-bottom:{{ sec.sep }};display:flex;align-items:center;gap:14px">
+<div style="flex:1;min-width:0;display:flex;align-items:center;gap:12px">
+<div style="width:44px;height:44px;flex:none;box-sizing:border-box;border-radius:{{ t.btnR }};border:1.5px solid {{ t.ink }};display:flex;align-items:center;justify-content:center"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ sec.icon }}</span><span style="font:{{ t.numFont }};font-size:18px">{{ sec.num }}</span></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }}">{{ sec.pos }}</span><span style="font:{{ t.nameFont }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sec.name }}</span></div>
+</div>
+<div style="flex:none;display:grid;grid-template-columns:repeat(3,72px);gap:4px">
+<sc-for list="{{ sec.btns }}" as="wb" hint-placeholder-count="3"><div tabindex="{{ wb.tab }}" role="button" aria-label="{{ wb.aria }}" aria-hidden="{{ wb.hid }}" onKeyDown="{{ ilKey }}" onClick="{{ wb.on }}" style="visibility:{{ wb.vis }};display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;color:{{ wb.fg }}"><div style="width:52px;height:52px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ wb.icon }}</span><sc-if value="{{ wb.gRows }}" hint-placeholder-val="{{ false }}"><div style="width:24px;height:26px;display:flex;flex-direction:column;gap:2px"><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div></div></sc-if><sc-if value="{{ wb.gSide }}" hint-placeholder-val="{{ false }}"><div style="width:26px;height:24px;display:flex;gap:2px"><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div><div style="flex:1;border:1.5px solid currentColor;border-radius:2px"></div></div></sc-if></div><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};white-space:nowrap">{{ wb.label }}</span></div></sc-for>
+</div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{ showQS }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ stop }}" style="position:absolute;right:12px;top:12px;width:{{ qsL.w }};background:{{ t.cardBg }};border:{{ t.cardBorder }};border-radius:{{ t.cardR }};box-shadow:{{ t.cardSh }};padding:20px 26px 22px;box-sizing:border-box;display:flex;flex-direction:{{ qsL.dir }};gap:{{ qsL.gap }}">
+<div style="display:{{ t.emboss }};position:absolute;inset:6px;border:1px solid var(--il-rule,#d2d2d2);border-radius:2px;pointer-events:none"></div>
+<div style="display:{{ qsL.colD }};flex:1;min-width:0;flex-direction:column;gap:18px"><div style="position:relative;display:flex;align-items:center;gap:12px;padding-bottom:10px;border-bottom:{{ t.headRule }}"><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font:{{ t.headFont }};font-variant:{{ t.headVar }};letter-spacing:{{ t.headLs }}">{{ t.qsTitle }}</span><span style="font:{{ t.dateFont }};color:{{ t.sub }}">{{ qsDate }}</span></div><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ openPower }}" style="width:48px;height:48px;flex:none;border-radius:{{ t.btnR }};background:{{ t.btnBg }};color:{{ t.ink }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 26px/1 'Material Symbols Outlined'">power_settings_new</span></div><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ openSettings }}" style="width:48px;height:48px;flex:none;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ t.ink }}"><span style="font:400 26px/1 'Material Symbols Outlined'">settings</span></div></div>
+<div style="position:relative;display:flex;justify-content:space-between">
+<sc-for list="{{ toggles }}" as="tg" hint-placeholder-count="4"><div onPointerDown="{{ tg.down }}" onPointerUp="{{ tg.up }}" onPointerLeave="{{ tg.cancel }}" onContextMenu="{{ noMenu }}" style="display:flex;flex-direction:column;align-items:center;gap:8px;width:76px;cursor:pointer;user-select:none;touch-action:none"><div style="width:62px;height:62px;border-radius:{{ t.togR }};background:{{ tg.bg }};color:{{ tg.fg }};box-shadow:{{ tg.sh }};display:flex;align-items:center;justify-content:center"><span style="font:400 26px/1 'Material Symbols Outlined'">{{ tg.icon }}</span></div><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }}">{{ tg.label }}</span></div></sc-for>
+</div>
+<div style="position:relative;margin-top:-8px;text-align:center;font:{{ t.dateFont }};font-size:13px;color:{{ t.sub }}">{{ holdHint }}</div>
+<div style="position:relative;display:flex;flex-direction:column;gap:4px">
+<sc-for list="{{ sliders }}" as="sl" hint-placeholder-count="3">
+<div style="display:flex;flex-direction:column;gap:2px">
+<div style="display:flex;justify-content:space-between;align-items:baseline"><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }}">{{ sl.label }}</span><span style="font:{{ t.numFont }}">{{ sl.val }}</span></div>
+<div tabindex="0" role="slider" aria-label="{{ sl.label }}" aria-valuetext="{{ sl.val }}" onKeyDown="{{ sl.kd }}" onPointerDown="{{ sl.pd }}" onPointerMove="{{ sl.pm }}" onPointerUp="{{ sl.pu }}" onPointerCancel="{{ sl.pu }}" style="height:46px;position:relative;cursor:pointer;touch-action:none">
+<div style="position:absolute;left:0;right:0;top:{{ t.grooveTop }};height:{{ t.grooveH }};border-radius:{{ t.grooveR }};background:{{ t.grooveBg }};box-shadow:{{ t.grooveSh }}"></div>
+<div style="position:absolute;left:50%;top:8px;width:2px;height:30px;margin-left:-1px;background:{{ t.ink }};display:{{ sl.mk }}"></div>
+<div style="position:absolute;left:{{ sl.fl }};top:{{ t.fillTop }};height:{{ t.fillH }};border-radius:{{ t.grooveR }};background:{{ t.ink }};width:{{ sl.fw }}"></div>
+<div style="position:absolute;top:{{ t.knobTop }};left:{{ sl.w }};margin-left:{{ t.knobML }};width:{{ t.knobW }};height:{{ t.knobH }};box-sizing:border-box;border-radius:{{ t.knobR }};background:{{ t.knobBg }};border:{{ t.knobBd }}"></div>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+<div style="display:{{ qsL.colD }};flex:1;min-width:0;flex-direction:column;gap:18px"><div data-widget="fluidity" style="position:relative;display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }}">Fluidity</span><span style="font:{{ t.numFont }};white-space:nowrap">{{ flu.val }}</span></div><div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px"><sc-for list="{{ flu.opts }}" as="o" hint-placeholder-count="4"><div tabindex="0" role="button" aria-pressed="{{ o.pressed }}" onKeyDown="{{ ilKey }}" onClick="{{ o.on }}" style="height:64px;border-radius:{{ t.btnR }};background:{{ o.bg }};color:{{ o.fg }};box-shadow:{{ o.sh }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ o.icon }}</span><span style="font:{{ t.dateFont }};font-size:12px;line-height:1">{{ o.l }}</span></div></sc-for></div><span style="font:{{ t.dateFont }};font-size:13px;color:{{ t.sub }}">{{ flu.sub }}</span></div>
+<div data-widget="desktop" style="position:relative;display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }}">Desktop</span><span style="font:{{ t.numFont }};white-space:nowrap">{{ desk.val }}</span></div><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px"><sc-for list="{{ desk.opts }}" as="o" hint-placeholder-count="2"><div tabindex="0" role="button" aria-pressed="{{ o.pressed }}" onKeyDown="{{ ilKey }}" onClick="{{ o.on }}" style="height:64px;border-radius:{{ t.btnR }};background:{{ o.bg }};color:{{ o.fg }};box-shadow:{{ o.sh }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ o.icon }}</span><span style="font:{{ t.dateFont }};font-size:12px;line-height:1">{{ o.l }}</span></div></sc-for></div><span style="font:{{ t.dateFont }};font-size:13px;color:{{ t.sub }}">{{ desk.sub }}</span></div>
+<div style="position:relative;display:flex;flex-direction:column;gap:8px"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }}">Rotation</span><span style="font:{{ t.numFont }};white-space:nowrap">{{ rot.val }}</span></div><div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ rot.autoOn }}" style="height:64px;border-radius:{{ t.btnR }};background:{{ rot.aBg }};color:{{ rot.aFg }};box-shadow:{{ rot.aSh }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer"><span style="font:400 24px/1 'Material Symbols Outlined'">screen_rotation</span><span style="font:{{ t.dateFont }};font-size:12px;line-height:1">Auto</span></div><sc-for list="{{ rot.opts }}" as="o" hint-placeholder-count="4"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ o.on }}" style="height:64px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ o.bg }};color:{{ o.fg }};box-shadow:{{ o.sh }};outline:{{ o.ol }};outline-offset:-5px;display:flex;align-items:center;justify-content:center;cursor:pointer"><div style="width:24px;height:33px;margin-bottom:5px;box-sizing:border-box;border:1.5px solid currentColor;border-radius:4px;position:relative;display:flex;align-items:center;justify-content:center"><span style="font:{{ t.rowFont }};font-size:13px;font-weight:700;line-height:1;transform:rotate({{ o.deg }})">T</span><div style="position:absolute;bottom:-6px;left:50%;width:9px;height:2.5px;margin-left:-4.5px;border-radius:1px;background:currentColor"></div></div></div></sc-for></div></div>
+
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ showPower }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ stop }}" style="position:absolute;left:50%;top:110px;width:440px;margin-left:-220px;background:{{ t.cardBg }};border:{{ t.cardBorder }};border-radius:{{ t.cardR }};box-shadow:{{ t.cardSh }};padding:20px 26px 22px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+<div style="position:relative;display:flex;flex-direction:column;gap:2px;padding-bottom:10px;border-bottom:{{ t.headRule }}"><span style="font:{{ t.headFont }};font-variant:{{ t.headVar }};letter-spacing:{{ t.headLs }}">Power</span><span style="font:{{ t.dateFont }};color:{{ t.sub }}">{{ pwrMsg }}</span></div>
+<div style="position:relative;display:flex;flex-direction:column">
+<sc-for list="{{ pwrMain }}" as="pm" hint-placeholder-count="3"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ pm.on }}" style="min-height:68px;padding:6px 0;box-sizing:border-box;display:flex;align-items:center;gap:16px;border-bottom:{{ t.sep }};cursor:pointer"><div style="width:48px;height:48px;flex:none;border-radius:{{ t.btnR }};background:{{ pm.bg }};color:{{ pm.fg }};box-shadow:{{ pm.sh }};display:flex;align-items:center;justify-content:center"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ pm.icon }}</span></div><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><span style="font:{{ t.rowFont }};line-height:1.25">{{ pm.name }}</span><span style="font:{{ t.dateFont }};color:{{ t.sub }};line-height:1.4;text-wrap:pretty">{{ pm.sub }}</span></div></div></sc-for>
+</div>
+<div style="position:relative;display:flex;flex-direction:column;gap:8px"><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }}">Restart into</span><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px"><sc-for list="{{ pwrAlt }}" as="pm" hint-placeholder-count="2"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ pm.on }}" style="min-height:64px;padding:10px 12px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;gap:10px;cursor:pointer"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ pm.icon }}</span><div style="min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font:{{ t.rowFont }};font-size:15px;line-height:1.2">{{ pm.name }}</span><span style="font:{{ t.dateFont }};font-size:12px;line-height:1.3;color:{{ t.sub }}">{{ pm.sub }}</span></div></div></sc-for></div></div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ closePower }}" style="position:relative;height:48px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }}">Cancel</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showNotif }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ stop }}" style="position:absolute;left:12px;right:12px;top:12px;background:{{ t.cardBg }};border:{{ t.cardBorder }};border-radius:{{ t.cardR }};box-shadow:{{ t.cardSh }};padding:18px 22px 14px;box-sizing:border-box;display:flex;flex-direction:column">
+<div style="display:{{ t.emboss }};position:absolute;inset:6px;border:1px solid var(--il-rule,#d2d2d2);border-radius:2px;pointer-events:none"></div>
+<div style="position:relative;display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;border-bottom:{{ t.headRule }}"><span style="font:{{ t.headFont }};font-variant:{{ t.headVar }};letter-spacing:{{ t.headLs }}">{{ t.nTitle }}</span><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ clearAll }}" style="min-height:44px;display:flex;align-items:center;gap:6px;cursor:pointer;color:{{ clearFg }}"><span style="font:400 20px/1 'Material Symbols Outlined'">clear_all</span><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }}">Clear all</span></div></div>
+<sc-for list="{{ notifs }}" as="nt" hint-placeholder-count="3">
+<div style="position:relative;display:flex;align-items:flex-start;gap:14px;padding:14px 0;border-bottom:{{ nt.sep }}">
+<div style="width:44px;height:44px;flex:none;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ nt.icon }}</span></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;cursor:pointer">
+<div style="display:flex;gap:8px;align-items:baseline"><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }}">{{ nt.app }}</span><span style="font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }}">· {{ nt.time }}</span></div>
+<span style="font:{{ t.nTitleFont }}">{{ nt.title }}</span>
+<span style="font:{{ t.nBodyFont }};text-wrap:pretty">{{ nt.body }}</span>
+</div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ nt.dismiss }}" style="width:44px;height:44px;flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 22px/1 'Material Symbols Outlined'">close</span></div>
+</div>
+</sc-for>
+<sc-if value="{{ noNotif }}" hint-placeholder-val="{{ false }}"><div style="position:relative;padding:34px 0 24px;text-align:center;font:{{ t.dateFont }};color:{{ t.sub }}">Nothing new</div></sc-if>
+<div style="position:relative;padding-top:10px;text-align:center;font:{{ t.dateFont }};font-size:13px;color:{{ t.sub }}">Tap a notice to open it</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showOv }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ stop }}" data-widget="overview" data-widget-label="Overview" data-mode="{{ ovMode }}" style="position:absolute;left:8px;right:8px;top:8px;bottom:8px;background:{{ t.cardBg }};border:{{ t.cardBorder }};border-radius:{{ t.cardR }};box-shadow:{{ t.cardSh }};padding:10px 14px 10px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
+<div style="display:{{ t.emboss }};position:absolute;inset:6px;border:1px solid var(--il-rule,#d2d2d2);border-radius:2px;pointer-events:none"></div>
+<div style="position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;min-height:52px;padding-bottom:6px;border-bottom:{{ t.headRule }}">
+<span style="flex:none;font:{{ t.headFont }};font-variant:{{ t.headVar }};letter-spacing:{{ t.headLs }};white-space:nowrap">{{ t.oTitle }}</span>
+<span style="flex:1;min-width:80px;font:{{ t.dateFont }};color:{{ t.sub }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ovSub }}</span>
+<sc-if value="{{ ovPaged }}" hint-placeholder-val="{{ false }}"><div data-widget="pager" style="flex:none;display:flex;align-items:center;gap:4px"><div tabindex="0" role="button" aria-label="Previous page" onKeyDown="{{ ilKey }}" onClick="{{ ovPrev }}" style="width:48px;height:48px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ ovPrevFg }}"><span style="font:400 26px/1 'Material Symbols Outlined'">chevron_left</span></div><span style="min-width:30px;text-align:center;font:{{ t.pageFont }}">{{ ovPageShort }}</span><div tabindex="0" role="button" aria-label="Next page" onKeyDown="{{ ilKey }}" onClick="{{ ovNext }}" style="width:48px;height:48px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ ovNextFg }}"><span style="font:400 26px/1 'Material Symbols Outlined'">chevron_right</span></div></div></sc-if>
+<sc-for list="{{ mvActs }}" as="ac" hint-placeholder-count="0"><div tabindex="0" role="button" aria-label="{{ ac.label }}" title="{{ ac.label }}" onKeyDown="{{ ilKey }}" onClick="{{ ac.on }}" style="flex:none;width:48px;height:48px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ ac.fg }}"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ ac.icon }}</span></div></sc-for>
+<div tabindex="0" role="button" aria-label="{{ ovCloseAria }}" title="{{ ovCloseAria }}" onKeyDown="{{ ilKey }}" onClick="{{ ovClose }}" style="width:48px;height:48px;flex:none;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ t.ink }}"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ ovCloseIcon }}</span></div>
+</div>
+<div onPointerDown="{{ ovSwDown }}" onPointerUp="{{ ovSwUp }}" style="position:relative;flex:1;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 14px;align-content:start;touch-action:pan-y">
+<sc-for list="{{ ovCards }}" as="sp" hint-placeholder-count="2">
+<div data-widget="screen-preview" data-widget-label="{{ sp.title }}" style="min-width:0;display:flex;flex-direction:column;gap:6px;opacity:{{ sp.op }}">
+<div style="display:flex;align-items:baseline;gap:6px;min-width:0;padding:0 2px"><span style="flex:none;font:{{ t.pageFont }}">{{ sp.num }}</span><span style="flex:1;min-width:0;font:{{ t.appNameFont }};font-variant:{{ t.appNameVar }};letter-spacing:{{ t.appNameLs }};font-weight:{{ sp.fw }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ sp.title }}</span></div>
+<div style="position:relative;display:flex;align-items:stretch;justify-content:center;gap:6px">
+<div data-rail="left" style="flex:none;width:48px;height:{{ ovL.ph }};display:flex;flex-direction:column;justify-content:space-around"><sc-for list="{{ sp.railL }}" as="sl" hint-placeholder-count="2"><div tabindex="{{ sl.tab }}" role="{{ sl.role }}" aria-label="{{ sl.aria }}" title="{{ sl.aria }}" onKeyDown="{{ ilKey }}" onClick="{{ sl.on }}" style="width:48px;height:48px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ sl.bg }};color:{{ sl.fg }};box-shadow:{{ sl.sh }};border:{{ sl.bd }};display:flex;align-items:center;justify-content:center;cursor:{{ sl.cur }}"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ sl.icon }}</span></div></sc-for></div>
+<div style="position:relative;flex:none;width:{{ ovL.pw }};height:{{ ovL.ph }};overflow:hidden;background:{{ sp.pvBg }};box-shadow:{{ sp.ring }}">
+<div style="position:absolute;inset:0;opacity:{{ sp.shotOp }}">
+<div style="position:absolute;left:0;top:0;width:{{ ovL.sw }};height:{{ ovL.sh }};transform:scale({{ ovL.sc }});transform-origin:0 0;display:flex;flex-direction:{{ sp.oDir }};gap:20px;pointer-events:none">
+<sc-for list="{{ sp.groups }}" as="gr" hint-placeholder-count="1"><div style="min-width:0;flex:{{ gr.fg }} 1 0px;min-width:0;min-height:0;display:flex;flex-direction:{{ sp.iDir }};gap:20px"><sc-for list="{{ gr.panes }}" as="pn" hint-placeholder-count="1"><div style="min-width:0;flex:{{ pn.fg }} 1 0px;min-width:0;min-height:0;overflow:hidden;background:var(--il-paper,#ffffff)"><sc-if value="{{ pn.isSet }}" hint-placeholder-val="{{ false }}"><dc-import name="EinkSettingsCard" theme="{{ sTheme }}" scheme="{{ sScheme }}" pen="{{ sPen }}" orient="{{ sOrient }}" pk="{{ sPk }}" page="{{ sPage }}" app="{{ sApp }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if><sc-if value="{{ pn.notSet }}" hint-placeholder-val="{{ true }}"><dc-import name="EinkApp" app="{{ pn.key }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></sc-if></div></sc-for></div></sc-for>
+</div>
+</div>
+<sc-if value="{{ sp.canGo }}" hint-placeholder-val="{{ true }}"><div tabindex="0" role="button" aria-label="{{ sp.goAria }}" onKeyDown="{{ ilKey }}" onClick="{{ sp.go }}" style="position:absolute;inset:0;cursor:pointer"></div></sc-if>
+<sc-for list="{{ sp.inside }}" as="ic" hint-placeholder-count="0"><div aria-label="{{ ic.aria }}" title="{{ ic.aria }}" role="button" tabindex="0" onKeyDown="{{ ilKey }}" onClick="{{ ic.on }}" style="cursor:pointer;position:absolute;left:{{ ic.cx }};top:{{ ic.cy }};transform:translate(-50%,-50%);width:48px;height:48px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ ic.bg }};color:{{ ic.fg }};box-shadow:{{ ic.sh }};display:flex;align-items:center;justify-content:center"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ ic.icon }}</span></div></sc-for>
+
+</div>
+<div data-rail="right" style="flex:none;width:48px;height:{{ ovL.ph }};display:flex;flex-direction:column;justify-content:space-around"><sc-for list="{{ sp.railR }}" as="sl" hint-placeholder-count="2"><div tabindex="{{ sl.tab }}" role="{{ sl.role }}" aria-label="{{ sl.aria }}" title="{{ sl.aria }}" onKeyDown="{{ ilKey }}" onClick="{{ sl.on }}" style="width:48px;height:48px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ sl.bg }};color:{{ sl.fg }};box-shadow:{{ sl.sh }};border:{{ sl.bd }};display:flex;align-items:center;justify-content:center;cursor:{{ sl.cur }}"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ sl.icon }}</span></div></sc-for></div>
+<sc-for list="{{ sp.targets }}" as="tg" hint-placeholder-count="0"><div data-widget="slot" tabindex="0" role="button" aria-label="{{ tg.aria }}" onKeyDown="{{ ilKey }}" onClick="{{ tg.on }}" style="position:absolute;left:{{ tg.l }};top:{{ tg.t }};z-index:2;transform:translate(-50%,-50%);width:48px;height:48px;box-sizing:border-box;border-radius:{{ t.btnR }};border:2px dashed {{ t.ink }};background:var(--il-highlight,{{ t.cardBg }});color:{{ t.ink }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 26px/1 'Material Symbols Outlined'">{{ tg.icon }}</span></div></sc-for>
+<sc-for list="{{ sp.mvBtns }}" as="mb" hint-placeholder-count="0"><div data-widget="app-action" tabindex="{{ mb.tab }}" role="button" aria-label="{{ mb.aria }}" title="{{ mb.aria }}" onKeyDown="{{ ilKey }}" onClick="{{ mb.on }}" style="position:absolute;left:{{ mb.l }};top:{{ mb.t }};transform:translate(-50%,-50%);z-index:3;width:44px;height:44px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};border:1.5px solid {{ t.ink }};box-shadow:{{ t.btnSh }};color:{{ mb.fg }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ mb.icon }}</span></div></sc-for>
+</div>
+<div style="height:48px;display:flex;align-items:center;justify-content:center">
+<sc-if value="{{ sp.scr.show }}" hint-placeholder-val="{{ true }}"><div data-widget="screen-actions" style="display:flex;align-items:center;gap:8px"><div tabindex="{{ sp.scr.prev.tab }}" role="button" aria-label="{{ sp.scr.prev.aria }}" onKeyDown="{{ ilKey }}" onClick="{{ sp.scr.prev.on }}" style="height:48px;min-width:48px;padding:0 0;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};color:{{ sp.scr.prev.fg }};display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font:{{ t.dateFont }};font-size:13px"><span style="font:400 22px/1 'Material Symbols Outlined'">arrow_back</span></div><div tabindex="{{ sp.scr.close.tab }}" role="button" aria-label="{{ sp.scr.close.aria }}" onKeyDown="{{ ilKey }}" onClick="{{ sp.scr.close.on }}" style="height:48px;min-width:48px;padding:0 0;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};color:{{ sp.scr.close.fg }};display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font:{{ t.dateFont }};font-size:13px"><span style="font:400 22px/1 'Material Symbols Outlined'">close</span></div><div tabindex="{{ sp.scr.next.tab }}" role="button" aria-label="{{ sp.scr.next.aria }}" onKeyDown="{{ ilKey }}" onClick="{{ sp.scr.next.on }}" style="height:48px;min-width:48px;padding:0 0;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};color:{{ sp.scr.next.fg }};display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font:{{ t.dateFont }};font-size:13px"><span style="font:400 22px/1 'Material Symbols Outlined'">arrow_forward</span></div></div></sc-if>
+</div>
+</div>
+</sc-for>
+</div>
+<div style="position:relative;text-align:center;font:{{ t.dateFont }};font-size:13px;color:{{ t.sub }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ovHint }}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ showHome }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ stop }}" data-widget="home-layer" data-widget-label="Home (separate app, from the scratchpad)" style="position:absolute;inset:0;z-index:3"><dc-import name="EinkHome" t="{{ t }}" orient="{{ sOrient }}" apps="{{ homeApps }}" mode="{{ homeMode }}" on-open="{{ homeOpen }}" style="width:100%;height:100%" hint-size="100%,100%"></dc-import></div>
+</sc-if>
+
+</div>
+</sc-if>
+<sc-if value="{{ showSleep }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ wake }}" data-widget="sleep-overlay" data-widget-label="Sleep overlay" style="position:absolute;inset:0;z-index:40;cursor:pointer;display:flex;align-items:flex-end;justify-content:center;padding:0 24px 40px;box-sizing:border-box">
+<div style="position:relative;max-width:420px;width:100%;background:{{ t.cardBg }};border:{{ t.cardBorder }};border-radius:999px;box-shadow:{{ t.cardSh }};padding:14px 28px 14px 18px;box-sizing:border-box;display:flex;align-items:center;gap:16px;color:{{ t.ink }}">
+<div style="width:48px;height:48px;flex:none;border-radius:50%;border:1.5px solid {{ t.ink }};display:flex;align-items:center;justify-content:center"><span style="font:300 26px/1 'Material Symbols Outlined'">bedtime</span></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px"><span style="font:{{ t.headFont }};font-variant:{{ t.headVar }};letter-spacing:{{ t.headLs }};font-size:20px;line-height:1.15">Sleeping</span><span style="font:{{ t.dateFont }};color:{{ t.sub }};line-height:1.35;text-wrap:pretty">Press the power key to wake</span></div>
+<span style="flex:none;font:{{ t.dateFont }};font-size:12px;color:{{ t.sub }}">{{ sleepSince }}</span>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{ flash }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;inset:0;background:var(--il-ink,#111111);z-index:50"></div></sc-if>
+</div>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="7"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tb.on }}" style="font:500 11.5px 'IBM Plex Mono';padding:7px 11px;border-radius:6px;border:1px solid rgba(0,0,0,.2);cursor:pointer;background:{{ tb.bg }};color:{{ tb.fg }}">{{ tb.label }}</div></sc-for></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;: {&quot;width&quot;: 760, &quot;height&quot;: 1060}, &quot;view&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;idle&quot;, &quot;overview&quot;, &quot;tiling&quot;, &quot;qs&quot;, &quot;power&quot;, &quot;sleep&quot;, &quot;home&quot;, &quot;empty&quot;], &quot;default&quot;: &quot;idle&quot;, &quot;tsType&quot;: &quot;string&quot;}, &quot;orient&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;portrait&quot;, &quot;landscape&quot;], &quot;default&quot;: &quot;portrait&quot;, &quot;tsType&quot;: &quot;string&quot;}, &quot;theme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;white&quot;, &quot;editorial&quot;, &quot;stationery&quot;], &quot;default&quot;: &quot;white&quot;, &quot;tsType&quot;: &quot;string&quot;}, &quot;scheme&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;paper&quot;, &quot;night&quot;, &quot;eink&quot;], &quot;default&quot;: &quot;paper&quot;, &quot;tsType&quot;: &quot;string&quot;}, &quot;pen&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;1&quot;, &quot;2&quot;, &quot;3&quot;], &quot;default&quot;: &quot;1&quot;, &quot;tsType&quot;: &quot;string&quot;}, &quot;change&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;none&quot;, &quot;running&quot;], &quot;default&quot;: &quot;none&quot;}, &quot;homeMode&quot;: {&quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;browse&quot;, &quot;edit&quot;, &quot;add&quot;, &quot;menu&quot;], &quot;default&quot;: &quot;browse&quot;}}">
+class Component extends DCLogic {
+  componentDidMount() { const p = this.props, st = {}; if (p.view) st.view = p.view === 'tiling' ? 'overview' : p.view; if ((p.view === 'overview' || p.view === 'tiling') && !p.settings) Object.assign(st, { cur: 'a', spaces: [{ id: 'b', apps: ['terminal'], dir: 'rows' }, { id: 'a', apps: ['browser', 'software'], dir: 'rows' }, { id: 'c', apps: ['notes', 'reader', 'files'], dir: 'rows', split: 1, full: 'reader' }, { id: 'd', apps: ['stars', 'calendar', 'mail', 'settings'], dir: 'rows' }] }); if (p.view === 'tiling') st.mv = { sp: 'a', app: 'software' }; if (p.view === 'launcher' || p.view === 'appmenu') st.view = 'home'; if (p.view === 'empty') Object.assign(st, { view: 'home', hole: { i: 1, only: false } }); if (p.solo) st.cur = 'b'; if (p.tiles) Object.assign(st, { cur: 't', spaces: [{ id: 'a', apps: ['software', 'browser'], dir: 'rows' }, Number(p.tiles) === 4 ? { id: 't', apps: ['stars', 'calendar', 'mail', 'reader'], dir: 'rows', r: .55, ri: [.4, .62] } : { id: 't', apps: ['notes', 'reader', 'files'], dir: 'rows', split: 1 }, { id: 'b', apps: ['terminal'], dir: 'rows' }] }); if (p.quad) Object.assign(st, { cur: 'd', spaces: [{ id: 'a', apps: ['software', 'browser'], dir: 'rows' }, { id: 'd', apps: ['stars', 'calendar', 'mail', 'reader'], dir: 'rows' }, { id: 'b', apps: ['terminal'], dir: 'rows' }] }); if (p.settings) Object.assign(st, this.winSpaces(p.win)); this.setState(st); }
+  componentDidUpdate(pp) { if (this.props.settings && pp.win !== this.props.win) this.setState(this.winSpaces(this.props.win)); }
+  winSpaces(w) { w = w || 'full'; const rest = [{ id: 'b', apps: ['terminal'], dir: 'rows' }, { id: 'c', apps: ['notes'], dir: 'rows' }];
+    if (w === 'full') return { cur: 'a', spaces: [{ id: 'a', apps: ['settings'], dir: 'rows' }, { id: 'd', apps: ['browser'], dir: 'rows' }, rest[0]] };
+    if (w === 'quarter') return { cur: 'a', spaces: [{ id: 'a', apps: ['settings', 'browser', 'terminal', 'notes'], dir: 'rows' }] };
+    return { cur: 'a', spaces: [{ id: 'a', apps: ['settings', 'browser'], dir: w === 'column' ? 'side' : 'rows' }, ...rest] }; }
+  state = { view: 'idle', ovPage: null, ratio: .5, dragR: .5, drag: false, wifi: true, bt: false, mute: false, mode: 'Auto', light: 60, warm: 100, vol: 50, managed: true, glow: true, flu: 'Balanced', desk: 'Sway', kb: false, rotAuto: true, rot: 0, sensor: 0, pwrMsg: null, bMin: 20, bMax: 80, wMin: 10, wMax: 90, bOff: 0, wOff: 0, flash: false, cat: 'Home', lp: 0, rpg: 0, fpg: 0, appMenu: null, opening: null, gone: [], mv: null, cur: 'a',
+    spaces: [{ id: 'a', apps: ['software', 'browser'], dir: 'rows' }, { id: 'b', apps: ['terminal'], dir: 'rows' }, { id: 'c', apps: ['notes'], dir: 'rows' }, { id: 'e', apps: ['reader'], dir: 'rows' }, { id: 'f', apps: ['files'], dir: 'rows' }, { id: 'g', apps: ['stars'], dir: 'rows' }] };
+
+  notifList() {
+    return [
+      { id: 'upd', icon: 'system_update', app: 'Software', time: '19:52', title: '3 updates available', body: 'Firefox ESR, KOReader and 1 system package.' },
+      { id: 'dl', icon: 'download_done', app: 'Firefox ESR', time: '19:40', title: 'Download complete', body: 'A Pattern Language.epub saved to Books.' },
+      { id: 'cal', icon: 'event', app: 'Calendar', time: '18:05', title: 'Reading group at 20:30', body: 'Invisible Cities, chapters 4 and 5.' },
+      { id: 'sync', icon: 'sync', app: 'Syncthing', time: '17:12', title: '12 files synced', body: 'Notes folder is up to date with the laptop.' }
+    ];
+  }
+
+  themesBase() {
+    const serifLbl = f => ({ lblFont: `400 14px ${f}`, lblVar: 'small-caps', lblCase: 'lowercase', lblLs: '.1em' });
+    return {
+      white: {
+        screenBg: 'var(--il-paper,#ffffff)', ink: 'var(--il-ink,#111111)', sub: 'var(--il-ink-soft,#4a4a4a)', fontUI: "'IBM Plex Sans',sans-serif",
+        lblFont: "500 10.5px 'IBM Plex Mono',monospace", lblVar: 'normal', lblCase: 'uppercase', lblLs: '.08em',
+        barBg: 'var(--il-paper,#ffffff)', barFg: 'var(--il-ink,#111111)', barBorder: '1.5px solid var(--il-ink,#111111)', barShadow: 'none', stitch: 'none', stitchColor: 'var(--il-ink,#111111)',
+        plateR: '8px', plateOnBg: 'var(--il-ink,#111111)', plateOnFg: 'var(--il-paper,#ffffff)', plateOnSh: 'none', plateOffSh: 'none',
+        wsFont: "500 13px 'IBM Plex Mono'", titleFont: "500 14px 'IBM Plex Sans'", numFont: "500 13px 'IBM Plex Mono'",
+        divBg: 'var(--il-paper,#ffffff)', divDrag: 'var(--il-ink,#111111)', divSh: 'inset 0 0 0 1px var(--il-ink,#111111)', gripBg: 'var(--il-ink,#111111)', gripDrag: 'var(--il-paper,#ffffff)', gripR: '2px', grip: [56, 4], grips: 1, gripSh: 'none', divStitch: false,
+        gridBg: 'var(--il-ink,#111111)',
+        cardBg: 'var(--il-paper,#ffffff)', cardBorder: '1.5px solid var(--il-ink,#111111)', cardR: '16px', cardSh: 'none', emboss: 'none',
+        sep: '1px dotted var(--il-ink,#111111)', sepSoft: '1px solid var(--il-ink,#111111)', headRule: '1.5px solid var(--il-ink,#111111)',
+        nameFont: "600 17px 'IBM Plex Sans'", headFont: "600 18px 'IBM Plex Sans'", headVar: 'normal', headLs: '0', dateFont: "400 13px 'IBM Plex Sans'",
+        btnBg: 'var(--il-paper,#ffffff)', btnSh: 'inset 0 0 0 1.5px var(--il-ink,#111111),0 3px 0 var(--il-shade,#b4b4b4)', btnR: '12px', selBg: 'var(--il-ink,#111111)', selFg: 'var(--il-paper,#ffffff)', selSh: 'none',
+        togR: '18px', togOnBg: 'var(--il-ink,#111111)', togOnFg: 'var(--il-paper,#ffffff)', togOnSh: '0 3px 0 var(--il-shade,#b4b4b4)',
+        grooveTop: '20px', grooveH: '6px', grooveR: '3px', grooveBg: 'var(--il-paper,#ffffff)', grooveSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', fillTop: '20px', fillH: '6px',
+        knobTop: '10px', knobML: '-13px', knobW: '26px', knobH: '26px', knobR: '50%', knobBg: 'var(--il-paper,#ffffff)', knobBd: '2px solid var(--il-ink,#111111)',
+        trayBg: 'var(--il-paper,#ffffff)', traySh: 'inset 0 0 0 1.5px var(--il-ink,#111111),inset 0 3px 0 var(--il-rule,#d6d6d6)', trayR: '12px', segR: '9px', segFont: "400 14px 'IBM Plex Sans'", segOnBg: 'var(--il-ink,#111111)', segOnFg: 'var(--il-paper,#ffffff)', segOnSh: '0 2px 0 var(--il-shade,#b4b4b4)',
+        chipBg: 'var(--il-paper,#ffffff)', chipSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', chipR: '10px',
+        pwrBg: 'var(--il-ink,#111111)', pwrFg: 'var(--il-paper,#ffffff)', pwrSh: '0 3px 0 var(--il-shade,#b4b4b4)', pwrR: '21px',
+        padBg: 'var(--il-paper,#ffffff)', padBorder: '1.5px solid var(--il-ink,#111111)', padR: '18px', padSh: 'none', padFg: 'var(--il-ink,#111111)', folderR: '10px', folderSh: '0 4px 0 var(--il-shade,#b4b4b4)', folderTabSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', folderFont: "400 13px/1.35 'IBM Plex Sans'",
+        appBg: 'var(--il-paper,#ffffff)', appSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', appR: '12px', appNameFont: "500 14px 'IBM Plex Sans'", appNameVar: 'normal', appNameLs: '0', appCatFont: "400 11.5px 'IBM Plex Sans'",
+        searchFont: "400 14px 'IBM Plex Sans'", pageFont: "500 12px 'IBM Plex Mono'",
+        tabR: '0 10px 10px 0', tabFont: "500 13px 'IBM Plex Sans'", tabLs: '0', tabOnBg: 'var(--il-paper,#ffffff)', tabOffBg: 'var(--il-paper,#ffffff)',
+        tabOnSh: 'inset -1.5px 0 0 var(--il-ink,#111111),inset 0 1.5px 0 var(--il-ink,#111111),inset 0 -1.5px 0 var(--il-ink,#111111)', tabOffSh: 'inset 0 0 0 1.5px var(--il-ink,#111111),inset -6px 0 0 var(--il-rule,#dcdcdc)',
+        ratioFont: "600 15px 'IBM Plex Mono'", snapFont: "500 12px 'IBM Plex Mono'", frac: false,
+        oTitle: 'Overview', curTag: 'Showing', qsTitle: 'Quick settings', lTitle: 'Apps', nTitle: 'Notifications',
+        nTitleFont: "600 15px 'IBM Plex Sans'", nBodyFont: "400 13.5px/1.45 'IBM Plex Sans'"
+      },
+      editorial: {
+        screenBg: 'var(--il-paper,#ffffff)', ink: 'var(--il-ink,#111111)', sub: 'var(--il-ink-soft,#555555)', fontUI: "'Source Serif 4',serif",
+        ...serifLbl("'Source Serif 4',serif"),
+        barBg: 'var(--il-paper,#ffffff)', barFg: 'var(--il-ink,#111111)', barBorder: '3px double var(--il-ink,#111111)', barShadow: 'none', stitch: 'none', stitchColor: 'var(--il-ink,#111111)',
+        plateR: '0', plateOnBg: 'transparent', plateOnFg: 'var(--il-ink,#111111)', plateOnSh: 'inset 0 -2px 0 var(--il-ink,#111111)', plateOffSh: 'none',
+        wsFont: "italic 400 16px 'Source Serif 4'", titleFont: "italic 400 16px 'Source Serif 4'", numFont: "400 15px 'Source Serif 4'",
+        divBg: 'var(--il-paper,#ffffff)', divDrag: 'var(--il-ink,#111111)', divSh: 'inset 0 0 0 1px var(--il-ink,#111111)', gripBg: 'var(--il-ink,#111111)', gripDrag: 'var(--il-paper,#ffffff)', gripR: '0', grip: [40, 2], grips: 1, gripSh: 'none', divStitch: false,
+        gridBg: 'var(--il-ink,#111111)',
+        cardBg: 'var(--il-paper,#ffffff)', cardBorder: '1px solid var(--il-ink,#111111)', cardR: '0', cardSh: '0 0 0 5px var(--il-paper,#ffffff),0 0 0 6px var(--il-ink,#111111)', emboss: 'none',
+        sep: '1px solid var(--il-ink,#111111)', sepSoft: '1px solid var(--il-ink,#111111)', headRule: '1px solid var(--il-ink,#111111)',
+        nameFont: "600 20px 'Source Serif 4'", headFont: "600 22px 'Source Serif 4'", headVar: 'normal', headLs: '0', dateFont: "italic 400 14px 'Source Serif 4'",
+        btnBg: 'transparent', btnSh: 'inset 0 0 0 1px var(--il-ink,#111111),inset 0 0 0 4px var(--il-paper,#ffffff),inset 0 0 0 5px var(--il-rule,#d0d0d0)', btnR: '26px', selBg: 'var(--il-ink,#111111)', selFg: 'var(--il-paper,#ffffff)', selSh: 'none',
+        togR: '50%', togOnBg: 'var(--il-ink,#111111)', togOnFg: 'var(--il-paper,#ffffff)', togOnSh: 'inset 0 0 0 4px var(--il-ink,#111111),inset 0 0 0 5px var(--il-paper,#ffffff)',
+        grooveTop: '22px', grooveH: '1px', grooveR: '0', grooveBg: 'var(--il-ink,#111111)', grooveSh: 'none', fillTop: '21px', fillH: '3px',
+        knobTop: '13px', knobML: '-10px', knobW: '20px', knobH: '20px', knobR: '50%', knobBg: 'var(--il-paper,#ffffff)', knobBd: '1.5px solid var(--il-ink,#111111)',
+        trayBg: 'transparent', traySh: 'inset 0 -1px 0 var(--il-ink,#111111)', trayR: '0', segR: '0', segFont: "400 15px 'Source Serif 4'", segOnBg: 'transparent', segOnFg: 'var(--il-ink,#111111)', segOnSh: 'inset 0 -2px 0 var(--il-ink,#111111)',
+        chipBg: 'transparent', chipSh: 'inset 0 0 0 1px var(--il-ink,#111111)', chipR: '0',
+        pwrBg: 'transparent', pwrFg: 'var(--il-ink,#111111)', pwrSh: 'inset 0 0 0 1px var(--il-ink,#111111)', pwrR: '21px',
+        padBg: 'var(--il-paper,#ffffff)', padBorder: '1px solid var(--il-ink,#111111)', padR: '0', padSh: '0 0 0 5px var(--il-paper,#ffffff),0 0 0 6px var(--il-ink,#111111)', padFg: 'var(--il-ink,#111111)', folderR: '0', folderSh: 'none', folderTabSh: 'inset 0 0 0 1px var(--il-ink,#111111)', folderFont: "400 14px/1.35 'Source Serif 4'",
+        appBg: 'transparent', appSh: 'inset 0 -1px 0 var(--il-ink,#111111)', appR: '0', appNameFont: "400 16px 'Source Serif 4'", appNameVar: 'normal', appNameLs: '0', appCatFont: "italic 400 13px 'Source Serif 4'",
+        searchFont: "italic 400 15px 'Source Serif 4'", pageFont: "italic 400 15px 'Source Serif 4'",
+        tabR: '0', tabFont: "400 15px 'Source Serif 4'", tabLs: '.06em', tabOnBg: 'var(--il-paper,#ffffff)', tabOffBg: 'var(--il-paper,#ffffff)',
+        tabOnSh: 'inset -1px 0 0 var(--il-ink,#111111),inset 0 1px 0 var(--il-ink,#111111),inset 0 -1px 0 var(--il-ink,#111111),3px 3px 0 var(--il-ink,#111111)', tabOffSh: 'inset 0 0 0 1px var(--il-ink,#111111),3px 3px 0 var(--il-rule,#c8c8c8)',
+        ratioFont: "italic 400 22px 'Source Serif 4'", snapFont: "italic 400 16px 'Source Serif 4'", frac: true,
+        oTitle: 'Windows', curTag: 'on screen', qsTitle: 'Controls', lTitle: 'Applications', nTitle: 'Notices',
+        nTitleFont: "600 17px 'Source Serif 4'", nBodyFont: "400 15px/1.45 'Source Serif 4'"
+      },
+      stationery: {
+        screenBg: 'var(--il-paper,#ffffff)', ink: 'var(--il-ink,#1b1b1b)', sub: 'var(--il-ink-soft,#555555)', fontUI: "'EB Garamond',serif",
+        ...serifLbl("'EB Garamond',serif"),
+        barBg: 'var(--il-ink,#111111)', barFg: 'var(--il-paper,#ffffff)', barBorder: 'none', barShadow: '0 3px 0 var(--il-shade,#a0a0a0)', stitch: 'block', stitchColor: 'var(--il-gilt)',
+        plateR: '3px', plateOnBg: 'var(--il-paper,#ffffff)', plateOnFg: 'var(--il-ink,#1b1b1b)', plateOnSh: 'inset 0 0 0 1px var(--il-ink,#1b1b1b),inset 0 0 0 3px var(--il-paper,#ffffff),inset 0 0 0 4px var(--il-ink,#1b1b1b),inset 0 -3px 0 4px var(--il-rule,#d0d0d0)', plateOffSh: 'none',
+        wsFont: "italic 400 16px 'EB Garamond'", titleFont: "italic 400 17px 'EB Garamond'", numFont: "400 16px 'EB Garamond'",
+        divBg: 'var(--il-ink,#111111)', divDrag: 'var(--il-ink,#111111)', divSh: 'none', gripBg: 'var(--il-paper,#ffffff)', gripDrag: 'var(--il-paper,#ffffff)', gripR: '50%', grip: [9, 9], grips: 3, gripSh: 'inset 0 -2px 0 var(--il-rule,#bdbdbd)', divStitch: true,
+        gridBg: 'var(--il-ink,#111111)',
+        cardBg: 'var(--il-paper,#ffffff)', cardBorder: 'none', cardR: '4px', cardSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 0 var(--il-paper,#ffffff),0 3px 0 1px var(--il-ink,#1b1b1b),0 6px 0 0 var(--il-paper,#ffffff),0 6px 0 1px var(--il-ink,#1b1b1b),0 10px 0 1px var(--il-rule,#c8c8c8)', emboss: 'block',
+        sep: '1.5px dashed var(--il-ink,#1b1b1b)', sepSoft: '1px solid var(--il-ink,#1b1b1b)', headRule: '1px solid var(--il-ink,#1b1b1b)',
+        nameFont: "italic 500 22px/1.1 'EB Garamond'", headFont: "500 22px 'EB Garamond'", headVar: 'small-caps', headLs: '.1em', dateFont: "italic 400 16px 'EB Garamond'",
+        btnBg: 'var(--il-paper,#ffffff)', btnSh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),inset 0 4px 0 var(--il-rule,#d0d0d0)', btnR: '10px', selBg: 'var(--il-ink,#1b1b1b)', selFg: 'var(--il-paper,#ffffff)', selSh: 'inset 0 0 0 1px var(--il-ink,#000000),inset 0 3px 0 var(--il-ink,#000000)',
+        togR: '50%', togOnBg: 'var(--il-ink,#1b1b1b)', togOnFg: 'var(--il-paper,#ffffff)', togOnSh: 'inset 0 0 0 5px var(--il-ink,#1b1b1b),inset 0 0 0 6.5px var(--il-paper,#ffffff),0 3px 0 var(--il-shade,#8a8a8a)',
+        grooveTop: '19px', grooveH: '8px', grooveR: '4px', grooveBg: 'var(--il-paper,#ffffff)', grooveSh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),inset 0 3px 0 var(--il-rule,#d0d0d0)', fillTop: '21.5px', fillH: '3px',
+        knobTop: '9px', knobML: '-3px', knobW: '6px', knobH: '28px', knobR: '3px', knobBg: 'var(--il-ink,#1b1b1b)', knobBd: 'none',
+        trayBg: 'var(--il-paper,#ffffff)', traySh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),inset 0 4px 0 var(--il-rule,#d0d0d0)', trayR: '9px', segR: '6px', segFont: "400 17px 'EB Garamond'", segOnBg: 'var(--il-paper,#ffffff)', segOnFg: 'var(--il-ink,#1b1b1b)', segOnSh: '0 0 0 1.5px var(--il-ink,#1b1b1b),0 3px 0 var(--il-shade,#8a8a8a)',
+        chipBg: 'var(--il-paper,#ffffff)', chipSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 var(--il-shade,#b4b4b4)', chipR: '2px',
+        pwrBg: 'var(--il-ink,#1b1b1b)', pwrFg: 'var(--il-on-accent,#ececec)', pwrSh: 'inset 0 0 0 1px var(--il-ink,#0a0a0a),inset 0 0 0 2.5px var(--il-shade,#8f8f8f),0 2px 0 var(--il-shade,#8a8a8a)', pwrR: '21px',
+        padBg: 'var(--il-ink,#111111)', padBorder: 'none', padR: '8px', padSh: '0 4px 0 var(--il-shade,#a0a0a0)', padFg: 'var(--il-paper,#ffffff)', folderR: '2px 4px 4px 4px', folderSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 0 var(--il-paper,#ffffff),0 3px 0 1px var(--il-ink,#1b1b1b)', folderTabSh: 'none', folderFont: "400 14px/1.35 'EB Garamond'",
+        appBg: 'var(--il-paper,#ffffff)', appSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 var(--il-rule,#c8c8c8)', appR: '2px', appNameFont: "500 15px 'EB Garamond'", appNameVar: 'small-caps', appNameLs: '.1em', appCatFont: "italic 400 13px 'EB Garamond'",
+        searchFont: "italic 400 17px 'EB Garamond'", pageFont: "italic 400 17px 'EB Garamond'",
+        tabR: '0 5px 5px 0', tabFont: "400 15px 'EB Garamond'", tabLs: '.1em', tabOnBg: 'var(--il-paper,#ffffff)', tabOffBg: 'var(--il-paper,#ffffff)',
+        tabOnSh: 'inset -1.5px 0 0 var(--il-ink,#1b1b1b),inset 0 1.5px 0 var(--il-ink,#1b1b1b),inset 0 -1.5px 0 var(--il-ink,#1b1b1b),0 2px 0 var(--il-ink,#1b1b1b)', tabOffSh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),0 2px 0 var(--il-shade,#7a7a7a)',
+        ratioFont: "italic 400 22px 'EB Garamond'", snapFont: "italic 400 16px 'EB Garamond'", frac: true,
+        oTitle: 'The spread', curTag: 'on top', qsTitle: 'The desk', lTitle: 'Index', nTitle: 'The post',
+        nTitleFont: "500 19px 'EB Garamond'", nBodyFont: "400 16px/1.4 'EB Garamond'"
+      }
+    };
+  }
+
+  themes() {
+    const B = this.themesBase(), p = this.props;
+    const c = n => 'var(--il-' + n + ')';
+    const ink = c('ink'), acc = c('accent'), on = c('on-accent'), hl = c('highlight'), paper = c('paper'), gilt = c('gilt'), lea = c('leather-dark');
+    const set = (o, kv) => { for (const k in kv) if (k in o || k === 'lblC' || k === 'ilv') o[k] = kv[k]; };
+    set(B.white, { plateOnBg: hl, plateOnFg: ink, selBg: hl, selFg: ink,
+      togOnBg: acc, togOnFg: on, togOnSh: c('keycap'), segOnBg: acc, segOnFg: on, segOnSh: c('keycap'),
+      tabOnBg: hl, btnSh: 'inset 0 0 0 1.5px ' + ink + ',' + c('keycap'), pwrSh: c('keycap'), lblC: c('ink-soft') });
+    set(B.editorial, { plateOnFg: acc, plateOnSh: 'inset 0 -2px 0 ' + acc, segOnFg: acc, segOnSh: 'inset 0 -2px 0 ' + acc,
+      selBg: acc, selFg: on, togOnBg: acc, togOnFg: on, togOnSh: 'inset 0 0 0 4px ' + acc + ',inset 0 0 0 5px ' + paper,
+      btnR: '0', btnSh: 'inset 0 0 0 1px ' + ink + ',' + c('offset'), pwrR: '0', pwrSh: 'inset 0 0 0 1px ' + ink + ',' + c('offset'),
+      padSh: c('passe-partout'), cardSh: c('passe-partout'), lblC: acc });
+    set(B.stationery, { barBg: lea, barFg: on, barShadow: 'none', stitchColor: gilt,
+      divBg: lea, divDrag: lea, gripBg: gilt, gripDrag: gilt, gripSh: 'none', gridBg: lea,
+      padBg: acc, padFg: on, padSh: 'none', cardR: '3px', cardSh: c('card-stack'), btnR: '6px', chipR: '6px', appR: '3px',
+      selBg: acc, selFg: on, selSh: 'none', togOnBg: acc, togOnFg: on, togOnSh: 'inset 0 0 0 5px ' + acc + ',inset 0 0 0 6.5px ' + gilt,
+      pwrBg: acc, pwrFg: on, pwrSh: 'inset 0 0 0 1.5px ' + gilt, lblC: c('gold') });
+    for (const vk of ['white', 'editorial', 'stationery']) { B[vk].ilv = this.ilVars(vk, p.scheme, p.pen); B[vk].screenBg = paper; }
+    return B;
+  }
+
+  ilVars(voice, scheme, pen) {
+    const V = ['white', 'editorial', 'stationery'].includes(voice) ? voice : 'white';
+    const S = scheme === 'night' || scheme === 'eink' ? scheme : 'paper';
+    const id = S === 'eink' ? (V === 'stationery' ? 'stationery-eink' : 'eink') : V + '-' + S;
+    const T = Component.ilTokens(this);
+    if (!T) return '--il-theme:' + id;
+    const i = ['1', '2', '3'].indexOf(String(pen ?? '1')), n = i < 0 ? 0 : i, sfx = n ? '-' + (n + 1) : '';
+    const g = name => {
+      let x = T[name];
+      x = x && typeof x === 'object' ? x[id] : x;
+      if (x == null) return null;
+      const m = /^\{([a-z0-9-]+)\}$/.exec(x);
+      if (!m) return x;
+      const r = m[1] === 'accent' || m[1] === 'highlight' ? m[1] + sfx : m[1];
+      return g(r);
+    };
+    const paper = g('paper'), ink = g('ink'), shade = g('shade');
+    const gap = this.ilGaps()[id];
+    const v = { paper, sheet: g('sheet'), ink, 'ink-soft': g('ink-soft'), rule: g('rule'), shade,
+      dim: S === 'night' ? (V === 'stationery' ? g('rule') : g('ink-soft')) : shade,
+      accent: g('accent' + sfx), highlight: g('highlight' + sfx), 'on-accent': g('on-accent'), 'on-accent-soft': g('on-accent-soft'), pen: g('pen'),
+      focus: g('focus'), 'focus-on-leather': g('focus-on-leather'), 'focus-on-cream': g('focus-on-cream'), gold: g('gold'), gilt: g('gilt'),
+      'leather-dark': n && gap ? gap[n - 1] : g('leather-dark'), wax: g('wax'),
+      keycap: '0 3px 0 ' + shade, 'passe-partout': '0 0 0 5px ' + paper + ',0 0 0 6px ' + ink, offset: '3px 3px 0 ' + ink,
+      'card-stack': (V === 'stationery' && g('card-stack')) || ('0 3px 0 ' + shade) };
+    return Object.keys(v).map(k => '--il-' + k + ':' + v[k]).join(';') + ';--il-theme:' + id;
+  }
+
+  ilGaps() {
+    // Leather for Stationery pens 2 and 3. Interleaf has only one leather-dark per theme;
+    // move these into Interleaf as leather-dark-2 / leather-dark-3 and delete this table.
+    return { 'stationery-paper': ['#10241a', '#0f182a'], 'stationery-night': ['#0a1610', '#090e19'], 'stationery-eink': ['#111111', '#111111'] };
+  }
+
+  static ilTokens(c) {
+    // Live link to the Interleaf design system installed on this canvas (project/ds/interleaf).
+    const K = Component;
+    if (K._ilT !== undefined) return K._ilT;
+    if (!K._ilP) {
+      K._ilW = [];
+      K._ilP = fetch('ds/interleaf/tokens.json')
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => {
+          const T = {};
+          if (j) for (const sec of [j.color, j.shadow]) for (const t of (sec && sec.tokens) || []) T[t.name] = t.value;
+          K._ilT = j ? T : null;
+        })
+        .catch(() => { K._ilT = null; })
+        .then(() => { const w = K._ilW; K._ilW = []; for (const x of w) { try { x.forceUpdate(); } catch (e) {} } });
+    }
+    if (c && K._ilW.indexOf(c) < 0) K._ilW.push(c);
+    return null;
+  }
+
+  appList() {
+    return this._apps || (this._apps = [['Software', 'System', 'storefront'], ['Firefox ESR', 'Internet', 'public'], ['Terminal', 'System', 'terminal'], ['Notes', 'Office', 'edit_note'], ['KOReader', 'Reading', 'menu_book'], ['Stellarium', 'Education', 'nights_stay'], ['SAGA', 'Education', 'terrain'], ['Gnumeric', 'Office', 'table_chart'], ['WordQuiz', 'Education', 'quiz'], ['Marble', 'Education', 'language'], ['Files', 'System', 'folder'], ['Settings', 'System', 'settings'],
+      ['Calculator', 'Office', 'calculate'], ['Calendar', 'Office', 'calendar_month'], ['Documents', 'Reading', 'description'], ['Dictionary', 'Reading', 'dictionary'], ['Feeds', 'Reading', 'rss_feed'], ['Maps', 'Internet', 'map'], ['Music', 'Multimedia', 'music_note'], ['Podcasts', 'Multimedia', 'podcasts'], ['Photos', 'Multimedia', 'photo_library'], ['Audiobooks', 'Multimedia', 'headphones'], ['Mail', 'Internet', 'mail'], ['Chat', 'Internet', 'chat'], ['Text Editor', 'Office', 'text_snippet'], ['Sketch', 'Office', 'draw'],
+      ['Chess', 'Games', 'chess'], ['Sudoku', 'Games', 'grid_on'], ['Solitaire', 'Games', 'playing_cards'], ['Mines', 'Games', 'flag'], ['Crosswords', 'Games', 'extension'], ['Go', 'Games', 'radio_button_checked'], ['Disks', 'System', 'hard_drive'], ['Tasks', 'System', 'monitoring'], ['Backups', 'System', 'backup']]
+      .map(([name, cat, icon]) => ({ name, cat, icon })));
+  }
+
+  appComment(n) {
+    return ({ Software: 'Install and update apps', 'Firefox ESR': 'Browse the World Wide Web', Terminal: 'Use the command line', Notes: 'Write and keep notes', KOReader: 'Read e-books and documents', Stellarium: 'Planetarium in your computer', SAGA: 'Analyse geographic data', Gnumeric: 'Work with spreadsheets', WordQuiz: 'Learn vocabulary with flash cards', Marble: 'View the globe and maps', Files: 'Access and organise files', Settings: 'Change system settings', Calculator: 'Perform calculations', Calendar: 'Manage your schedule', Documents: 'Read PDF and other documents', Dictionary: 'Look up words and definitions', Feeds: 'Read news from websites', Maps: 'Find places and routes', Music: 'Play your music collection', Podcasts: 'Listen to podcasts', Photos: 'View your pictures', Audiobooks: 'Listen to audiobooks', Mail: 'Send and receive email', Chat: 'Talk with friends', 'Text Editor': 'Edit text files', Sketch: 'Draw and take handwritten notes', Chess: 'Play the classic game of chess', Sudoku: 'Solve number puzzles', Solitaire: 'Play patience card games', Mines: 'Clear hidden mines', Crosswords: 'Solve crossword puzzles', Go: 'Play the ancient board game' })[n] || '';
+  }
+  renderVals() {
+    const LAND = (this.props.orient ?? 'portrait') === 'landscape';
+    const t = this.themes()[this.props.theme ?? 'white'] || this.themes().white;
+    const s = this.state, v = s.view, u = p => this.setState(p);
+    const INK = t.ink;
+    const plate = on => on ? { bg: t.plateOnBg, fg: t.plateOnFg, sh: t.plateOnSh, cream: (this.props.theme === 'stationery' ? '1' : '0') } : { bg: 'transparent', fg: t.barFg, sh: t.plateOffSh, cream: '0' };
+    const sel = on => on ? { bg: t.selBg, fg: t.selFg, sh: t.selSh } : { bg: t.btnBg, fg: INK, sh: t.btnSh };
+    const tog = on => on ? { bg: t.togOnBg, fg: t.togOnFg, sh: t.togOnSh } : { bg: t.btnBg, fg: INK, sh: t.btnSh };
+    const seg = on => on ? { bg: t.segOnBg, fg: t.segOnFg, sh: t.segOnSh, fw: '600' } : { bg: 'transparent', fg: INK, sh: 'none', fw: '400' };
+    const SP = s.spaces, cs = SP.find(x => x.id === s.cur) || SP[0];
+    const layout = cs.apps.length > 2 ? 'grid' : cs.apps.length > 1 ? cs.dir : 'mono';
+    // x.full = an app shown full screen on its screen; the others stay tiled underneath, hidden, until it's switched off.
+    const grp = x => { if (x.full && x.apps.includes(x.full) && x.apps.length > 1) return grp({ ...x, apps: [x.full], full: null });
+      const a = x.apps, n = a.length, G = n === 4 ? [a.slice(0, 2), a.slice(2)] : n === 3 ? (x.split === 0 ? [a.slice(0, 2), [a[2]]] : [[a[0]], a.slice(1)]) : a.map(k => [k]);
+      const r = G.length === 2 && n > 2 ? (x.r ?? .5) : .5, ri = x.ri || [.5, .5];
+      return { groups: G.map((g, gi) => ({ fg: G.length === 2 && n > 2 ? (gi ? 1 - r : r) : 1, panes: g.map((k, pi) => ({ fg: g.length === 2 ? (pi ? 1 - ri[gi] : ri[gi]) : 1, key: k, isSet: k === 'settings', notSet: k !== 'settings' })) })), oDir: x.dir === 'side' ? 'row' : 'column', iDir: x.dir === 'side' ? 'column' : 'row' }; };
+    const cg = grp(cs);
+    const rows = layout === 'rows', side = layout === 'side', split = rows || side;
+    const pct = Math.round(s.ratio * 100);
+    const NM = { software: 'Software', browser: 'Firefox ESR', terminal: 'Terminal', notes: 'Notes', settings: 'Settings', reader: 'KOReader', files: 'Files', stars: 'Stellarium', calendar: 'Calendar', mail: 'Mail' };
+    const W = new Proxy({}, { get: (_, k) => ({ name: NM[k] || k }) });
+    const app1 = cs.apps[0], app2 = cs.apps[1] || cs.apps[0], active = cs.apps.includes('browser') ? 'browser' : cs.apps[cs.apps.length - 1], tiled = cs.apps.length > 1, full4 = cs.apps.length >= 4;
+    const nid = () => 's' + Date.now().toString(36) + Math.floor(Math.random() * 99);
+    const upd = (id, f) => u(st => ({ spaces: st.spaces.map(x => x.id === id ? { ...x, ...f(x) } : x) }));
+    const separate = id => u(st => { const i = st.spaces.findIndex(x => x.id === id), x = st.spaces[i]; if (!x || x.apps.length < 2) return null; const o = [...st.spaces]; o.splice(i, 1, { ...x, apps: [x.apps[0]] }, ...x.apps.slice(1).map((k, j) => ({ id: nid() + j, apps: [k], dir: x.dir }))); return { spaces: o }; });
+    const closeSp = id => u(st => { const i = st.spaces.findIndex(x => x.id === id); if (st.spaces.length < 2) return null; const o = st.spaces.filter(x => x.id !== id); return { spaces: o, cur: st.cur === id ? o[Math.max(0, i - 1)].id : st.cur, mv: null }; });
+    const tileInto = (a, b) => u(st => { const x = st.spaces.find(y => y.id === a), z = st.spaces.find(y => y.id === b); if (!x || !z) return null; if (x.apps.length + z.apps.length > 4) return null; const m = { id: x.id, apps: [...x.apps, ...z.apps], dir: x.apps.length > 1 ? x.dir : LAND ? 'side' : 'rows' }; return { spaces: st.spaces.filter(y => y.id !== b).map(y => y.id === a ? m : y), cur: a, mv: null, ovPage: null, ratio: .5 }; });
+    const fullActive = () => u(st => { const x = st.spaces.find(y => y.id === st.cur) || st.spaces[0]; if (x.apps.length < 2) return { view: 'idle' }; const i = st.spaces.indexOf(x), id = nid(), o = [...st.spaces]; o.splice(i, 1, { ...x, apps: x.apps.filter(a => a !== active) }, { id, apps: [active], dir: x.dir }); return { spaces: o, cur: id, view: 'idle' }; });
+    const closeActive = () => u(st => { const x = st.spaces.find(y => y.id === st.cur) || st.spaces[0]; if (x.apps.length > 1) return { spaces: st.spaces.map(y => y === x ? { ...y, apps: y.apps.filter(a => a !== active) } : y), view: 'idle' }; if (st.spaces.length < 2) return { view: 'idle' }; const i = st.spaces.indexOf(x), o = st.spaces.filter(y => y !== x); return { spaces: o, cur: o[Math.max(0, i - 1)].id, view: 'idle' }; });
+    const mk = (w, pos) => ({ ...w, pos, isWin: true, isLayout: false, sep: t.sep });
+    const w1 = mk(W[app1], side ? 'Left' : 'Above'), w2 = mk(W[app2], side ? 'Right' : 'Below'), act = mk(W[active], 'Active window');
+    const LY = { isLayout: true, isWin: false, sep: t.sep };
+    let sections = [];
+    // The top bar's screen button (framed number + app icons) opens Overview; there is no separate screen menu.
+    const ICS = { software: 'storefront', browser: 'public', terminal: 'terminal', notes: 'edit_note', settings: 'settings', reader: 'menu_book', files: 'folder', stars: 'nights_stay', calendar: 'calendar_month', mail: 'mail' };
+    const icOf = k => ICS[k] || 'web_asset', nOf = k => NM[k] || k, nCs = cs.apps.length, sideDir = cs.dir === 'side';
+    const scrIdx = SP.indexOf(cs) + 1, lastOne = SP.length < 2 && nCs < 2;
+    // Dividers. Tapping any divider enters split mode: every divider on the screen shows its Swap button at its middle
+    // (on a two-window screen also Direction, which only exists while the screen splits one way). No sheet.
+    // 'main' = between the halves; 'inner' + gi = inside a split half. Tap a divider again, elsewhere, or Escape to leave.
+    const Gk = cg.groups.map(gp => gp.panes.map(pn => pn.key)), isGridL = nCs > 2;
+    const across = d => (d.k === 'main') === !sideDir; // true = the divider runs left-right, so its sides are above/below
+    const whereOf = d => d.k === 'main' ? (sideDir ? 'left and right halves' : 'top and bottom halves') : (sideDir ? ['left', 'right'][d.gi] + ' half' : ['top', 'bottom'][d.gi] + ' half');
+    // Each divider has its own position: r = the line between the halves, ri[gi] = the line inside half gi (only a split half has one).
+    // While dragging, only the line moves (gdrag); the windows redraw once on release. A half's line snaps to ⅓, ½, ⅔ and to the other half's line.
+    const R0 = cs.r ?? .5, RI = cs.ri || [.5, .5], gdr = s.gdrag && s.gdrag.sp === cs.id ? s.gdrag : null;
+    const rOf = d => gdr && gdr.k === d.k && (d.k === 'main' || gdr.gi === d.gi) ? gdr.f : d.k === 'main' ? R0 : RI[d.gi];
+    const swapDiv = d => upd(cs.id, y => { const G = cg.groups.map(gp => gp.panes.map(pn => pn.key)), ri = y.ri || [.5, .5];
+      if (d.k === 'main') { const N = [G[1] || [], G[0]], apps = N.flat(); return { apps, r: 1 - (y.r ?? .5), ri: [ri[1], ri[0]], split: apps.length === 3 ? (N[0].length === 2 ? 0 : 1) : undefined }; }
+      const N = G.map((gp, gi) => gi === d.gi ? [...gp].reverse() : gp); return { apps: N.flat(), split: y.split, ri: ri.map((v, gi) => gi === d.gi ? 1 - v : v) }; });
+    // On a 2 × 2 screen one line runs straight through the crossing and the other axis is two separate lines. The crossing toggle swaps
+    // which: the two free lines meet where the toggle sits (their average), the old through-line splits in two at its own position,
+    // and every window keeps its quarter.
+    const isQuad = nCs === 4, Gq = Gk;
+    const crossFlip = () => upd(cs.id, y => { const ri = y.ri || [.5, .5], r = y.r ?? .5;
+      return { apps: [Gq[0][0], Gq[1][0], Gq[0][1], Gq[1][1]], dir: y.dir === 'side' ? 'rows' : 'side', r: (ri[0] + ri[1]) / 2, ri: [r, r], split: undefined }; });
+    const toSide = !sideDir, dvMode = v === 'divider';
+    const SWB = d => ({ icon: across(d) ? 'swap_vert' : 'swap_horiz', aria: 'Swap the ' + whereOf(d), on: () => swapDiv(d), gRows: false, gSide: false, cross: false });
+    const DIRB = { icon: '', aria: toSide ? 'Switch to side by side' : 'Switch to rows', on: () => upd(cs.id, y => ({ dir: y.dir === 'side' ? 'rows' : 'side' })), gRows: !toSide, gSide: toSide, cross: false };
+    const toggleDv = () => u(st => ({ view: st.view === 'divider' ? 'idle' : 'divider' }));
+    // Geometry: positions along an axis of length L with 20 px gutters. A line at fraction f has its near edge at (L − 20) · f.
+    const at = f => 'calc((100% - 20px) * ' + f.toFixed(4) + ')', after = f => 'calc((100% - 20px) * ' + f.toFixed(4) + ' + 20px)', span = f => 'calc((100% - 20px) * ' + f.toFixed(4) + ')';
+    const mid = f => 'calc((100% - 20px) * ' + f.toFixed(4) + ' + 10px)';
+    const gDrag = d => ({
+      down: e => { if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.gd = { d, x: e.clientX, y: e.clientY, moved: false }; },
+      move: e => { const g = this.gd; if (!g) return; if (!g.moved && Math.hypot(e.clientX - g.x, e.clientY - g.y) < 6) return; g.moved = true;
+        const box = e.currentTarget.parentElement.getBoundingClientRect(), horiz = across(d);
+        let f = horiz ? (e.clientY - box.top - 10) / (box.height - 20) : (e.clientX - box.left - 10) / (box.width - 20);
+        f = Math.max(.2, Math.min(.8, f)); const snaps = [1 / 3, .5, 2 / 3].concat(d.k === 'inner' && Gk[1 - d.gi] && Gk[1 - d.gi].length === 2 ? [RI[1 - d.gi]] : []);
+        for (const sn of snaps) if (Math.abs(f - sn) < .025) f = sn;
+        u({ gdrag: { sp: cs.id, k: d.k, gi: d.gi, f }, view: 'idle' }); },
+      up: () => { const g = this.gd; this.gd = null; if (!g || !g.moved) return; this.noClick = true;
+        u(st => { const gd = st.gdrag; if (!gd) return null; return { gdrag: null, spaces: st.spaces.map(y => y.id !== gd.sp ? y : gd.k === 'main' ? { ...y, r: gd.f } : { ...y, ri: (y.ri || [.5, .5]).map((v, gi) => gi === gd.gi ? gd.f : v) }) }; }); },
+      click: () => { if (this.noClick) { this.noClick = false; return; } toggleDv(); } });
+    const gdOf = (d, l, tp, w, h) => { const ac = across(d), live = gdr && gdr.k === d.k && (d.k === 'main' || gdr.gi === d.gi);
+      // On a 2 × 2 screen the through-line carries a grip on each side of the crossing, so nothing sits on the crossing itself.
+      const twin = d.k === 'main' && isQuad;
+      return { l, t: tp, w, h, z: d.k === 'main' ? '3' : '2', clusters: twin ? [1, 2] : [1], jc: twin ? 'space-around' : 'center', cDir: ac ? 'row' : 'column', aria: 'Divider between the ' + whereOf(d) + ': drag to resize, tap for Swap', gDir: ac ? 'row' : 'column', gW: (ac ? t.grip[0] : t.grip[1]) + 'px', gH: (ac ? t.grip[1] : t.grip[0]) + 'px', bg: live ? t.divDrag : t.divBg, gBg: live ? t.gripDrag : t.gripBg, ...gDrag(d) }; };
+    // The through-line is drawn above the half-lines (z 3), so where they meet it reads as one line with the others ending on it.
+    const mR = rOf({ k: 'main' });
+    const gridDivs = !isGridL ? [] : [gdOf({ k: 'main' }, ...(sideDir ? [at(mR), '0', '20px', '100%'] : ['0', at(mR), '100%', '20px']))].concat(
+      Gk.map((gp, gi) => { if (gp.length !== 2) return null; const f = rOf({ k: 'inner', gi });
+        const a0 = gi ? after(R0) : '0', len = gi ? span(1 - R0) : span(R0);
+        return gdOf({ k: 'inner', gi }, ...(sideDir ? [a0, at(f), len, '20px'] : [at(f), a0, '20px', len])); }).filter(Boolean));
+    const half = gi => gi ? 'calc((100% - 20px) * ' + R0.toFixed(4) + ' + 20px + (100% - 20px) * ' + ((1 - R0) / 2).toFixed(4) + ')' : 'calc((100% - 20px) * ' + (R0 / 2).toFixed(4) + ')';
+    let divBtns = [];
+    if (dvMode && nCs === 2) divBtns = [{ cx: sideDir ? pct + '%' : '50%', cy: sideDir ? '50%' : pct + '%', btns: [SWB({ k: 'main' }), DIRB] }];
+    if (dvMode && isGridL) {
+      // Crossing toggle sits on the through-line where the two free lines would meet; the through-line's Swap keeps a quarter away from it.
+      const cxF = isQuad ? (RI[0] + RI[1]) / 2 : null, alongMain = cxF != null && cxF < .5 ? .75 : .25;
+      divBtns = [{ cx: sideDir ? mid(R0) : 'calc(' + (alongMain * 100) + '%)', cy: sideDir ? 'calc(' + (alongMain * 100) + '%)' : mid(R0), btns: [SWB({ k: 'main' })] }].concat(
+        Gk.map((gp, gi) => gp.length !== 2 ? null : { cx: sideDir ? half(gi) : mid(RI[gi]), cy: sideDir ? mid(RI[gi]) : half(gi), btns: [SWB({ k: 'inner', gi })] }).filter(Boolean));
+      if (isQuad) divBtns.push({ cx: sideDir ? mid(R0) : mid(cxF), cy: sideDir ? mid(cxF) : mid(R0), btns: [{ icon: '', cross: true, crossH: !sideDir, crossV: sideDir, gRows: false, gSide: false,
+        aria: sideDir ? 'Crossing: the vertical line runs through. Make the horizontal line run through instead' : 'Crossing: the horizontal line runs through. Make the vertical line run through instead', on: crossFlip }] });
+    }
+    divBtns = divBtns.map(g0 => ({ ...g0, btns: g0.btns.map(b => ({ crossH: false, crossV: false, ...b, rad: b.cross ? '50%' : t.btnR, sz: b.cross ? '44px' : '52px', wid: b.cross ? 'crossing-toggle' : 'divider-action' })) }));
+    // Apps are managed in Overview; tiling lives on the dividers.
+    const barGroups = grp({ ...cs, full: null }).groups.map(gp => ({ panes: gp.panes.map(pn => ({ icon: icOf(pn.key) })) }));
+    const HO = s.hole, hNum = HO ? (HO.i + 1) + '/' + (SP.length + (HO.only ? 0 : 1)) : null;
+    const barAria = HO ? 'Screen ' + hNum.split('/')[0] + ': empty, showing Home. Open Overview' : 'Screen ' + scrIdx + ': ' + cs.apps.map(nOf).join(', ') + '. Open Overview';
+    if (sections.length) sections = sections.map((x, i) => i === sections.length - 1 ? { ...x, sep: 'none' } : x);
+    const T = 'translate(-50%,-50%)', areaH = LAND ? 650 : 884;
+    let sheetTop = '50%', sheetTf = T;
+    const rz = s.drag || v === 'resize';
+    const dp = Math.round((s.drag ? s.dragR : v === 'resize' ? 2 / 3 : s.ratio) * 100);
+    const go = id => () => u(st => ({ view: st.view === id ? 'idle' : id, drag: false }));
+    const slSet = key => e => { const r = e.currentTarget.getBoundingClientRect(); u({ [key]: Math.max(0, Math.min(100, Math.round((e.clientX - r.left) / r.width * 10) * 10)) }); };
+    const pDown = e => { if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.dr = { x: e.clientX, y: e.clientY, moved: false }; };
+    const pMove = e => {
+      const d = this.dr; if (!d) return;
+      if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) < 6) return;
+      d.moved = true;
+      const r = e.currentTarget.parentElement.getBoundingClientRect();
+      let f = rows ? (e.clientY - r.top) / r.height : (e.clientX - r.left) / r.width;
+      f = Math.max(.2, Math.min(.8, f));
+      for (const sn of [1 / 3, .5, 2 / 3]) if (Math.abs(f - sn) < .02) f = sn;
+      u({ dragR: f, drag: true, view: 'idle' });
+    };
+    const pUp = () => { const d = this.dr; this.dr = null; if (!d) return; if (d.moved) u(st => ({ drag: false, ratio: st.dragR })); else u(st => ({ view: st.view === 'divider' ? 'idle' : 'divider' })); };
+
+    const hold = (name, act) => ({
+      down: () => { this.held = false; clearTimeout(this.ht); this.ht = setTimeout(() => { this.held = true; u({ opening: name }); setTimeout(() => u({ opening: null, view: 'idle' }), 1000); }, 550); },
+      up: () => { clearTimeout(this.ht); if (!this.held) act(); this.held = false; },
+      cancel: () => clearTimeout(this.ht)
+    });
+    const nAll = this.notifList().filter(n => !s.gone.includes(n.id));
+    const notifs = nAll.map((n, i) => ({ ...n, sep: i === nAll.length - 1 ? 'none' : t.sep, dismiss: () => u(st => ({ gone: [...st.gone, n.id] })) }));
+    const CATS = ['Home', 'All', 'Office', 'Reading', 'Multimedia', 'Games', 'Education', 'Internet', 'System'];
+    const RECENT = ['Firefox ESR', 'Terminal', 'KOReader', 'Notes', 'Software', 'Stellarium', 'Files', 'Calendar', 'Dictionary', 'Gnumeric', 'Maps'], FAV = ['KOReader', 'Firefox ESR', 'Notes', 'Terminal', 'Calendar', 'Chess', 'Files', 'Mail', 'Feeds', 'Music', 'Sketch', 'Crosswords'];
+    const every = this.appList(), byName = n => every.find(x => x.name === n);
+    const list = s.cat === 'All' || s.cat === 'Home' ? every : every.filter(x => x.cat === s.cat);
+    const KEY = { 'Firefox ESR': 'browser', Software: 'software', Terminal: 'terminal', Notes: 'notes', KOReader: 'reader', Files: 'files', Stellarium: 'stars', Calendar: 'calendar', Mail: 'mail', Settings: 'settings' };
+    const keyOf = n => KEY[n] || n;
+    const openNew = n => u(st => { const id = nid(); return { spaces: [...st.spaces, { id, apps: [keyOf(n)], dir: 'rows' }], cur: id, view: 'idle', appMenu: null }; });
+    const openHere = n => u(st => { const x = st.spaces.find(y => y.id === st.cur) || st.spaces[0]; if (x.apps.length >= 4) return null; return { spaces: st.spaces.map(y => y === x ? { ...y, apps: [...y.apps, keyOf(n)], dir: y.apps.length === 1 ? (LAND ? 'side' : 'rows') : y.dir } : y), view: 'idle', appMenu: null }; });
+    const tileOf = a => ({ ...a, comment: this.appComment(a.name), ol: (s.appMenu === a.name || s.opening === a.name) && v === 'launcher' ? '2px solid ' + INK : 'none',
+      down: () => { this.held = false; clearTimeout(this.ht); this.ht = setTimeout(() => { this.held = true; u({ appMenu: a.name }); }, 550); },
+      up: () => { clearTimeout(this.ht); if (!this.held) openNew(a.name); this.held = false; }, cancel: () => clearTimeout(this.ht) });
+    const homeSec = (label, names, key) => { const P = 8, n = Math.max(1, Math.ceil(names.length / P)), p = Math.min(s[key], n - 1);
+      return { label, pl: (p + 1) + ' / ' + n, apps: names.slice(p * P, p * P + P).map(byName).map(tileOf), prev: () => u({ [key]: Math.max(0, p - 1) }), next: () => u({ [key]: Math.min(n - 1, p + 1) }), prevFg: p === 0 ? 'var(--il-dim,#9a9a9a)' : INK, nextFg: p === n - 1 ? 'var(--il-dim,#9a9a9a)' : INK }; };
+    const curFull = cs.apps.length >= 4, curNames = cs.apps.map(a => NM[a] || a).join(' · ');
+    const amApp = s.appMenu && byName(s.appMenu);
+    const am = amApp ? { name: amApp.name, icon: amApp.icon, cmt: this.appComment(amApp.name), items: [
+      { icon: 'open_in_new', name: 'Open on a new screen', sub: 'Full screen, on a screen of its own', on: () => openNew(amApp.name), fg: INK, ...tog(true) },
+      { icon: 'splitscreen', name: 'Open on this screen', sub: curFull ? 'This screen already has 4 windows' : 'Shares the screen with ' + curNames, on: curFull ? null : () => openHere(amApp.name), fg: curFull ? t.sub : INK, ...tog(false) },
+      { icon: 'tune', name: 'Configure', sub: 'Settings › Apps › ' + amApp.name, on: () => { u({ appMenu: null, opening: amApp.name }); setTimeout(() => u({ opening: null, view: 'idle' }), 1000); }, fg: INK, ...tog(false) }
+    ].map((m, i) => ({ ...m, ifg: i === 0 ? t.togOnFg : m.fg, fg: i === 1 && curFull ? t.sub : INK, sep: i === 2 ? 'none' : t.sep })) } : { name: '', icon: '', cmt: '', items: [] };
+    const per = 16, pages = Math.max(1, Math.ceil(list.length / per)), lp = Math.min(s.lp, pages - 1);
+    const cats = CATS.map(c => { const on = s.cat === c; return { label: c, on: () => u({ cat: c, lp: 0 }), fw: on ? '600' : '400', bg: on ? t.tabOnBg : t.tabOffBg, sh: on ? t.tabOnSh : t.tabOffSh, w: on ? '124px' : '116px' }; });
+
+    const sub = 'var(--il-dim,#9a9a9a)';
+    // ---------- Overview ----------
+    // At rest: each screen is its live preview (tap = go there) with app icons in four slots around it,
+    // two per side = the screen's quarters (TL, BL left; TR, BR right). A window's icon sits in the first
+    // quarter it covers, in reading order; a whole-screen app sits in a chip under the preview.
+    // Tap an icon = move it: switching screens pauses, previews fade, the other apps' icons appear inside
+    // at their windows, and arrows beside an app place the moving app on that side of it.
+    const ICO = { software: 'storefront', browser: 'public', terminal: 'terminal', notes: 'edit_note', settings: 'settings', reader: 'menu_book', files: 'folder', stars: 'nights_stay', calendar: 'calendar_month', mail: 'mail' };
+    const iconOf = k => ICO[k] || (this.appList().find(z => z.name === k) || {}).icon || 'web_asset';
+    const nmOf = k => NM[k] || k;
+    const newDir = () => LAND ? 'side' : 'rows', flipDir = d => d === 'side' ? 'rows' : 'side';
+    const groupsOf = x => { const a = x.apps, n = a.length; return n === 4 ? [a.slice(0, 2), a.slice(2)] : n === 3 ? (x.split === 0 ? [a.slice(0, 2), [a[2]]] : [[a[0]], a.slice(1)]) : a.map(k => [k]); };
+    const rectsOf = x => { const G = groupsOf(x), side = x.dir === 'side', out = [];
+      G.forEach((gp, gi) => gp.forEach((k, pi) => { const a = gi / G.length, b = 1 / G.length, c = pi / gp.length, d = 1 / gp.length; out.push(side ? { k, gi, x: a, w: b, y: c, h: d } : { k, gi, x: c, w: d, y: a, h: b }); }));
+      return out; };
+    // A screen without app m, normalised: a split half that loses a window becomes whole again.
+    const without = (x0, m) => { const x = x0.full === m ? { ...x0, full: null } : x0; const G = groupsOf(x).map(gp => gp.filter(k => k !== m)).filter(gp => gp.length);
+      if (G.length === 1 && G[0].length === 2) return { ...x, apps: G[0], dir: flipDir(x.dir), split: undefined };
+      const apps = G.flat(); return { ...x, apps, split: apps.length === 3 ? (G[0].length === 2 ? 0 : 1) : undefined }; };
+    const fromGroups = (x, G, dir) => { const apps = G.flat(); return { ...x, apps, dir, split: apps.length === 3 ? (G[0].length === 2 ? 0 : 1) : undefined }; };
+    const mv = s.mv && SP.find(x => x.id === s.mv.sp && x.apps.includes(s.mv.app)) ? s.mv : null;
+    const nWin = SP.reduce((n, x) => n + x.apps.length, 0);
+    // Puts the moving app into screen tgtId, laid out as `next` (a function of the target screen); tgtId null = a new screen.
+    const place = (next, tgtId) => u(st => {
+      const m = st.mv; if (!m) return null;
+      let sp = st.spaces.map(x => x.id === m.sp ? without(x, m.app) : x), nid2 = null;
+      if (tgtId) sp = sp.map(x => x.id === tgtId ? next(x) : x);
+      else { nid2 = nid(); const i = sp.findIndex(x => x.id === m.sp); sp.splice(i + 1, 0, { id: nid2, apps: [m.app], dir: newDir() }); }
+      let cur = st.cur; if (!sp.find(x => x.id === m.sp).apps.length) { sp = sp.filter(x => x.id !== m.sp); if (cur === m.sp) cur = tgtId || nid2; }
+      return { spaces: sp, cur, mv: null, ovPage: null };
+    });
+    const closeMoving = () => u(st => { const m = st.mv; if (!m) return null; const x = st.spaces.find(y => y.id === m.sp);
+      if (x.apps.length > 1) return { spaces: st.spaces.map(y => y === x ? without(y, m.app) : y), mv: null };
+      if (st.spaces.length < 2) return { hole: { i: 0, only: true }, view: 'home', mv: null, ovPage: null };
+      const i = st.spaces.indexOf(x), o = st.spaces.filter(y => y !== x);
+      // The last app on the screen you are on closed: the screen stays, empty, and Home appears on it (sway: scratchpad show).
+      if (st.cur === x.id) return { spaces: o, cur: o[Math.max(0, i - 1)].id, hole: { i, only: false }, view: 'home', mv: null, ovPage: null };
+      return { spaces: o, mv: null, ovPage: null }; });
+    const g = fn => fn && ((...a) => { if (this.swiped) { this.swiped = false; return; } fn(...a); });
+    const look = hi => hi ? { bg: t.selBg, fg: t.selFg, sh: t.selSh || 'none' } : { bg: t.btnBg, fg: INK, sh: t.btnSh };
+    const Q = [[.25, .25], [.75, .25], [.25, .75], [.75, .75]];
+    const D = { up: ['arrow_upward', '0px', '-54px', 'above'], down: ['arrow_downward', '0px', '54px', 'below'], left: ['arrow_back', '-54px', '0px', 'left of'], right: ['arrow_forward', '54px', '0px', 'right of'] };
+    const ringCur = '0 0 0 1.5px ' + INK + ',0 0 0 4px ' + t.cardBg + ',0 0 0 6.5px ' + INK, ring1 = '0 0 0 1.5px ' + INK;
+    const moveScr = (id, d) => u(st => { const a = [...st.spaces], i = a.findIndex(y => y.id === id), j = i + d; if (i < 0 || j < 0 || j >= a.length) return null; [a[i], a[j]] = [a[j], a[i]]; return { spaces: a, ovPage: Math.floor(j / 4) }; });
+    const closeScr = id => u(st => { if (st.spaces.length < 2) return null; const i = st.spaces.findIndex(y => y.id === id), o = st.spaces.filter(y => y.id !== id); return { spaces: o, cur: st.cur === id ? o[Math.max(0, i - 1)].id : st.cur, ovPage: null }; });
+    const scrBtn = (ok, aria, fn) => ({ aria, on: ok ? g(fn) : null, fg: ok ? INK : t.sub, tab: ok ? '0' : '-1' });
+    const allCards = SP.map((x, i) => {
+      const n = x.apps.length, R = rectsOf(x), isCur = x.id === cs.id, isSrc = !!mv && mv.sp === x.id, full = n >= 4;
+      const slots = [null, null, null, null];
+      R.forEach(r => { const q = Q.findIndex(([qx, qy]) => qx > r.x && qx < r.x + r.w && qy > r.y && qy < r.y + r.h); if (q >= 0 && !slots[q]) slots[q] = r.k; });
+      const lastW = false /* closing the last app leaves Home on an empty screen */, mvFull = !!mv && x.full === mv.app;
+      const rail = q => { const k = slots[q];
+        if (!k || mv) return { icon: '', tab: '-1', role: 'presentation', aria: '', on: null, bg: 'transparent', fg: INK, sh: 'none', bd: 'none', cur: 'default' };
+        return { icon: iconOf(k), tab: '0', role: 'button', aria: 'Move or close ' + nmOf(k) + ', screen ' + (i + 1), on: g(() => u({ mv: { sp: x.id, app: k }, ovPage: null })), ...look(false), bd: x.full === k ? '2.5px solid ' + INK : 'none', cur: 'pointer' }; };
+      // While moving, every other app's icon is live: tapping it selects that app instead. Tapping the moving app's own icon cancels.
+      const inside = mv ? R.map(r => { const me = isSrc && r.k === mv.app;
+        return { icon: iconOf(r.k), cx: (r.x + r.w / 2) * 100 + '%', cy: (r.y + r.h / 2) * 100 + '%', aria: me ? 'Cancel moving ' + nmOf(r.k) : 'Select ' + nmOf(r.k) + ' instead', ...look(me),
+          on: g(() => u(me ? { mv: null } : { mv: { sp: x.id, app: r.k } })) }; }) : [];
+      const targets = [];
+      // Targets are worked out on the screen as it would be without the moving app (B), so the app's own screen works too.
+      // Arrows sit beside each app's icon where it is now; a target that changes nothing is left out.
+      const B = !mv ? null : isSrc ? (n > 1 ? without(x, mv.app) : null) : full ? null : x;
+      if (B) {
+        const M = mv.app, G = groupsOf(B), RB = rectsOf(B), at = k => R.find(r => r.k === k) || RB.find(r => r.k === k);
+        const same = y => y.apps.join() === x.apps.join() && (y.apps.length < 2 || y.dir === x.dir) && (y.split ?? null) === (x.split ?? null);
+        const tg = (k, d, next) => { const [icon, dx, dy, word] = D[d], r = at(k); if (isSrc && same(next(B))) return;
+          const PW = LAND ? 243 : 213, PH = LAND ? 169 : 268, tx = Math.max(-30, Math.min(PW + 30, (r.x + r.w / 2) * PW + parseFloat(dx))), ty = Math.max(18, Math.min(PH - 18, (r.y + r.h / 2) * PH + parseFloat(dy)));
+          targets.push({ icon, dx, dy, l: (54 + tx) + 'px', t: ty + 'px', px: [tx, ty], cx: (r.x + r.w / 2) * 100 + '%', cy: (r.y + r.h / 2) * 100 + '%', aria: 'Put ' + nmOf(M) + ' ' + word + ' ' + nmOf(k) + (isSrc ? ' on its own screen' : ' on screen ' + (i + 1)), on: g(() => place(next, x.id)) }); };
+        if (B.apps.length === 1) { const a = B.apps[0];
+          tg(a, 'up', y => ({ ...y, apps: [M, a], dir: 'rows', split: undefined })); tg(a, 'down', y => ({ ...y, apps: [a, M], dir: 'rows', split: undefined }));
+          tg(a, 'left', y => ({ ...y, apps: [M, a], dir: 'side', split: undefined })); tg(a, 'right', y => ({ ...y, apps: [a, M], dir: 'side', split: undefined })); }
+        else RB.forEach(r => { if (G[r.gi].length !== 1) return; const side = B.dir === 'side';
+          const put = before => y => fromGroups(y, groupsOf(y).map((gp, gi) => gi === r.gi ? (before ? [M, ...gp] : [...gp, M]) : gp), y.dir);
+          if (side) { tg(r.k, 'up', put(true)); tg(r.k, 'down', put(false)); } else { tg(r.k, 'left', put(true)); tg(r.k, 'right', put(false)); } });
+      }
+      // Actions for the moving app sit in a half-circle around its icon that points out of the screen, so they never cup an arrow. A spot that would leave the preview by more
+      // than 8 px or come within 46 px of another icon, arrow or action falls back to the first free spot around the icon.
+      let mvBtns = [];
+      if (mv && isSrc) {
+        const W = LAND ? 243 : 213, H = LAND ? 169 : 268, px = r => [(r.x + r.w / 2) * W, (r.y + r.h / 2) * H], clampV = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+        const me = R.find(r => r.k === mv.app), [mx, my] = px(me), edge = mx < W / 2 ? -50 : 50;
+        // The three buttons form a half-circle that bulges toward the outside of the screen: sideways for a window narrower than the
+        // screen (Close at the edge, Full screen above, New screen below), up or down for a full-width half (Close at that edge, Full screen left, New screen right).
+        const vert = me.w >= 0.999 && me.h < 0.999, outY = my < H / 2 ? -46 : 46;
+        const P = vert ? { close: [0, outY], full: [-50, 0], add: [50, 0] } : { close: [edge, 0], full: [0, -46], add: [0, 46] };
+        const taken = R.filter(r => r.k !== mv.app).map(px).concat(targets.map(tg => tg.px), [[mx, my]]);
+        const ok = ([x2, y2], gap) => x2 >= -30 && x2 <= W + 30 && y2 >= 14 && y2 <= H - 14 && taken.every(([ox, oy]) => Math.hypot(ox - x2, oy - y2) >= gap);
+        const OFF = [[0, -46], [0, 46], [edge, 0], [-edge, 0], [edge, -50], [edge, 50], [-edge, -50], [-edge, 50], [2 * edge, 0], [-2 * edge, 0]];
+        const want = [{ pref: P.close, icon: 'close', aria: lastW ? 'Close ' + nmOf(mv.app) + ' (unavailable: last window)' : 'Close ' + nmOf(mv.app), on: lastW ? null : g(closeMoving) }].concat(n > 1 ? [
+          { pref: P.full, icon: mvFull ? 'close_fullscreen' : 'open_in_full', aria: (mvFull ? 'Exit full screen: ' : 'Full screen: ') + nmOf(mv.app), on: g(() => u(st => ({ spaces: st.spaces.map(y => y.id === x.id ? { ...y, full: y.full === mv.app ? null : mv.app } : y), mv: null }))) },
+          { pref: P.add, icon: 'add_to_queue', aria: 'Put ' + nmOf(mv.app) + ' on a new screen of its own', on: g(() => place(null, null)) }] : []);
+        want.forEach(a => { const at = ([dx, dy]) => [mx + dx, my + dy];
+          let spot = ok(at(a.pref), 46) ? at(a.pref) : null;
+          if (!spot) spot = OFF.map(at).find(p => ok(p, 46));
+          if (!spot) return; taken.push(spot); mvBtns.push({ ...a, l: (54 + spot[0]) + 'px', t: spot[1] + 'px', fg: a.on ? INK : t.sub, tab: a.on ? '0' : '-1' }); });
+      }
+      const gx = grp(x);
+      return { num: String(i + 1), title: (x.full && n > 1 ? nmOf(x.full) + ' full screen · ' + x.apps.filter(k => k !== x.full).map(nmOf).join(' · ') + ' hidden' : x.apps.map(nmOf).join(' · ')) + (mv && full && !isSrc ? ' · no room' : ''), fw: isCur && !mv ? '700' : '400',
+        ring: isCur ? ringCur : ring1, op: mv && full && !isSrc ? '0.45' : '1', shotOp: mv ? '0.18' : '1', pvBg: mv ? t.screenBg : t.ink,
+        groups: gx.groups, oDir: gx.oDir, iDir: gx.iDir, railL: [rail(0), rail(2)], railR: [rail(1), rail(3)], inside, targets, mvBtns,
+        // Screen actions under the preview: move earlier, close the whole screen, move later. Hidden while an app is moving.
+        scr: { show: !mv, prev: scrBtn(i > 0, 'Move screen ' + (i + 1) + ' earlier', () => moveScr(x.id, -1)), next: scrBtn(i < SP.length - 1, 'Move screen ' + (i + 1) + ' later', () => moveScr(x.id, 1)),
+          close: scrBtn(SP.length > 1, SP.length > 1 ? 'Close screen ' + (i + 1) + ' and ' + (n === 1 ? 'its app' : 'its ' + n + ' apps') : 'Close screen (unavailable: last screen)', () => closeScr(x.id)) },
+        canGo: !mv, goAria: 'Go to screen ' + (i + 1) + ': ' + x.apps.map(nmOf).join(', '), go: g(() => u({ cur: x.id, view: 'idle' })) };
+    });
+    const ovPer = 4, ci = SP.findIndex(x => x.id === cs.id), nPages = Math.max(1, Math.ceil(SP.length / ovPer));
+    const defPage = Math.floor(Math.max(0, mv ? SP.findIndex(x => x.id === mv.sp) : ci) / ovPer);
+    const ovP = Math.min(s.ovPage ?? defPage, nPages - 1), ovCards = allCards.slice(ovP * ovPer, ovP * ovPer + ovPer);
+    const setP = p => u({ ovPage: Math.max(0, Math.min(nPages - 1, p)) });
+    const mvName = mv ? nmOf(mv.app) : '', mvSrc = mv ? SP.find(x => x.id === mv.sp) : null, lastWin = !!mv && SP.length < 2 && mvSrc.apps.length < 2;
+    const ovSub = mv ? 'Moving ' + mvName + ' · switching screens is paused' : SP.length + (SP.length === 1 ? ' screen · ' : ' screens · ') + nWin + (nWin === 1 ? ' window' : ' windows');
+    const ovHint = mv ? 'Tap an arrow to put ' + mvName + ' on that side of an app · its own actions sit around it · tap another app to pick it instead' : 'Tap a screen to go to it · tap an app to move, full-screen or close it · arrows reorder screens';
+    const mvActs = []; 
+    const ovL = LAND ? { pw: '243px', ph: '169px', sw: '936px', sh: '650px', sc: 169 / 650 } : { pw: '213px', ph: '268px', sw: '702px', sh: '884px', sc: 268 / 884 };
+
+    const devFrame = LAND ? { ow: '1060px', pad: '29px 28px 29px 44px', sw: '936px', sh: '702px' } : { ow: '760px', pad: '28px 29px 44px', sw: '702px', sh: '936px' };
+    const chgOn = !s.chgDone && (this.props.change === 'running' || ['progress', 'progress-page'].includes(this.props.settingsPk));
+    // Escape closes whatever panel is open (quick settings, notifications, menus, overview) and returns to the screen.
+    const escKey = e => { if (e.key !== 'Escape' || (this.state.view === 'idle' && !this.state.appMenu)) return; e.preventDefault(); const st = this.state; if (st.view === 'home' && st.hole && st.hole.only) return; u(st.mv ? { mv: null } : { view: 'idle', appMenu: null, mv: null, hole: null }); };
+    return { escKey, chg: { show: chgOn, label: '3/12', aria: 'A change is running: (3/12) Installing retroarch-assets. Open Packages',
+        go: () => u({ view: 'idle', chgOpen: true }) },
+      ilKey: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } },  devF: devFrame, qsL: LAND ? { w: '860px', dir: 'row', gap: '32px', colD: 'flex' } : { w: '440px', dir: 'column', gap: '18px', colD: 'contents' },
+      t,
+      bHome: plate(v === 'home'), homeOn: String(v === 'home'), showHome: v === 'home', homeApps: this.appList(), homeMode: this.props.homeMode || (this.props.view === 'appmenu' ? 'menu' : 'browse'),
+      homeOpen: (n, w) => { if (s.hole) { const h0 = s.hole; u(st => { const id = nid(), ns = { id, apps: [keyOf(n)], dir: 'rows' }; return { spaces: h0.only ? [ns] : [...st.spaces.slice(0, h0.i), ns, ...st.spaces.slice(h0.i)], cur: id, hole: null, view: 'idle' }; }); } else if (w === 'here') openHere(n); else openNew(n); },
+      goHome: () => u(st => st.view === 'home' ? (st.hole && st.hole.only ? null : { view: 'idle', hole: null }) : { view: 'home', mv: null, appMenu: null, drag: false }), bKb: plate(!!s.kb), kbOn: String(!!s.kb), goKb: () => u(st => ({ kb: !st.kb })), bQS: plate(v === 'qs'),
+      bOv: plate(v === 'overview'), ovOn: String(v === 'overview'), spCount: SP.length, ovIcon: SP.length > 9 ? 'filter_9_plus' : 'filter_' + SP.length, ovCards, ovSub, ovHint, ovL, showOv: v === 'overview', mvActs, ovMode: mv ? 'move' : 'browse', ovPaged: nPages > 1, ovPageShort: (ovP + 1) + '/' + nPages,
+      ovPrev: () => setP(ovP - 1), ovNext: () => setP(ovP + 1), ovPrevFg: ovP === 0 ? 'var(--il-dim,#9a9a9a)' : INK, ovNextFg: ovP === nPages - 1 ? 'var(--il-dim,#9a9a9a)' : INK,
+      ovSwDown: e => { this.swiped = false; this.swX = e.clientX; }, ovSwUp: e => { if (this.swX == null) return; const d = e.clientX - this.swX; this.swX = null; if (Math.abs(d) > 60) { this.swiped = true; setP(ovP + (d < 0 ? 1 : -1)); } },
+      goOv: () => u(st => st.hole && st.hole.only ? null : ({ hole: null, view: st.view === 'overview' ? 'idle' : 'overview', mv: null, ovPage: null, drag: false })),
+      groups: cg.groups, gOuter: cg.oDir, gInner: cg.iDir, monoApp: cs.apps[0], isSetMono: cs.apps[0] === 'settings', notSetMono: cs.apps[0] !== 'settings',
+      bNotif: { ...plate(v === 'notif'), badgeFg: v === 'notif' ? t.plateOnBg === 'transparent' ? t.screenBg : t.plateOnBg : t.barBg },
+      notifs, notifCount: notifs.length, hasNotif: notifs.length > 0, noNotif: notifs.length === 0, showNotif: v === 'notif',
+      clearAll: () => u({ gone: this.notifList().map(n => n.id) }), clearFg: notifs.length ? INK : 'var(--il-dim,#9a9a9a)',
+      goNotif: go('notif'), noMenu: e => e.preventDefault(),
+      qsDate: s.opening === 'Settings' ? 'Opening Settings…' : 'Monday, 28 September', openSettings: () => { u({ opening: 'Settings' }); setTimeout(() => u({ opening: null, view: 'idle' }), 1000); },
+      holdHint: s.opening && s.opening !== 'Settings' ? `Opening ${s.opening} settings…` : 'Hold an icon for its settings',
+      showQS: v === 'qs', showPower: v === 'power', showSleep: v === 'sleep', wake: () => u({ view: 'idle' }), sleepSince: 'Since 20:11',
+      openPower: () => u({ view: 'power', pwrMsg: null }), closePower: () => u({ view: 'idle', pwrMsg: null }),
+      pwrMsg: s.pwrMsg || 'Open apps will be closed for restart and power off',
+      ...(() => { const act = (m, nv) => () => { u({ pwrMsg: m }); setTimeout(() => { if (nv) { u({ flash: true, pwrMsg: null, view: nv }); setTimeout(() => u({ flash: false }), 200); } else u({ pwrMsg: null, view: 'idle' }); }, 1200); };
+        return { pwrMain: [['bedtime', 'Sleep', 'Keeps the page on screen, wakes in a second', act('Going to sleep…', 'sleep')], ['restart_alt', 'Restart', 'Closes Firefox, Terminal and 3 more', act('Restarting…')], ['power_settings_new', 'Power off', 'The last page stays on the panel', act('Powering off…')]].map(([icon, name, sub, on], i) => ({ icon, name, sub, on, ...(i === 2 ? { bg: t.pwrBg, fg: t.pwrFg, sh: t.pwrSh } : { bg: t.btnBg, fg: INK, sh: t.btnSh }) })),
+          pwrAlt: [['android', 'Android', 'Second system', act('Restarting into Android…')], ['build', 'TWRP', 'Recovery, for updates', act('Restarting into TWRP…')]].map(([icon, name, sub, on]) => ({ icon, name, sub, on })) }; })(),
+      rot: (() => { const N = ['Upright', 'Turned right', 'Upside down', 'Turned left'], cur = s.rotAuto ? s.sensor : s.rot, ta = tog(s.rotAuto);
+        return { val: (s.rotAuto ? 'Auto · ' : 'Locked · ') + N[cur / 90], autoOn: () => u(st => ({ rotAuto: !st.rotAuto, rot: st.rotAuto ? st.rot : st.sensor })), aBg: ta.bg, aFg: ta.fg, aSh: ta.sh,
+          opts: [0, 90, 180, 270].map(d => { const sel = !s.rotAuto && s.rot === d, tg = tog(sel); return { deg: d + 'deg', bg: tg.bg, fg: tg.fg, sh: tg.sh, ol: s.rotAuto && s.sensor === d ? '1.5px dashed ' + INK : 'none', on: () => u({ rotAuto: false, rot: d }) }; }) }; })(), showLaunch: v === 'launcher', showResize: rz, any: v !== 'idle', flash: s.flash, hasSheet: sections.length > 0,
+      isSplit: split, isMono: layout === 'mono', isGrid: layout === 'grid', resizeRows: rz && rows,
+      tileDir: rows ? 'column' : 'row', f1: `${pct} 1 0px`, f2: `${100 - pct} 1 0px`,
+      divW: rows ? '100%' : '20px', divH: rows ? '20px' : '100%',
+      grips: Array.from({ length: t.grips }, (_, i) => i), gripDir: rows ? 'row' : 'column',
+      gripW: (rows ? t.grip[0] : t.grip[1]) + 'px', gripH: (rows ? t.grip[1] : t.grip[0]) + 'px',
+      divBg: rz ? t.divDrag : t.divBg, gridDivs, divBtns, gridGut: t.divBg, gripBg: rz ? t.gripDrag : t.gripBg, divStitch: t.divStitch && rows ? 'block' : 'none',
+      app1, app2, sections,
+      isSet1: app1 === 'settings', notSet1: app1 !== 'settings', isSet2: app2 === 'settings', notSet2: app2 !== 'settings', isSetM: !!this.props.settings, notSetM: !this.props.settings,
+      sTheme: this.props.theme ?? 'white', sScheme: this.props.scheme ?? 'paper', sPen: String(this.props.pen ?? '1'), sOrient: this.props.orient ?? 'portrait', sPk: s.chgOpen ? 'progress-page' : (this.props.settingsPk ?? (this.props.change === 'running' ? 'progress-page' : '')), sPage: s.chgOpen ? 'packages' : (this.props.settingsPage ?? 'eink'), sApp: this.props.settingsApp ?? 'Stellarium',
+      scrNum: hNum || scrIdx + '/' + SP.length, barGroups, barODir: cg.oDir, barIDir: cg.iDir, barIcons: HO ? [] : rectsOf({ ...cs, full: null }).sort((a, b) => a.y - b.y || a.x - b.x).map(r => icOf(r.k)), barGW: 'auto', barGH: '26px', barAria, winTitle: this.props.settings && cs.apps.includes('settings') ? 'Settings' : active === 'browser' ? 'Pi — Firefox' : (NM[active] || active), sheetTop, sheetTf,
+      ratio: `${dp} : ${100 - dp}`, rx: side ? dp + '%' : '50%', ry: rows ? dp + '%' : '50%',
+      lx: side ? `calc(${dp}% - 2px)` : '0', ly: rows ? `calc(${dp}% - 2px)` : '0', lw: side ? '4px' : '100%', lh: rows ? '4px' : '100%',
+      snaps: [{ top: '33.33%', l: t.frac ? '⅓' : '1/3' }, { top: '50%', l: t.frac ? '½' : '1/2' }, { top: '66.67%', l: t.frac ? '⅔' : '2/3' }],
+      winBtns: [{ icon: 'open_in_full', label: 'Full', on: fullActive, fg: INK }, { icon: 'open_with', label: 'Move', on: () => u({ view: 'overview', mv: { sp: cs.id, app: active }, ovPage: null }), fg: INK }, { icon: 'filter_none', label: 'Overview', on: () => u({ view: 'overview', mv: null, ovPage: null }), fg: INK }, { icon: 'close', label: 'Close', on: closeActive, fg: INK }],
+      L: { rows: sel(rows), side: sel(side), mono: sel(layout === 'mono'), grid: sel(layout === 'grid') },
+      lRows: () => upd(cs.id, () => ({ dir: 'rows' })), lSide: () => upd(cs.id, () => ({ dir: 'side' })), lMono: fullActive,
+      swap: () => upd(cs.id, y => ({ apps: [...y.apps].reverse() })),
+      toggles: [
+        { icon: 'wifi', label: 'Wi-Fi', ...tog(s.wifi), ...hold('network', () => u(st => ({ wifi: !st.wifi }))) },
+        { icon: 'bluetooth', label: 'Bluetooth', ...tog(s.bt), ...hold('Bluetooth', () => u(st => ({ bt: !st.bt }))) },
+        { icon: 'volume_off', label: 'Mute', ...tog(s.mute), ...hold('sound', () => u(st => ({ mute: !st.mute }))) },
+        { icon: 'refresh', label: 'Refresh', ...tog(false), ...hold('display', () => { u({ flash: true }); setTimeout(() => u({ flash: false }), 200); }) }
+      ],
+      sliders: (() => {
+        const KEY = (e, d) => ({ ArrowRight: d, ArrowUp: d, ArrowLeft: -d, ArrowDown: -d })[e.key] || 0;
+        const DRG = fn => ({ pd: e => { if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.sd = true; fn(e); }, pm: e => { if (this.sd) fn(e); }, pu: () => { this.sd = false; } });
+        const pos = e => { const r = e.currentTarget.getBoundingClientRect(); return (e.clientX - r.left) / r.width * 100; };
+        const fDay = x => Math.max(0, Math.min(1, (x - 6.55) / 1.5)) * Math.max(0, Math.min(1, (19.7 - x) / 1.5)), d = fDay(20 + 11 / 60);
+        const sv = { light: Math.round(s.bMin + (s.bMax - s.bMin) * d), warm: Math.round(s.wMax - (s.wMax - s.wMin) * d) }, ok = { light: 'bOff', warm: 'wOff' };
+        const sgn = v => v === 0 ? '' : v > 0 ? ' · +' + v : ' · −' + (-v);
+        return [['Front light', 'light'], ['Warmth', 'warm'], ['Volume', 'vol']].map(([label, key]) => {
+          if (s.managed && ok[key]) { const v = s[ok[key]], p = 50 + v, cur = Math.max(key === 'light' && s.glow ? 5 : 0, Math.min(100, sv[key] + v));
+            return { label: label + ' · managed', val: cur + sgn(v), w: p + '%', fl: Math.min(50, p) + '%', fw: Math.abs(v) + '%', mk: 'block',
+              kd: e => { const d = KEY(e, 5); if (d) { e.preventDefault(); u({ [ok[key]]: Math.max(-50, Math.min(50, v + d)) }); } }, ...DRG(e => u({ [ok[key]]: Math.max(-50, Math.min(50, Math.round((pos(e) - 50) / 5) * 5)) })) }; }
+          return { label, val: s[key], w: s[key] + '%', fl: '0', fw: s[key] + '%', mk: 'none',
+            kd: e => { const d = KEY(e, 10); if (d) { e.preventDefault(); u({ [key]: Math.max(0, Math.min(100, s[key] + d)) }); } }, ...DRG(e => u({ [key]: Math.max(0, Math.min(100, Math.round(pos(e) / 10) * 10)) })) };
+        });
+      })(),
+      flu: (() => { const F = [['Fluid', 'water', 'Moves fastest; motion leaves faint trails'], ['Balanced', 'balance', 'Quick while moving, clean as soon as it stops'], ['Clear', 'center_focus_strong', 'Sharper greys while moving; a little slower'], ['Calm', 'spa', 'Fewest flashes; changes settle gently']];
+        const cur = F.find(f => f[0] === s.flu) || F[1];
+        return { val: cur[0], sub: cur[2], opts: F.map(([l, icon]) => ({ l, icon, pressed: String(l === cur[0]), ...tog(l === cur[0]), on: () => u({ flu: l }) })) }; })(),
+      desk: (() => { const D = [['Sway', 'grid_view'], ['X', 'desktop_windows']];
+        return { val: s.desk === 'X' ? 'X (fallback)' : 'Sway', sub: s.desk === 'X' ? 'X is the fallback for apps that need it · switching restarts the session' : 'Switching restarts the session', opts: D.map(([l, icon]) => ({ l, icon, pressed: String(l === s.desk), ...tog(l === s.desk), on: () => u({ desk: l }) })) }; })(),
+      pageApps: list.slice(lp * per, lp * per + per).map(tileOf), isHome: s.cat === 'Home', notHome: s.cat !== 'Home',
+      homeSecs: [homeSec('Recent', RECENT, 'rpg'), homeSec('Favourites', FAV, 'fpg')], lRowH: LAND ? '84px' : '112px', lCmt: LAND ? 'none' : 'block',
+      lW: LAND ? '640px' : '560px', am, showAppMenu: !!amApp && v === 'launcher', closeAppMenu: () => u({ appMenu: null }), pages, pageNum: lp + 1, cats,
+      pageLabel: 'Page ' + (lp + 1) + ' of ' + pages, launchHint: s.opening && v === 'launcher' ? 'Opening ' + s.opening + ' in Settings → Apps…' : 'Tap to open on a new screen · hold for more',
+      prevFg: lp === 0 ? sub : INK, nextFg: lp === pages - 1 ? sub : INK,
+      prev: () => u(st => ({ lp: Math.max(0, st.lp - 1) })), next: () => u(st => ({ lp: Math.min(pages - 1, st.lp + 1) })),
+      goLaunch: () => u(st => ({ view: st.view === 'launcher' ? 'idle' : 'launcher', drag: false, lp: 0, rpg: 0, fpg: 0, cat: 'Home', appMenu: null })),
+      goQS: go('qs'),
+      close: () => u(st => st.hole && st.hole.only ? null : { view: 'idle', hole: null }), ovClose: () => u(st => st.mv ? { mv: null } : { view: 'idle' }), ovCloseAria: mv ? 'Cancel the move' : 'Close Overview', ovCloseIcon: mv ? 'undo' : 'close', stop: e => e.stopPropagation(),
+      refresh: () => { u({ flash: true }); setTimeout(() => u({ flash: false }), 200); },
+      pDown, pMove, pUp,
+      tabs: [['sleep', 'Sleep'], ['idle', 'Desktop'], ['notif', 'Notifications'], ['qs', 'Quick settings'], ['divider', 'Divider tap'], ['overview', 'Overview'], ['tiling', 'Moving an app'], ['home', 'Home'], ['empty', 'Last app closed'], ['resize', 'Resizing']].map(([id, label]) => ({
+        label, ...(() => { const on = id === 'tiling' ? v === 'overview' && !!s.mv : id === 'overview' ? v === 'overview' && !s.mv : id === 'empty' ? v === 'home' && !!s.hole : id === 'home' ? v === 'home' && !s.hole : v === id; return { bg: on ? 'var(--il-ink,#111111)' : 'transparent', fg: on ? 'var(--il-paper,#ffffff)' : 'var(--il-ink,#111111)' }; })(),
+        on: () => u(st => { if (id === 'tiling') { const one = st.spaces.find(x => x.id !== st.cur) || st.spaces[0]; return { view: 'overview', mv: { sp: one.id, app: one.apps[0] }, drag: false, ovPage: null }; }
+          if (id === 'empty') return st.spaces.length < 2 ? null : { view: 'home', hole: { i: st.spaces.length, only: false }, drag: false, mv: null };
+          const o = { hole: null, view: id, drag: false, mv: null, ovPage: null, appMenu: null }; if (id === 'divider' || id === 'resize') { const c = st.spaces.find(x => x.id === st.cur); if (!c || c.apps.length !== 2) { const t2 = st.spaces.find(x => x.apps.length === 2); if (t2) o.cur = t2.id; } } return o; })
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

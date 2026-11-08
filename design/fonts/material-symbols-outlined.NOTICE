@@ -1,0 +1,9 @@
+Material Symbols Outlined, from google/material-design-icons at commit 10ecc14790612ca8fd164e3f4ffe9c16fc50d5b7,
+under the Apache License 2.0 (the file beside this one).
+
+Changed from the original:
+- Subset to the icons the design boards name (their ligatures and filled forms); other ligatures and Private Use Area code points removed.
+- Variable axes reduced to opsz 24, wght 400, GRAD 0; FILL stays variable.
+- Compressed as woff2.
+
+Made by fonts/subset-material-symbols.py.

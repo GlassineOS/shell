@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Screens and windows</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#1b1b1b}a:hover{color:#4a4a4a}</style>
+</helmet>
+<div style="width:1500px;height:900px;box-sizing:border-box;padding:32px;display:flex;flex-direction:column;gap:26px;background:#e6e6e6;font-family:'IBM Plex Sans',sans-serif;color:#1b1b1b">
+<span style="font:500 13px 'IBM Plex Mono',monospace;color:#3d3d3d">foundations.screens</span>
+<h1 style="margin:0;font:600 30px/1.2 'IBM Plex Sans',sans-serif">Screens and windows</h1>
+<p style="margin:0;max-width:980px;font:400 16px/1.5 'IBM Plex Sans',sans-serif">A screen holds one to four windows, one split each way. The word is “screen” everywhere (never workspace). Window management happens on app icons. The top bar’s screen button opens Overview, where apps and screens are managed; the dividers carry the layout. In Overview, icons sit in four slots around each live preview, one per quarter of the screen. Tapping an icon starts a move: switching pauses, icons appear inside the faded previews, and arrows beside an app place the moving app on that side. Close is always last.</p><div style="display:flex;flex-direction:column;gap:10px"><span style="font:500 12px 'IBM Plex Mono';letter-spacing:.08em;text-transform:uppercase">Opening apps</span><div style="display:flex;gap:14px;align-items:stretch"><div style="flex:1;min-width:0;box-sizing:border-box;padding:14px 16px;border:1.5px solid #1b1b1b;border-radius:10px;background:#ffffff;display:flex;flex-direction:column;gap:8px">
+<span style="font:600 17px/1.2 'IBM Plex Sans'">Home</span><span style="font:400 14px/1.45 'IBM Plex Sans';color:#2b2b2b">Its own app: widgets and apps. Tap opens on a new screen; hold opens the app menu.</span><div style="display:flex;flex-direction:column;gap:2px"><a href="home.screen.dc.html" style="font:500 12px/1.4 'IBM Plex Mono',monospace">home.screen</a></div></div><span aria-hidden="true" style="flex:none;align-self:center;font:400 30px/1 'Material Symbols Outlined'">arrow_forward</span><div style="flex:1;min-width:0;box-sizing:border-box;padding:14px 16px;border:1.5px solid #1b1b1b;border-radius:10px;background:#ffffff;display:flex;flex-direction:column;gap:8px">
+<span style="font:600 17px/1.2 'IBM Plex Sans'">App menu</span><span style="font:400 14px/1.45 'IBM Plex Sans';color:#2b2b2b">Open on a new screen · Open on this screen · Favourite · Configure.</span><div style="display:flex;flex-direction:column;gap:2px"><a href="home.app-menu.dc.html" style="font:500 12px/1.4 'IBM Plex Mono',monospace">home.app-menu</a></div></div><span aria-hidden="true" style="flex:none;align-self:center;font:400 30px/1 'Material Symbols Outlined'">arrow_forward</span><div style="flex:1;min-width:0;box-sizing:border-box;padding:14px 16px;border:1.5px solid #1b1b1b;border-radius:10px;background:#ffffff;display:flex;flex-direction:column;gap:8px">
+<span style="font:600 17px/1.2 'IBM Plex Sans'">Configure</span><span style="font:400 14px/1.45 'IBM Plex Sans';color:#2b2b2b">Settings › Apps › the app.</span><div style="display:flex;flex-direction:column;gap:2px"><a href="settings.app.dc.html" style="font:500 12px/1.4 'IBM Plex Mono',monospace">settings.app</a></div></div></div></div><div style="display:flex;flex-direction:column;gap:10px"><span style="font:500 12px 'IBM Plex Mono';letter-spacing:.08em;text-transform:uppercase">Arranging screens</span><div style="display:flex;gap:14px;align-items:stretch"><div style="flex:1;min-width:0;box-sizing:border-box;padding:14px 16px;border:1.5px solid #1b1b1b;border-radius:10px;background:#ffffff;display:flex;flex-direction:column;gap:8px">
+<span style="font:600 17px/1.2 'IBM Plex Sans'">Dividers</span><span style="font:400 14px/1.45 'IBM Plex Sans';color:#2b2b2b">Tapping a divider shows Swap on every divider (and Direction with two windows). Everything else about apps and screens happens in Overview.</span><div style="display:flex;flex-direction:column;gap:2px"><a href="shell.divider.dc.html" style="font:500 12px/1.4 'IBM Plex Mono',monospace">shell.divider</a></div></div><span aria-hidden="true" style="flex:none;align-self:center;font:400 30px/1 'Material Symbols Outlined'">arrow_forward</span><div style="flex:1;min-width:0;box-sizing:border-box;padding:14px 16px;border:1.5px solid #1b1b1b;border-radius:10px;background:#ffffff;display:flex;flex-direction:column;gap:8px">
+<span style="font:600 17px/1.2 'IBM Plex Sans'">Overview</span><span style="font:400 14px/1.45 'IBM Plex Sans';color:#2b2b2b">Live previews (tap to go) with app icons in four slots around them; tap an icon to move or close it.</span><div style="display:flex;flex-direction:column;gap:2px"><a href="shell.overview.dc.html" style="font:500 12px/1.4 'IBM Plex Mono',monospace">shell.overview</a></div></div><span aria-hidden="true" style="flex:none;align-self:center;font:400 30px/1 'Material Symbols Outlined'">arrow_forward</span><div style="flex:1;min-width:0;box-sizing:border-box;padding:14px 16px;border:1.5px solid #1b1b1b;border-radius:10px;background:#ffffff;display:flex;flex-direction:column;gap:8px">
+<span style="font:600 17px/1.2 'IBM Plex Sans'">Moving</span><span style="font:400 14px/1.45 'IBM Plex Sans';color:#2b2b2b">Arrows beside each app on the faded previews; the moving app’s own actions (close, full screen, new screen) sit around its icon.</span><div style="display:flex;flex-direction:column;gap:2px"><a href="shell.overview.move.dc.html" style="font:500 12px/1.4 'IBM Plex Mono',monospace">shell.overview.move</a> <a href="shell.overview.dc.html" style="font:500 12px/1.4 'IBM Plex Mono',monospace">shell.overview</a></div></div></div></div></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1500, "height": 900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

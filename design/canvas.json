@@ -1,0 +1,1107 @@
+{
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "EinkApp.dc.html": {
+   "h": 440,
+   "page": "foundations",
+   "title": "Component · EinkApp",
+   "w": 700,
+   "x": 4200,
+   "y": 0
+  },
+  "EinkSettings.dc.html": {
+   "h": 1140,
+   "is_interactive": true,
+   "page": "foundations",
+   "title": "Component · EinkSettings",
+   "w": 760,
+   "x": 1680,
+   "y": 0
+  },
+  "EinkSettingsCard.dc.html": {
+   "h": 1140,
+   "is_interactive": true,
+   "page": "foundations",
+   "title": "Component · EinkSettingsCard",
+   "w": 760,
+   "x": 2520,
+   "y": 0
+  },
+  "EinkSetup.dc.html": {
+   "h": 1080,
+   "is_interactive": true,
+   "page": "foundations",
+   "title": "Component · EinkSetup",
+   "w": 760,
+   "x": 3360,
+   "y": 0
+  },
+  "EinkShell.dc.html": {
+   "h": 1060,
+   "is_interactive": true,
+   "page": "foundations",
+   "title": "Component · EinkShell",
+   "w": 760,
+   "x": 840,
+   "y": 0
+  },
+  "Main.dc.html": {
+   "h": 1640,
+   "page": "start",
+   "title": "Start here",
+   "w": 1720,
+   "x": 0,
+   "y": 0
+  },
+  "ThemeBar.dc.html": {
+   "h": 112,
+   "is_interactive": true,
+   "page": "foundations",
+   "title": "Component · ThemeBar",
+   "w": 760,
+   "x": 0,
+   "y": 0
+  },
+  "fit.about.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.about · About in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 10100
+  },
+  "fit.app.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.app · One app (KOReader) in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 12120
+  },
+  "fit.appearance.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.appearance · Appearance in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 2020
+  },
+  "fit.apps.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.apps · Apps in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 12120
+  },
+  "fit.bluetooth.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.bluetooth · Bluetooth in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 6060
+  },
+  "fit.eink.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.eink · E-ink in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 0
+  },
+  "fit.gestures.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.gestures · Gestures in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 2020
+  },
+  "fit.keyboard.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.keyboard · Keyboard in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 8080
+  },
+  "fit.language.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.language · Language in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 10100
+  },
+  "fit.light.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.light · Light in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 0
+  },
+  "fit.packages-changes.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.packages-changes · Your changes in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 18180
+  },
+  "fit.packages-detail.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.packages-detail · A package in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 16160
+  },
+  "fit.packages-plan.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.packages-plan · A plan sheet in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 16160
+  },
+  "fit.packages-search.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.packages-search · Package search results in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 14140
+  },
+  "fit.packages-updates.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.packages-updates · Updates in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 18180
+  },
+  "fit.packages.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.packages · Packages in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 14140
+  },
+  "fit.power.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.power · Power in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 4040
+  },
+  "fit.sound.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.sound · Sound in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 4040
+  },
+  "fit.time.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.time · Date & time in every window",
+   "w": 1640,
+   "x": 1720,
+   "y": 8080
+  },
+  "fit.wifi.dc.html": {
+   "h": 1900,
+   "is_interactive": true,
+   "page": "fit",
+   "title": "fit.wifi · Wi-Fi in every window",
+   "w": 1640,
+   "x": 0,
+   "y": 6060
+  },
+  "foundations.change-flow.dc.html": {
+   "h": 1000,
+   "page": "foundations",
+   "title": "foundations.change-flow · The change flow",
+   "w": 1640,
+   "x": 0,
+   "y": 3500
+  },
+  "foundations.origins.dc.html": {
+   "h": 900,
+   "page": "foundations",
+   "title": "foundations.origins · Where apps come from",
+   "w": 1120,
+   "x": 1200,
+   "y": 1700
+  },
+  "foundations.screens.dc.html": {
+   "h": 900,
+   "page": "foundations",
+   "title": "foundations.screens · Screens and windows",
+   "w": 1500,
+   "x": 1720,
+   "y": 3500
+  },
+  "foundations.widgets.dc.html": {
+   "h": 4520,
+   "is_interactive": true,
+   "page": "foundations",
+   "title": "foundations.widgets · Every widget at every width",
+   "w": 2605,
+   "x": 0,
+   "y": 4660
+  },
+  "home.add-widget.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.add-widget · Add a widget",
+   "w": 824,
+   "x": 1808,
+   "y": 0
+  },
+  "home.app-menu.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.app-menu · App menu",
+   "w": 824,
+   "x": 2712,
+   "y": 0
+  },
+  "home.edit.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.edit · Arranging widgets",
+   "w": 824,
+   "x": 904,
+   "y": 0
+  },
+  "home.images.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.images · Images, before they are filled",
+   "w": 824,
+   "x": 2924,
+   "y": 1540
+  },
+  "home.landscape.dc.html": {
+   "h": 1120,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.landscape · Home in landscape",
+   "w": 1124,
+   "x": 0,
+   "y": 1540
+  },
+  "home.page-2.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.page-2 · Home, page 2",
+   "w": 824,
+   "x": 3828,
+   "y": 0
+  },
+  "home.screen.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.screen · Home",
+   "w": 824,
+   "x": 0,
+   "y": 0
+  },
+  "home.widget-settings.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "home",
+   "title": "home.widget-settings · Widget settings",
+   "w": 824,
+   "x": 3828,
+   "y": 1540
+  },
+  "home.widgets.dc.html": {
+   "h": 1500,
+   "page": "home",
+   "title": "home.widgets · Writing a widget",
+   "w": 1640,
+   "x": 1204,
+   "y": 1540
+  },
+  "packages.changes.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.changes · Your changes",
+   "w": 1124,
+   "x": 3612,
+   "y": 4980
+  },
+  "packages.detail-installed.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.detail-installed · Package, installed",
+   "w": 1124,
+   "x": 1204,
+   "y": 1660
+  },
+  "packages.detail.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.detail · Package, not installed",
+   "w": 1124,
+   "x": 0,
+   "y": 1660
+  },
+  "packages.first-change.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.first-change · Before your first change",
+   "w": 1124,
+   "x": 2408,
+   "y": 1660
+  },
+  "packages.home.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.home · Packages",
+   "w": 1124,
+   "x": 0,
+   "y": 0
+  },
+  "packages.narrow.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.narrow · Packages in a left half",
+   "w": 1124,
+   "x": 3612,
+   "y": 6640
+  },
+  "packages.output.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.output · Full output",
+   "w": 1124,
+   "x": 2408,
+   "y": 4980
+  },
+  "packages.plan-install.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.plan-install · Plan: install",
+   "w": 1124,
+   "x": 3612,
+   "y": 1660
+  },
+  "packages.plan-remove.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.plan-remove · Plan: remove with system packages",
+   "w": 1124,
+   "x": 0,
+   "y": 3320
+  },
+  "packages.result-error.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.result-error · Result: error",
+   "w": 1124,
+   "x": 1204,
+   "y": 4980
+  },
+  "packages.result-notes.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.result-notes · Result: success with notes",
+   "w": 1124,
+   "x": 0,
+   "y": 4980
+  },
+  "packages.result-ok.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.result-ok · Result: success",
+   "w": 1124,
+   "x": 3612,
+   "y": 3320
+  },
+  "packages.running-page.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.running-page · Running, seen from Packages",
+   "w": 1124,
+   "x": 2408,
+   "y": 3320
+  },
+  "packages.running.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.running · Running",
+   "w": 1124,
+   "x": 1204,
+   "y": 3320
+  },
+  "packages.search-field.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.search-field · Search field",
+   "w": 1124,
+   "x": 1204,
+   "y": 0
+  },
+  "packages.search-many.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.search-many · More than 100 results",
+   "w": 1124,
+   "x": 3612,
+   "y": 0
+  },
+  "packages.search.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.search · Results",
+   "w": 1124,
+   "x": 2408,
+   "y": 0
+  },
+  "packages.updates-list.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.updates-list · Updates available",
+   "w": 1124,
+   "x": 1204,
+   "y": 6640
+  },
+  "packages.updates-never.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.updates-never · Updates, never checked",
+   "w": 1124,
+   "x": 0,
+   "y": 6640
+  },
+  "packages.updates-none.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "packages",
+   "title": "packages.updates-none · Up to date",
+   "w": 1124,
+   "x": 2408,
+   "y": 6640
+  },
+  "settings.app.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.app · One app",
+   "w": 1124,
+   "x": 0,
+   "y": 3320
+  },
+  "settings.app.eink.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.app.eink · One app › E-ink",
+   "w": 1124,
+   "x": 3612,
+   "y": 4980
+  },
+  "settings.app.remove-flatpak.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.app.remove-flatpak · Remove a Flatpak",
+   "w": 1124,
+   "x": 3612,
+   "y": 3320
+  },
+  "settings.app.remove-system.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.app.remove-system · Remove a system app",
+   "w": 1124,
+   "x": 2408,
+   "y": 3320
+  },
+  "settings.app.rendering.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.app.rendering · One app › Rendering",
+   "w": 1124,
+   "x": 0,
+   "y": 6640
+  },
+  "settings.app.source.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.app.source · One app › Source",
+   "w": 1124,
+   "x": 1204,
+   "y": 3320
+  },
+  "settings.appearance.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.appearance · Appearance",
+   "w": 1124,
+   "x": 3612,
+   "y": 0
+  },
+  "settings.apps.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.apps · Apps: everything installed",
+   "w": 1124,
+   "x": 3612,
+   "y": 1660
+  },
+  "settings.eink.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.eink · E-ink",
+   "w": 1124,
+   "x": 0,
+   "y": 0
+  },
+  "settings.eink.dithering.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.eink.dithering · E-ink › Dithering",
+   "w": 1124,
+   "x": 1204,
+   "y": 0
+  },
+  "settings.gestures.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.gestures · Gestures",
+   "w": 1124,
+   "x": 0,
+   "y": 1660
+  },
+  "settings.keyboard.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.keyboard · Keyboard",
+   "w": 1124,
+   "x": 2408,
+   "y": 1660
+  },
+  "settings.landscape.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.landscape · Settings in landscape",
+   "w": 1124,
+   "x": 2408,
+   "y": 4980
+  },
+  "settings.light.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.light · Light",
+   "w": 1124,
+   "x": 2408,
+   "y": 0
+  },
+  "settings.power.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.power · Power",
+   "w": 1124,
+   "x": 1204,
+   "y": 1660
+  },
+  "settings.window.left-half.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.window.left-half · Settings in a left half",
+   "w": 1124,
+   "x": 0,
+   "y": 4980
+  },
+  "settings.window.quarter.dc.html": {
+   "h": 1540,
+   "is_interactive": true,
+   "page": "settings",
+   "title": "settings.window.quarter · Settings in a quarter",
+   "w": 1124,
+   "x": 1204,
+   "y": 4980
+  },
+  "setup.account.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.account · Account",
+   "w": 824,
+   "x": 904,
+   "y": 1560
+  },
+  "setup.done.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.done · Done",
+   "w": 824,
+   "x": 904,
+   "y": 3120
+  },
+  "setup.installing.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.installing · Installing",
+   "w": 824,
+   "x": 0,
+   "y": 3120
+  },
+  "setup.keyboard.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.keyboard · Keyboard",
+   "w": 824,
+   "x": 2712,
+   "y": 0
+  },
+  "setup.location.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.location · Location",
+   "w": 824,
+   "x": 1808,
+   "y": 0
+  },
+  "setup.look.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.look · Look",
+   "w": 824,
+   "x": 904,
+   "y": 0
+  },
+  "setup.network.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.network · Network",
+   "w": 824,
+   "x": 0,
+   "y": 1560
+  },
+  "setup.review.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.review · Review is the plan",
+   "w": 824,
+   "x": 2712,
+   "y": 1560
+  },
+  "setup.software.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.software · Software packs",
+   "w": 824,
+   "x": 1808,
+   "y": 1560
+  },
+  "setup.welcome.dc.html": {
+   "h": 1440,
+   "is_interactive": true,
+   "page": "setup",
+   "title": "setup.welcome · Welcome",
+   "w": 824,
+   "x": 0,
+   "y": 0
+  },
+  "shell.change-running.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.change-running · A change is running",
+   "w": 824,
+   "x": 2712,
+   "y": 3080
+  },
+  "shell.desktop.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.desktop · Desktop",
+   "w": 824,
+   "x": 0,
+   "y": 0
+  },
+  "shell.divider.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.divider · Divider",
+   "w": 824,
+   "x": 904,
+   "y": 3080
+  },
+  "shell.divider.quad.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.divider.quad · Dividers with four windows",
+   "w": 824,
+   "x": 1808,
+   "y": 4620
+  },
+  "shell.divider.tiled.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.divider.tiled · Dividers with three windows",
+   "w": 824,
+   "x": 1808,
+   "y": 1540
+  },
+  "shell.home.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.home · Home, from the shell",
+   "w": 824,
+   "x": 0,
+   "y": 1540
+  },
+  "shell.home.empty.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.home.empty · The last app on a screen closed",
+   "w": 824,
+   "x": 904,
+   "y": 1540
+  },
+  "shell.landscape.dc.html": {
+   "h": 1120,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.landscape · Landscape",
+   "w": 1124,
+   "x": 0,
+   "y": 4620
+  },
+  "shell.notifications.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.notifications · Notifications",
+   "w": 824,
+   "x": 1808,
+   "y": 0
+  },
+  "shell.overview.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.overview · Overview",
+   "w": 824,
+   "x": 2712,
+   "y": 1540
+  },
+  "shell.overview.move.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.overview.move · Overview: moving an app",
+   "w": 824,
+   "x": 0,
+   "y": 3080
+  },
+  "shell.power.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.power · Power",
+   "w": 824,
+   "x": 2712,
+   "y": 0
+  },
+  "shell.quick-settings.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.quick-settings · Quick settings",
+   "w": 824,
+   "x": 904,
+   "y": 0
+  },
+  "shell.sleep.dc.html": {
+   "h": 1420,
+   "is_interactive": true,
+   "page": "shell",
+   "title": "shell.sleep · Asleep",
+   "w": 824,
+   "x": 1808,
+   "y": 3080
+  }
+ },
+ "launch": {
+  "page": "start",
+  "view": "canvas"
+ },
+ "notes": {
+  "title_fit": {
+   "kind": "title1",
+   "maxW": 3360,
+   "page": "fit",
+   "text": "Fit · every page in every window",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "title_home": {
+   "kind": "title1",
+   "maxW": 3536,
+   "page": "home",
+   "text": "Home screen · current spec",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "title_packages": {
+   "kind": "title1",
+   "maxW": 4736,
+   "page": "packages",
+   "text": "Packages · current spec",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "title_settings": {
+   "kind": "title1",
+   "maxW": 4736,
+   "page": "settings",
+   "text": "Settings · current spec",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "title_setup": {
+   "kind": "title1",
+   "maxW": 3536,
+   "page": "setup",
+   "text": "First-run setup · current spec",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "title_shell": {
+   "kind": "title1",
+   "maxW": 3536,
+   "page": "shell",
+   "text": "Shell · current spec",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "shell.desktop.dc.html",
+  "shell.quick-settings.dc.html",
+  "shell.notifications.dc.html",
+  "shell.power.dc.html",
+  "shell.home.dc.html",
+  "shell.home.empty.dc.html",
+  "shell.overview.dc.html",
+  "shell.overview.move.dc.html",
+  "shell.divider.dc.html",
+  "shell.divider.tiled.dc.html",
+  "shell.divider.quad.dc.html",
+  "shell.sleep.dc.html",
+  "shell.change-running.dc.html",
+  "shell.landscape.dc.html",
+  "home.screen.dc.html",
+  "home.page-2.dc.html",
+  "home.edit.dc.html",
+  "home.add-widget.dc.html",
+  "home.widget-settings.dc.html",
+  "home.app-menu.dc.html",
+  "home.landscape.dc.html",
+  "home.images.dc.html",
+  "home.widgets.dc.html",
+  "settings.eink.dc.html",
+  "settings.eink.dithering.dc.html",
+  "settings.light.dc.html",
+  "settings.appearance.dc.html",
+  "settings.gestures.dc.html",
+  "settings.power.dc.html",
+  "settings.keyboard.dc.html",
+  "settings.apps.dc.html",
+  "settings.app.dc.html",
+  "settings.app.eink.dc.html",
+  "settings.app.rendering.dc.html",
+  "settings.app.source.dc.html",
+  "settings.app.remove-system.dc.html",
+  "settings.app.remove-flatpak.dc.html",
+  "settings.window.left-half.dc.html",
+  "settings.window.quarter.dc.html",
+  "settings.landscape.dc.html",
+  "packages.home.dc.html",
+  "packages.search-field.dc.html",
+  "packages.search.dc.html",
+  "packages.search-many.dc.html",
+  "packages.detail.dc.html",
+  "packages.detail-installed.dc.html",
+  "packages.first-change.dc.html",
+  "packages.plan-install.dc.html",
+  "packages.plan-remove.dc.html",
+  "packages.running.dc.html",
+  "packages.running-page.dc.html",
+  "packages.result-ok.dc.html",
+  "packages.result-notes.dc.html",
+  "packages.result-error.dc.html",
+  "packages.output.dc.html",
+  "packages.changes.dc.html",
+  "packages.updates-never.dc.html",
+  "packages.updates-list.dc.html",
+  "packages.updates-none.dc.html",
+  "packages.narrow.dc.html",
+  "setup.welcome.dc.html",
+  "setup.look.dc.html",
+  "setup.location.dc.html",
+  "setup.keyboard.dc.html",
+  "setup.network.dc.html",
+  "setup.account.dc.html",
+  "setup.software.dc.html",
+  "setup.review.dc.html",
+  "setup.installing.dc.html",
+  "setup.done.dc.html",
+  "foundations.origins.dc.html",
+  "foundations.change-flow.dc.html",
+  "foundations.screens.dc.html",
+  "ThemeBar.dc.html",
+  "EinkShell.dc.html",
+  "EinkSettings.dc.html",
+  "EinkSettingsCard.dc.html",
+  "EinkSetup.dc.html",
+  "EinkApp.dc.html",
+  "fit.eink.dc.html",
+  "fit.light.dc.html",
+  "fit.appearance.dc.html",
+  "fit.gestures.dc.html",
+  "fit.power.dc.html",
+  "fit.sound.dc.html",
+  "fit.wifi.dc.html",
+  "fit.bluetooth.dc.html",
+  "fit.keyboard.dc.html",
+  "fit.time.dc.html",
+  "fit.language.dc.html",
+  "fit.about.dc.html",
+  "fit.apps.dc.html",
+  "fit.app.dc.html",
+  "fit.packages.dc.html",
+  "fit.packages-search.dc.html",
+  "fit.packages-detail.dc.html",
+  "fit.packages-plan.dc.html",
+  "fit.packages-changes.dc.html",
+  "fit.packages-updates.dc.html",
+  "foundations.widgets.dc.html"
+ ],
+ "pages": [
+  {
+   "id": "start",
+   "name": "Start here"
+  },
+  {
+   "id": "shell",
+   "name": "Shell"
+  },
+  {
+   "id": "home",
+   "name": "Home screen"
+  },
+  {
+   "id": "settings",
+   "name": "Settings"
+  },
+  {
+   "id": "packages",
+   "name": "Packages"
+  },
+  {
+   "id": "setup",
+   "name": "First-run setup"
+  },
+  {
+   "id": "fit",
+   "name": "Fit (window sizes)"
+  },
+  {
+   "id": "foundations",
+   "name": "Foundations"
+  }
+ ],
+ "title": "Glassine OS Shell"
+}

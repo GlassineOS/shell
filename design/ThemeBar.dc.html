@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Theme bar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&amp;family=IBM+Plex+Sans:wght@400;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+[data-tb-chip]:focus-visible{outline:2px solid #1b1b1b;outline-offset:2px}
+</style>
+</helmet>
+<div data-widget="theme-bar" data-widget-label="Theme bar" style="width:100%;box-sizing:border-box;padding:14px 16px;display:flex;flex-direction:column;gap:12px;background:#1b1b1b;color:#ffffff;border-radius:12px;font-family:'IBM Plex Sans',sans-serif">
+<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px">
+<span style="font:600 17px/1.2 'IBM Plex Sans',sans-serif">{{ headline }}</span>
+<span style="font:400 14px/1.4 'IBM Plex Sans',sans-serif;color:#d6d6d6">{{ sub }}</span>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:10px 18px">
+<sc-for list="{{ groups }}" as="gr" hint-placeholder-count="3">
+<div role="group" aria-label="{{ gr.label }}" style="display:flex;align-items:center;gap:6px">
+<span style="font:500 11px/1 'IBM Plex Mono',monospace;letter-spacing:.08em;text-transform:uppercase;color:#d6d6d6;padding-right:2px">{{ gr.label }}</span>
+<sc-for list="{{ gr.opts }}" as="o" hint-placeholder-count="3">
+<button type="button" data-tb-chip="" aria-pressed="{{ o.pressed }}" onClick="{{ o.on }}" style="height:34px;box-sizing:border-box;padding:0 12px;border:1.5px solid #ffffff;border-radius:8px;cursor:pointer;font:500 13px/1 'IBM Plex Sans',sans-serif;background:{{ o.bg }};color:{{ o.fg }}">{{ o.label }}</button>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"voice": {"editor": "enum", "options": ["white", "editorial", "stationery"], "default": "white"}, "showWin": {"editor": "boolean", "default": false}, "win": {"editor": "enum", "options": ["full", "column", "row", "quarter"], "default": "full"}, "orient": {"editor": "enum", "options": ["portrait", "landscape"], "default": "portrait"}, "onPick": {"editor": null}, "$preview": {"width": 760, "height": 110}}'>
+class Component extends DCLogic {
+  // E-ink only: every screen is drawn in greys; the three voices change type, edges and rules.
+  renderVals() {
+    const p = this.props, voice = p.voice || 'white';
+    const pick = p.onPick || (() => {});
+    const chip = (key, id, label, cur) => ({ label, pressed: String(id === cur), bg: id === cur ? '#ffffff' : 'transparent', fg: id === cur ? '#1b1b1b' : '#ffffff', on: () => pick(key, id) });
+    const VN = { white: 'White', editorial: 'Editorial', stationery: 'Stationery' };
+    const showWin = !!p.showWin, win = p.win || 'full', orient = p.orient || 'portrait';
+    const WN = { full: 'Full screen', column: 'Left half', row: 'Top half', quarter: 'Quarter' }, ON = { portrait: 'Portrait', landscape: 'Landscape' };
+    return {
+      headline: showWin ? 'This screen runs in 3 voices and any window size' : 'This screen runs in 3 voices',
+      sub: showWin ? 'Always e-ink greys; the voice changes type, edges and rules. Showing ' + VN[voice] + ', ' + WN[win].toLowerCase() + ', ' + orient + '. The Fit page shows every size side by side.'
+        : 'Always e-ink greys; the voice changes type, edges and rules. Showing ' + VN[voice] + '. Check your work in each one.',
+      groups: [{ label: 'Voice', opts: Object.keys(VN).map(id => chip('voice', id, VN[id], voice)) }]
+        .concat(showWin ? [{ label: 'Window', opts: Object.keys(WN).map(id => chip('win', id, WN[id], win)) }, { label: 'Turn', opts: Object.keys(ON).map(id => chip('orient', id, ON[id], orient)) }] : [])
+    };
+  }
+}
+</script>
+</body>
+</html>

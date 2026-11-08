@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&amp;display=block" rel="stylesheet"><style>[data-il-root] [tabindex]:focus-visible{outline:2px solid var(--il-ring,var(--il-focus));outline-offset:2px}[data-ring="leather"]{--il-ring:var(--il-focus-on-leather)}[data-ring="leather"] [data-cream="1"]:focus-visible{outline-color:var(--il-focus-on-cream);box-shadow:0 0 0 4px var(--il-focus-on-leather)!important}</style></helmet>
+<sc-if value="{{ bare }}" hint-placeholder-val="{{ true }}"><div ref="{{ rootRef }}" data-il-root="" onKeyDown="{{ escKey }}" style="position:relative;{{ t.ilv }};width:100%;height:100%;overflow:hidden;background:{{ t.screenBg }}">
+<div data-widget="folder" data-widget-label="Settings folder" style="position:absolute;left:{{ g.cx }};top:{{ g.cy }};width:{{ g.cw }};height:{{ g.ch }};background:var(--il-paper,#ffffff);border:1.5px solid var(--il-ink,#111111);border-radius:{{ k.cardR }};box-shadow:{{ k.cardSh }};box-sizing:border-box;display:flex;flex-direction:column;font-family:{{ k.F }};color:var(--il-ink,#111111)">
+<div style="display:{{ k.frame }};position:absolute;inset:7px;border:1px solid var(--il-rule,#c2c2c2);border-radius:3px;pointer-events:none"></div>
+
+<div data-header="{{ g.headMode }}" style="position:relative;flex:none;height:{{ g.headH }};box-sizing:border-box;padding:0 {{ g.padX }};border-bottom:1px solid var(--il-ink,#111111);display:flex;align-items:center;gap:{{ g.hGap }}">
+<sc-if value="{{ hd.hasBack }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ hd.back }}" aria-label="{{ hd.backAria }}" style="height:48px;max-width:45%;flex:none;box-sizing:border-box;padding:{{ g.backPad }};border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;gap:6px;cursor:pointer;box-shadow:{{ k.pillSh }}"><span style="font:400 24px/1 'Material Symbols Outlined'">chevron_left</span><span style="display:{{ g.tabLblD }};font:{{ k.row }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ hd.backLabel }}</span></div></sc-if>
+<span style="flex:1;min-width:0;font:{{ g.titleF }};font-variant:{{ k.titleVar }};letter-spacing:{{ k.titleLs }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ hd.title }}</span>
+<sc-if value="{{ hdPaged }}" hint-placeholder-val="{{ false }}"><div data-widget="pager" data-widget-label="Pages" style="flex:none;display:flex;align-items:center;gap:4px"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ prev }}" aria-label="Previous page" style="width:48px;height:48px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ prevFg }};box-shadow:{{ k.pillSh }}"><span style="font:400 26px/1 'Material Symbols Outlined'">chevron_left</span></div><span style="min-width:28px;text-align:center;font:500 13px/1 'IBM Plex Mono',monospace">{{ pageShort }}</span><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ next }}" aria-label="Next page" style="width:48px;height:48px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ nextFg }};box-shadow:{{ k.pillSh }}"><span style="font:400 26px/1 'Material Symbols Outlined'">chevron_right</span></div></div></sc-if>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ hd.refresh }}" aria-label="Refresh the screen" style="height:48px;flex:none;box-sizing:border-box;padding:{{ g.rfPad }};border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:{{ g.rfD }};align-items:center;gap:6px;cursor:pointer;box-shadow:{{ k.pillSh }}"><span style="font:400 22px/1 'Material Symbols Outlined'">refresh</span><span style="display:{{ g.tabLblD }};font:{{ k.row }}">Refresh</span></div>
+</div>
+
+<div data-settings-page="{{ pageId }}" data-fit="{{ fit }}" data-cap-px="{{ cap }}" style="position:relative;flex:1;min-height:0;overflow:hidden;padding:2px {{ g.padX }} 0;display:flex;flex-direction:column">
+<sc-for list="{{ blocks }}" as="b" hint-placeholder-count="6">
+<div data-widget="{{ b.k }}" data-widget-label="{{ b.label }}" data-section="{{ b.sec }}" data-section-index="{{ b.si }}" data-h="{{ b.h }}" style="flex:none;border-bottom:{{ b.sep }}">
+
+<sc-if value="{{ b.isHead }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:20px 0 9px;border-bottom:{{ b.rule }}"><span style="font:{{ k.head }};font-variant:{{ k.headVar }};text-transform:{{ k.headCase }};letter-spacing:{{ k.headLs }};white-space:nowrap">{{ b.label }}</span><span style="display:{{ b.rightD }};font:{{ k.sub }};color:{{ k.subC }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.right }}</span></div></sc-if>
+
+<sc-if value="{{ b.isTog }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.on }}" style="display:flex;align-items:center;gap:14px;padding:12px 0 14px;cursor:pointer">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="display:{{ b.subD }};font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ b.sub }}</span></div>
+<span style="display:{{ g.onLblD }};font:{{ k.onLbl }};font-variant:{{ k.headVar }};text-transform:{{ k.headCase }};letter-spacing:.16em">{{ b.state }}</span>
+<div style="width:64px;height:36px;flex:none;box-sizing:border-box;border-radius:999px;border:1.5px solid var(--il-ink,#111111);background:{{ b.trk }};box-shadow:{{ k.tglSh }};padding:4px;display:flex;justify-content:{{ b.jc }}"><div style="width:25px;height:25px;box-sizing:border-box;border-radius:50%;background:{{ b.knb }};border:1px solid var(--il-ink,#111111)"></div></div>
+</div></sc-if>
+
+<sc-if value="{{ b.isSeg }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:6px;padding:12px 0 16px">
+<span style="font:{{ k.row }}">{{ b.label }}</span>
+<span style="display:{{ b.subD }};font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ b.sub }}</span>
+<div data-seg-rows="{{ b.rows }}" style="margin-top:10px;display:grid;grid-template-columns:repeat({{ b.cols }},minmax(0,1fr));gap:3px;padding:3px;border:1.5px solid var(--il-ink,#111111);border-radius:{{ k.segR }}"><sc-for list="{{ b.opts }}" as="o" hint-placeholder-count="3"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ o.on }}" style="min-width:0;height:48px;padding:0 6px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:{{ k.segOnR }};border:{{ o.bd }};background:{{ o.bg }};color:{{ o.fg }};box-shadow:{{ o.sh }};font:{{ k.row }};font-size:{{ k.segFs }};cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ o.l }}</div></sc-for></div>
+</div></sc-if>
+
+<sc-if value="{{ b.isNote }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 0 10px;font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ b.label }}</div></sc-if>
+
+<sc-if value="{{ b.isRange }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;padding:12px 0 14px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="font:{{ k.val }};white-space:nowrap">{{ b.val }}</span></div>
+<span style="margin-top:6px;font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ b.sub }}</span>
+<div tabindex="0" role="slider" aria-label="{{ b.label }}" aria-valuetext="{{ b.now }}" onKeyDown="{{ b.kd }}" onPointerDown="{{ b.pd }}" onPointerMove="{{ b.pm }}" onPointerUp="{{ b.pu }}" onPointerCancel="{{ b.pu }}" style="height:58px;position:relative;cursor:pointer;touch-action:none;margin-top:4px">
+<div style="position:absolute;left:7.14%;right:7.14%;top:28px;height:9px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:5px"></div>
+<sc-for list="{{ b.stops }}" as="p" hint-placeholder-count="7"><div style="position:absolute;left:{{ p.x }};top:19px;width:2px;height:12px;margin-left:-1px;background:var(--il-ink,#111111)"></div></sc-for>
+<div style="position:absolute;left:{{ b.fl }};top:30px;height:5px;background:var(--il-ink,#111111);width:{{ b.fw }}"></div>
+<div style="position:absolute;top:10px;left:{{ b.lo }};margin-left:-3.5px;width:7px;height:40px;border-radius:3.5px;background:var(--il-ink,#111111)"></div>
+<div style="position:absolute;top:10px;left:{{ b.hi }};margin-left:-3.5px;width:7px;height:40px;border-radius:3.5px;background:var(--il-ink,#111111);display:{{ b.hiD }}"></div>
+</div>
+<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin-top:2px"><sc-for list="{{ b.zones }}" as="z" hint-placeholder-count="3"><div tabindex="0" role="button" aria-label="{{ z.name }}" onKeyDown="{{ ilKey }}" onClick="{{ z.on }}" style="grid-column:span {{ z.span }};min-width:0;border-top:{{ z.bt }};padding-top:10px;display:flex;flex-direction:{{ z.dir }};justify-content:center;align-items:center;gap:4px 8px;cursor:pointer;color:{{ z.fg }}"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ z.icon }}</span><span aria-hidden="true" style="display:{{ z.wD }};font:{{ k.row }};font-size:{{ k.zoneFs }};white-space:nowrap">{{ z.name }}</span></div></sc-for></div>
+<sc-if value="{{ b.hasCheck }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.chk }}" style="display:flex;align-items:center;gap:14px;margin-top:16px;cursor:pointer"><div style="width:24px;height:24px;flex:none;box-sizing:border-box;border-radius:4px;border:1.5px solid var(--il-ink,#111111);background:{{ b.ckBg }};color:var(--il-paper,#ffffff);display:flex;align-items:center;justify-content:center"><span style="font:600 20px/1 'Material Symbols Outlined';display:{{ b.ckD }}">check</span></div><span style="font:{{ k.row }};font-size:{{ k.zoneFs }}">Gradual speed-up</span></div></sc-if>
+</div></sc-if>
+
+<sc-if value="{{ b.isDith }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;padding:12px 0 16px">
+<span style="font:{{ k.row }}">{{ b.label }}</span>
+<span style="margin-top:6px;font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ b.sub }}</span>
+<div style="margin-top:14px;display:grid;grid-template-columns:repeat({{ b.cols }},minmax(0,1fr));gap:4px;padding:4px;border:1.5px solid var(--il-ink,#111111);border-radius:{{ k.segR }}"><sc-for list="{{ b.opts }}" as="o" hint-placeholder-count="4"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ o.on }}" style="min-width:0;box-sizing:border-box;padding:6px 6px 4px;border-radius:{{ k.segOnR }};border:{{ o.bd }};box-shadow:{{ o.sh }};display:flex;flex-direction:column;gap:6px;cursor:pointer"><div ref="{{ o.ref }}" style="height:{{ b.ph }};box-sizing:border-box;border:1px solid var(--il-ink,#111111);border-radius:3px;background-color:var(--il-paper,#ffffff);background-size:100% 100%;background-repeat:no-repeat;image-rendering:pixelated"></div><span style="text-align:center;font:{{ k.row }};font-weight:{{ o.fw }}">{{ o.l }}</span></div></sc-for></div>
+</div></sc-if>
+
+<sc-if value="{{ b.isBars }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:12px;padding:14px 0 4px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="font:{{ k.val }}">{{ b.val }}</span></div>
+<div style="height:32px;display:flex;align-items:flex-end;gap:3px"><sc-for list="{{ b.bars }}" as="x" hint-placeholder-count="24"><div style="flex:1;min-width:0;height:{{ x.h }};box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);background:{{ x.bg }}"></div></sc-for></div>
+</div></sc-if>
+
+<sc-if value="{{ b.isAxis }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;padding:10px 0 12px;border-bottom:{{ k.rule }};font:{{ k.sub }};color:{{ k.subC }}"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div></sc-if>
+
+<sc-if value="{{ b.isOff }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;padding:16px 0 16px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="font:{{ k.big }};white-space:nowrap">{{ b.val }}</span></div>
+<span style="margin-top:2px;font:{{ k.sub }};color:{{ k.subC }}">{{ b.sub }}</span>
+<div style="margin-top:16px;display:flex;align-items:center;gap:30px">
+<div tabindex="0" role="slider" aria-label="{{ b.label }}" aria-valuetext="{{ b.now }}" onKeyDown="{{ b.kd }}" onPointerDown="{{ b.pd }}" onPointerMove="{{ b.pm }}" onPointerUp="{{ b.pu }}" onPointerCancel="{{ b.pu }}" style="flex:1;min-width:0;height:44px;position:relative;cursor:pointer;touch-action:none">
+<div style="position:absolute;left:0;right:0;top:17px;height:10px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:6px"></div>
+<div style="position:absolute;left:{{ b.fl }};top:19.5px;height:5px;background:var(--il-ink,#111111);width:{{ b.fw }}"></div>
+<div style="position:absolute;top:7px;left:{{ b.w }};margin-left:-3px;width:6px;height:30px;border-radius:3px;background:var(--il-ink,#111111)"></div>
+</div>
+<sc-if value="{{ b.hasReset }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.reset }}" style="height:48px;flex:none;box-sizing:border-box;padding:0 24px;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;font:{{ k.row }};color:{{ b.rFg }};cursor:pointer;box-shadow:{{ k.pillSh }}">Reset</div></sc-if>
+</div>
+</div></sc-if>
+
+<sc-if value="{{ b.isLink }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.on }}" style="display:flex;align-items:center;gap:14px;padding:12px 0 14px;cursor:pointer">
+<span style="display:{{ b.iconD }};width:24px;flex:none;font:400 22px/1 'Material Symbols Outlined'">{{ b.icon }}</span>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="display:{{ b.subD }};font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ b.sub }}</span></div>
+<span style="display:{{ b.valD }};font:{{ k.val }};white-space:nowrap">{{ b.val }}</span>
+<span style="display:{{ b.chev }};font:400 26px/1 'Material Symbols Outlined'">chevron_right</span>
+</div></sc-if>
+
+<sc-if value="{{ b.isBtn }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:14px;padding:12px 0 14px">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:6px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="display:{{ b.subD }};font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ b.sub }}</span></div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.on }}" style="height:48px;flex:none;box-sizing:border-box;padding:0 26px;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;font:{{ k.row }};color:{{ b.bFg }};cursor:pointer;box-shadow:{{ k.pillSh }}">{{ b.btn }}</div>
+</div></sc-if>
+
+<sc-if value="{{ b.isSl }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;padding:14px 0 10px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="font:{{ k.val }};white-space:nowrap">{{ b.val }}</span></div>
+<div tabindex="0" role="slider" aria-label="{{ b.label }}" aria-valuetext="{{ b.now }}" onKeyDown="{{ b.kd }}" onPointerDown="{{ b.pd }}" onPointerMove="{{ b.pm }}" onPointerUp="{{ b.pu }}" onPointerCancel="{{ b.pu }}" style="height:44px;position:relative;cursor:pointer;touch-action:none;margin-top:4px">
+<div style="position:absolute;left:0;right:0;top:17px;height:10px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:6px"></div>
+<div style="position:absolute;left:0;top:19.5px;height:5px;background:var(--il-ink,#111111);width:{{ b.w }}"></div>
+<div style="position:absolute;top:7px;left:{{ b.w }};margin-left:-3px;width:6px;height:30px;border-radius:3px;background:var(--il-ink,#111111)"></div>
+</div>
+</div></sc-if>
+
+<sc-if value="{{ b.isInfo }}" hint-placeholder-val="{{ false }}"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:13px 0"><span style="font:{{ k.row }};white-space:nowrap">{{ b.label }}</span><span style="min-width:0;text-align:right;font:{{ k.val }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.val }}</span></div></sc-if>
+
+<sc-if value="{{ b.isApp }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.on }}" style="display:flex;align-items:center;gap:14px;padding:10px 0 12px;cursor:pointer">
+<div style="width:44px;height:44px;flex:none;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:10px;display:flex;align-items:center;justify-content:center"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ b.icon }}</span></div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><div style="display:flex;align-items:center;gap:10px;min-width:0"><span style="min-width:0;font:{{ k.row }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.label }}</span><span data-origin="{{ b.badge }}" style="display:{{ b.badgeD }};flex:none;align-items:center;gap:3px;height:24px;box-sizing:border-box;padding:0 9px 0 5px;border:1.5px solid var(--il-ink,#111111);border-radius:999px;font:{{ k.onLbl }};font-variant:{{ k.headVar }};text-transform:{{ k.headCase }};letter-spacing:.08em"><span style="font:400 16px/1 'Material Symbols Outlined'">{{ b.bIcon }}</span>{{ b.badge }}</span></div><span style="font:{{ k.sub }};color:{{ k.subC }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.sub }}</span></div>
+<span style="font:400 26px/1 'Material Symbols Outlined'">chevron_right</span>
+</div></sc-if>
+
+<sc-if value="{{ b.isRadio }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.on }}" style="display:flex;align-items:center;gap:14px;padding:13px 0;cursor:pointer"><span style="flex:1;min-width:0;font:{{ k.row }}">{{ b.label }}</span><div style="width:26px;height:26px;flex:none;box-sizing:border-box;border-radius:50%;border:1.5px solid var(--il-ink,#111111);display:flex;align-items:center;justify-content:center"><div style="display:{{ b.dot }};width:14px;height:14px;border-radius:50%;background:var(--il-ink,#111111)"></div></div></div></sc-if>
+
+<sc-if value="{{ b.isRot }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:12px;padding:12px 0 16px">
+<div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px"><span style="font:{{ k.row }}">{{ b.label }}</span><span style="font:{{ k.val }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.val }}</span></div>
+<div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:4px;border:1.5px solid var(--il-ink,#111111);border-radius:{{ k.segR }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.autoOn }}" style="height:62px;box-sizing:border-box;border-radius:{{ k.segOnR }};border:{{ b.aBd }};background:{{ b.aBg }};color:{{ b.aFg }};box-shadow:{{ b.aSh }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer"><span style="font:400 24px/1 'Material Symbols Outlined'">screen_rotation</span><span style="font:{{ k.sub }};font-size:13px;line-height:1">Auto</span></div><sc-for list="{{ b.opts }}" as="o" hint-placeholder-count="4"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ o.on }}" style="height:62px;box-sizing:border-box;border-radius:{{ k.segOnR }};border:{{ o.bd }};background:{{ o.bg }};color:{{ o.fg }};box-shadow:{{ o.sh }};display:flex;align-items:center;justify-content:center;cursor:pointer"><div style="width:24px;height:33px;margin-bottom:5px;box-sizing:border-box;border:1.5px solid currentColor;border-style:{{ o.bs }};border-radius:4px;position:relative;display:flex;align-items:center;justify-content:center"><span style="font:700 14px/1 'IBM Plex Sans';transform:rotate({{ o.deg }})">T</span><div style="position:absolute;bottom:-6px;left:50%;width:9px;height:2.5px;margin-left:-4.5px;border-radius:1px;background:currentColor"></div></div></div></sc-for></div>
+</div></sc-if>
+
+<sc-if value="{{ b.isSearch }}" hint-placeholder-val="{{ false }}"><form role="search" onSubmit="{{ b.submit }}" style="margin:14px 0 14px;display:flex;align-items:center;gap:10px"><label style="flex:1;min-width:0;height:52px;box-sizing:border-box;padding:0 14px;display:flex;align-items:center;gap:10px;border:1.5px solid var(--il-ink,#111111);border-radius:{{ k.segR }};cursor:text"><span aria-hidden="true" style="font:400 22px/1 'Material Symbols Outlined'">search</span><input data-widget="text-field" data-osk="search" type="search" name="q" aria-label="Search packages" placeholder="Package name or words from its description" inputmode="search" enterkeyhint="search" autocomplete="off" autocapitalize="none" spellcheck="false" value="{{ b.q }}" onChange="{{ b.change }}" style="flex:1;min-width:0;height:100%;border:0;outline:none;background:transparent;padding:0;font:{{ k.row }};color:var(--il-ink,#111111)"></label><button type="submit" style="height:52px;flex:none;box-sizing:border-box;padding:0 20px;border:1.5px solid var(--il-ink,#111111);border-radius:{{ k.segR }};background:var(--il-paper,#ffffff);color:var(--il-ink,#111111);font:{{ k.row }};cursor:pointer">Search</button></form></sc-if>
+
+<sc-if value="{{ b.isPkg }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ b.on }}" style="display:flex;align-items:center;gap:14px;min-height:48px;padding:12px 0 13px;cursor:pointer">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px">
+<div style="display:flex;align-items:center;gap:10px;min-width:0"><span style="min-width:0;font:{{ k.row }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.label }}</span><span style="flex:none;font:400 12.5px/1 'IBM Plex Mono',monospace;color:{{ k.subC }}">{{ b.val }}</span><span style="display:{{ b.instD }};flex:none;margin-left:auto;align-items:center;gap:3px;height:24px;box-sizing:border-box;padding:0 9px 0 5px;border:1.5px solid var(--il-ink,#111111);border-radius:999px;font:{{ k.onLbl }};font-variant:{{ k.headVar }};text-transform:{{ k.headCase }};letter-spacing:.08em"><span style="font:600 16px/1 'Material Symbols Outlined'">check</span>Installed</span></div>
+<span style="font:{{ k.sub }};color:{{ k.subC }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.sub }}</span>
+</div>
+<span style="font:400 26px/1 'Material Symbols Outlined'">chevron_right</span>
+</div></sc-if>
+
+<sc-if value="{{ b.isStatus }}" hint-placeholder-val="{{ false }}"><div role="status" style="display:flex;align-items:center;gap:14px;margin:14px 0 8px;padding:12px 16px;border:2px solid var(--il-ink,#111111);border-radius:{{ k.segR }}"><span style="font:400 26px/1 'Material Symbols Outlined'">{{ b.icon }}</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:5px"><span style="font:{{ k.row }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ b.label }}</span><span style="font:400 13.5px/1.2 'IBM Plex Mono',monospace;color:{{ k.subC }}">{{ b.val }}</span></div></div></sc-if>
+
+<sc-if value="{{ b.isPara }}" hint-placeholder-val="{{ false }}"><div style="padding:16px 0 12px;font:{{ k.row }};text-wrap:pretty">{{ b.label }}</div></sc-if>
+
+<sc-if value="{{ b.isMono }}" hint-placeholder-val="{{ false }}"><div style="margin:6px 0;padding:10px 14px;background:var(--il-sheet,#f2f2f2);border-radius:{{ k.segOnR }};font:400 13px/21px 'IBM Plex Mono',monospace;white-space:pre-wrap;word-break:break-word">{{ b.label }}</div></sc-if>
+
+</div>
+</sc-for>
+</div>
+
+<sc-if value="{{ footPaged }}" hint-placeholder-val="{{ false }}"><div data-widget="pager" data-widget-label="Pages" style="position:relative;flex:none;height:66px;box-sizing:border-box;margin:0 {{ g.padX }};border-top:1px solid var(--il-ink,#111111);display:flex;align-items:center;justify-content:space-between">
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ prev }}" aria-label="Previous page" style="width:48px;height:48px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ prevFg }};box-shadow:{{ k.pillSh }}"><span style="font:400 26px/1 'Material Symbols Outlined'">chevron_left</span></div>
+<span style="font:{{ k.sub }}">{{ pageLabel }}</span>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ next }}" aria-label="Next page" style="width:48px;height:48px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ nextFg }};box-shadow:{{ k.pillSh }}"><span style="font:400 26px/1 'Material Symbols Outlined'">chevron_right</span></div>
+</div></sc-if>
+
+<sc-if value="{{ sh.show }}" hint-placeholder-val="{{ false }}"><div data-widget="sheet" role="dialog" aria-label="{{ sh.title }}" style="position:absolute;left:0;right:0;top:{{ k.headH }};bottom:0;z-index:6;box-sizing:border-box;padding:24px {{ g.padX }} 20px;background:var(--il-paper,#ffffff);border-top:{{ k.sheetTop }};border-radius:0 0 {{ k.cardR }} {{ k.cardR }};display:flex;flex-direction:column;gap:14px;overflow:hidden">
+<div style="display:flex;align-items:flex-start;gap:14px"><span style="font:400 30px/1 'Material Symbols Outlined'">{{ sh.icon }}</span><span style="flex:1;min-width:0;font:{{ k.title }};font-variant:{{ k.titleVar }};letter-spacing:{{ k.titleLs }};text-wrap:balance">{{ sh.title }}</span></div>
+<sc-for list="{{ sh.lines }}" as="ln" hint-placeholder-count="1"><span style="font:{{ ln.font }};color:{{ ln.c }};text-wrap:pretty">{{ ln.t }}</span></sc-for>
+<sc-if value="{{ sh.hasWarn }}" hint-placeholder-val="{{ false }}"><div role="alert" style="display:flex;gap:12px;padding:12px 16px;border:2px solid var(--il-ink,#111111);border-radius:{{ k.segR }}"><span style="font:400 24px/1 'Material Symbols Outlined'">warning</span><div style="display:flex;flex-direction:column;gap:4px;min-width:0"><span style="font:{{ k.row }};font-weight:600;text-wrap:pretty">{{ sh.warn }}</span><span style="font:400 13.5px/1.4 'IBM Plex Mono',monospace;text-wrap:pretty">{{ sh.warnNames }}</span></div></div></sc-if>
+<sc-if value="{{ sh.hasList }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;border-top:{{ k.rule }}">
+<div style="display:flex;justify-content:space-between;align-items:center;min-height:48px;gap:12px"><span style="font:{{ k.head }};font-variant:{{ k.headVar }};text-transform:{{ k.headCase }};letter-spacing:{{ k.headLs }}">{{ sh.listHead }}</span>
+<sc-if value="{{ sh.listPaged }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:10px"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ sh.lPrev }}" aria-label="Previous page" style="width:48px;height:48px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ sh.lPrevFg }}"><span style="font:400 24px/1 'Material Symbols Outlined'">chevron_left</span></div><span style="font:{{ k.sub }};min-width:34px;text-align:center">{{ sh.listLabel }}</span><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ sh.lNext }}" aria-label="Next page" style="width:48px;height:48px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ sh.lNextFg }}"><span style="font:400 24px/1 'Material Symbols Outlined'">chevron_right</span></div></div></sc-if></div>
+<sc-for list="{{ sh.items }}" as="it" hint-placeholder-count="6"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:9px 0;border-top:{{ k.sep }}"><span style="min-width:0;font:400 14.5px/1.3 'IBM Plex Mono',monospace;font-weight:{{ it.fw }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ it.n }}</span><span style="flex:none;font:{{ k.sub }};color:{{ k.subC }}">{{ it.tag }}</span></div></sc-for>
+</div></sc-if>
+<sc-if value="{{ sh.hasFiles }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:6px;padding:12px 16px;background:var(--il-sheet,#f2f2f2);border-radius:{{ k.segOnR }}"><span style="font:{{ k.row }};font-weight:600">{{ sh.filesHead }}</span><span style="font:{{ k.sub }};color:{{ k.subC }};text-wrap:pretty">{{ sh.filesText }}</span><sc-for list="{{ sh.files }}" as="fl" hint-placeholder-count="2"><span style="font:400 13.5px/1.5 'IBM Plex Mono',monospace;word-break:break-all">{{ fl.f }}</span></sc-for></div></sc-if>
+<sc-if value="{{ sh.hasRestart }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border:1.5px solid var(--il-ink,#111111);border-radius:{{ k.segOnR }}"><span style="font:400 24px/1 'Material Symbols Outlined'">restart_alt</span><span style="font:{{ k.row }};text-wrap:pretty">{{ sh.restart }}</span></div></sc-if>
+<sc-if value="{{ sh.hasMono }}" hint-placeholder-val="{{ false }}"><div style="padding:12px 14px;background:var(--il-sheet,#f2f2f2);border-radius:{{ k.segOnR }};font:400 13px/21px 'IBM Plex Mono',monospace;white-space:pre-wrap;word-break:break-word">{{ sh.mono }}</div></sc-if>
+<span style="flex:1"></span>
+<span style="display:{{ sh.sizeD }};font:400 15px/1.3 'IBM Plex Mono',monospace">{{ sh.size }}</span>
+<div style="display:flex;flex-wrap:wrap;justify-content:flex-end;gap:12px;padding-top:14px;border-top:{{ k.rule }}">
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ sh.b2.on }}" style="display:{{ sh.b2D }};height:48px;box-sizing:border-box;padding:0 24px;border:1.5px solid var(--il-ink,#111111);border-radius:999px;align-items:center;font:{{ k.row }};cursor:pointer;box-shadow:{{ k.pillSh }}">{{ sh.b2.label }}</div>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ sh.b1.on }}" style="height:48px;box-sizing:border-box;padding:0 26px;border:1.5px solid var(--il-accent,var(--il-ink,#111111));border-radius:999px;display:flex;align-items:center;font:{{ k.row }};font-weight:600;background:var(--il-accent,var(--il-ink,#111111));color:var(--il-on-accent,var(--il-paper,#ffffff));cursor:pointer">{{ sh.b1.label }}</div>
+</div>
+</div></sc-if>
+
+
+<div style="position:absolute;left:100%;top:{{ g.tabTop }};display:flex;flex-direction:column;gap:5px">
+<sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="12"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tb.on }}" style="position:relative;height:{{ g.tabH }};width:{{ tb.w }};margin-left:{{ tb.ml }};box-sizing:border-box;padding:0 {{ g.tabPad }};display:flex;flex-direction:column;align-items:{{ g.tabAi }};justify-content:center;gap:3px;border:1.5px solid var(--il-ink,#111111);border-left:{{ tb.bl }};border-radius:{{ k.tabR }};background:{{ tb.bg }};color:{{ tb.fg }};box-shadow:{{ tb.sh }};cursor:pointer">
+<div style="display:flex;align-items:center;gap:11px;min-width:0;max-width:100%"><span style="font:400 23px/1 'Material Symbols Outlined';font-variation-settings:'FILL' {{ tb.fill }}">{{ tb.icon }}</span><span style="display:{{ g.tabLblD }};font:{{ k.tab }};letter-spacing:{{ k.tabLs }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ tb.label }}</span></div>
+<span style="display:{{ tb.exD }};font:500 10px/1 'IBM Plex Mono'">{{ tb.extra }}</span>
+</div></sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:760,&quot;height&quot;:1140},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;white&quot;,&quot;editorial&quot;,&quot;stationery&quot;],&quot;default&quot;:&quot;stationery&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;page&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;eink&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;app&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Stellarium&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;win&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;full&quot;,&quot;column&quot;,&quot;row&quot;,&quot;quarter&quot;],&quot;default&quot;:&quot;full&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;orient&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;portrait&quot;,&quot;landscape&quot;],&quot;default&quot;:&quot;portrait&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;nav&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;folder&quot;],&quot;default&quot;:&quot;folder&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;night&quot;,&quot;eink&quot;],&quot;default&quot;:&quot;paper&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;pen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;1&quot;,&quot;2&quot;,&quot;3&quot;],&quot;default&quot;:&quot;1&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { win: null, topic: null, sub: undefined, subPrev: null, appName: null, pg: 0, tabPg: null, theme: null,
+    wifi: true, air: false, bt: true, btVis: false, vol: 50, mute: false, out: 'Speaker', nsound: false,
+    managed: true, glow: true, light: 60, warm: 40, bOff: 0, wOff: 0, bMin: 20, bMax: 80, wMin: 10, wMax: 90,
+    flu: 'Balanced', grad: true, idle: '1 s', dith: 'Blue', ag: true, rail: false, nextf: true, c2g: 'Natural', draw: 'GPU',
+    tsize: 50, face: 'Serif', rotAuto: true, rot: 0, sensor: 0, pct: true, secs: false,
+    osk: true, kbSize: 'Medium', kbFlash: false,
+    pkQ: '', pkSel: 'retroarch', pkFrom: 'pkgSearch', pkSheet: null, pkPlanPg: 0, pkRun: null, pkRes: null, pkAck: false, pkUpd: 'never',
+    pkInst: ['libretro-mgba', 'htop', 'vim', 'sdl2', 'firefox', 'mesa'], pkAdded: ['htop', 'vim'], pkRemoved: ['nano'], pkNewer: ['firefox', 'mesa'],
+    g: { '3left': 'Previous screen', '3right': 'Next screen', '3up': 'Full screen', '3down': 'Leave full screen', '4left': 'Back', '4right': 'Forward', '4up': 'Home', '4down': 'Refresh screen' }, edge: true,
+    saver: false, sleepAfter: '10 min', pill: true, autoT: true, tz: 'Lisbon', fmt: '24-hour', lang: 'English (UK)',
+    ov: { Stellarium: { fluOwn: true, flu: 'Clear', dith: true, dithV: 'Dizzy' }, KOReader: { fluOwn: true, flu: 'Calm', grad: false, contentOwn: true, content: 'Text', dith: true, dithV: 'Bayer', freeze: 'Always', fav: true }, 'Firefox ESR': { fluOwn: true, flu: 'Fluid', fav: true }, Chess: { contentOwn: true, content: 'Motion', drawOwn: true, draw: 'Chunked' }, Terminal: { draw: 'CPU', freeze: 'Off' } } };
+
+  componentDidMount() { const pr = this.props.pk && this.pkPreset(this.props.pk); if (pr) this.setState(pr); this.didMount2(); this.reportFit(); }
+  didMount2() { if (this.el && typeof ResizeObserver !== 'undefined') { this.ro = new ResizeObserver(() => { const b = this.el.getBoundingClientRect(), r = { width: this.el.offsetWidth || b.width, height: this.el.offsetHeight || b.height }; if (r.width && (Math.round(r.width) !== this.state.bw || Math.round(r.height) !== this.state.bh)) this.setState({ bw: Math.round(r.width), bh: Math.round(r.height), pg: 0, tabPg: null }); }); this.ro.observe(this.el); } }
+  // Spec boards pass onFit to label each window with its outcome; the product never sets it.
+  reportFit() { const f = this._fitInfo, cb = this.props.onFit; if (!cb || !f) return; const j = JSON.stringify(f); if (j !== this._fitSent) { this._fitSent = j; cb(f); } }
+  componentDidUpdate() { this.reportFit(); }
+  componentWillUnmount() { if (this.ro) this.ro.disconnect(); clearInterval(this.pkT); }
+  // ---------- Packages (Alpine) ----------
+  pkData() {
+    if (Component._pk) return Component._pk;
+    const P = (v, d, dl, size, url) => ({ v, d, dl, size, url });
+    const D = {
+      retroarch: P('1.21.0-r0', 'Frontend for emulators, game engines and media players', '9.8 MB', '31 MB', 'retroarch.com'),
+      'retroarch-assets': P('1.21.0-r0', 'RetroArch menu assets', '27 MB', '96 MB', 'github.com/libretro/retroarch-assets'),
+      'libretro-mgba': P('0.10.3-r0', 'Game Boy Advance core', '1.1 MB', '3.2 MB', 'mgba.io'),
+      'libretro-snes9x': P('1.63-r0', 'Super Nintendo core', '1.4 MB', '3.9 MB', 'snes9x.com'),
+      'libretro-genesis-plus-gx': P('1.7.4-r0', 'Sega Genesis core', '0.9 MB', '2.6 MB', 'github.com/libretro/Genesis-Plus-GX'),
+      'libretro-nestopia': P('1.52.1-r0', 'NES core', '0.8 MB', '2.1 MB', 'github.com/libretro/nestopia'),
+      'libretro-gambatte': P('0.5.0-r0', 'Game Boy and Game Boy Color core', '0.5 MB', '1.4 MB', 'github.com/libretro/gambatte-libretro'),
+      'libretro-picodrive': P('2.04-r0', 'Master System, Mega Drive and 32X core', '1.0 MB', '2.8 MB', 'github.com/libretro/picodrive'),
+      'libretro-fceumm': P('0.0.1-r0', 'NES core (FCEUmm)', '0.9 MB', '2.4 MB', 'github.com/libretro/libretro-fceumm'),
+      'libretro-beetle-pce-fast': P('0.0.1-r0', 'PC Engine core', '0.6 MB', '1.7 MB', 'github.com/libretro/beetle-pce-fast-libretro'),
+      'libretro-mupen64plus-next': P('2.6-r0', 'Nintendo 64 core', '2.9 MB', '8.4 MB', 'github.com/libretro/mupen64plus-libretro-nx'),
+      'libretro-dosbox-pure': P('0.9.9-r0', 'DOS core', '1.6 MB', '4.5 MB', 'github.com/schellingb/dosbox-pure'),
+      'libretro-core-info': P('1.21.0-r0', 'Information files for libretro cores', '0.1 MB', '0.6 MB', 'github.com/libretro/libretro-core-info'),
+      htop: P('3.3.0-r0', 'Interactive process viewer', '0.2 MB', '0.5 MB', 'htop.dev'),
+      vim: P('9.1.0707-r0', 'Improved vi-style text editor', '1.9 MB', '3.6 MB', 'vim.org'),
+      nano: P('8.2-r0', 'Small, friendly text editor', '0.6 MB', '2.4 MB', 'nano-editor.org'),
+      sdl2: P('2.30.9-r0', 'Simple DirectMedia Layer: low-level audio, input and graphics', '0.8 MB', '2.3 MB', 'libsdl.org'),
+      firefox: P('142.0.1-r0', 'Web browser', '78 MB', '254 MB', 'mozilla.org/firefox'),
+      mesa: P('24.2.8-r0', 'Open-source OpenGL and Vulkan drivers', '21 MB', '88 MB', 'mesa3d.org')
+    };
+    const RETRO = ['retroarch', 'retroarch-assets', 'libretro-mgba', 'libretro-snes9x', 'libretro-genesis-plus-gx', 'libretro-nestopia', 'libretro-gambatte', 'libretro-picodrive', 'libretro-fceumm', 'libretro-beetle-pce-fast', 'libretro-mupen64plus-next', 'libretro-dosbox-pure', 'libretro-core-info'];
+    const LIBS = ['libcurl', 'libxml2', 'libpng', 'libjpeg-turbo', 'libwebp', 'libuv', 'libffi', 'libarchive', 'libseccomp', 'libinput', 'libdrm', 'libevdev', 'libnotify', 'libsecret', 'libsoup3', 'libssh2', 'libtasn1', 'libunistring', 'libusb', 'libva', 'libvorbis', 'libwacom', 'libxkbcommon', 'libzip', 'libgcrypt', 'libgpg-error', 'libidn2', 'libmount', 'libnftnl', 'libpciaccess', 'libpsl', 'librsvg', 'libsndfile', 'libtirpc'];
+    const LIB = [];
+    LIBS.forEach((b, i) => [['', 'Shared library'], ['-dev', 'Development files for ' + b], ['-doc', 'Documentation for ' + b]].forEach(([sfx, d]) => { const n = b + sfx; LIB.push(n); D[n] = P((1 + i % 3) + '.' + (i * 7 % 20) + '.' + (i % 5) + '-r0', sfx ? d : b + ': shared library', '0.3 MB', '0.9 MB', 'pkgs.alpinelinux.org'); }));
+    const UPD = [['firefox', '142.0', '142.0.1'], ['mesa', '24.2.7', '24.2.8'], ['labwc', '0.8.1', '0.8.2'], ['syncthing', '1.28.1', '1.28.2'], ['koreader', '2024.11', '2025.04'], ['openssl', '3.3.2', '3.3.3'], ['curl', '8.11.0', '8.11.1'], ['sqlite-libs', '3.47.1', '3.47.2'], ['linux-firmware', '20241110', '20241210']];
+    return (Component._pk = { D, RETRO, LIB: LIB.slice(0, 100), libTotal: 312, UPD });
+  }
+
+  appOrigins() {
+    // Where each app comes from: decides its badge, how it updates and what Remove does.
+    // [origin, package or app id, installed size, pack it came with]
+    return {
+      Settings: ['core', 'glassine-settings'], Software: ['core', 'glassine-software'], Files: ['core', 'glassine-files'], Terminal: ['core', 'foot'],
+      Stellarium: ['system', 'stellarium', '58 MB'], KOReader: ['system', 'koreader', '74 MB'], 'Firefox ESR': ['system', 'firefox', '212 MB'],
+      Notes: ['system', 'glassine-notes', '6 MB'], Dictionary: ['system', 'glassine-dictionary', '41 MB'], Calculator: ['system', 'glassine-calculator', '2 MB'],
+      Gnumeric: ['package', 'gnumeric', '38 MB', 'Office'], Chess: ['package', 'gnome-chess', '9 MB', 'Games'], Sudoku: ['package', 'gnome-sudoku', '4 MB', 'Games'], RetroArch: ['package', 'retroarch', '31 MB'],
+      Calendar: ['flatpak', 'org.gnome.Calendar', '18 MB'], Mail: ['flatpak', 'org.gnome.Geary', '44 MB'], Documents: ['flatpak', 'org.gnome.Papers', '22 MB'],
+      Feeds: ['flatpak', 'io.gitlab.news_flash.NewsFlash', '27 MB'], Music: ['flatpak', 'org.gnome.Rhythmbox3', '35 MB'], Podcasts: ['flatpak', 'org.gnome.Podcasts', '16 MB'],
+      Transit: ['android', 'com.example.transit', '62 MB', 'Android apps']
+    };
+  }
+
+  originInfo() {
+    // label, icon, what it means, where it updates, can it be removed
+    return {
+      core: ['Core', 'lock', 'Runs the tablet', 'With the system', false],
+      system: ['System', 'inventory_2', 'Comes with GlassineOS', 'With the system', true],
+      package: ['Package', 'package_2', 'Added by you from Packages or a pack', 'Packages › Updates', true],
+      flatpak: ['Flatpak', 'storefront', 'From Software (Flathub)', 'In Software', true],
+      android: ['Android', 'android', 'Inside Android apps (Waydroid)', 'In Android', true]
+    };
+  }
+
+  pkPretty(n) { return n === 'retroarch' ? 'RetroArch' : n; }
+
+  pkPlan(op, name) {
+    const X = this.pkData(), pr = this.pkPretty(name);
+    if (op === 'uninstall') {
+      const [o, id, size, pack] = this.appOrigins()[name] || ['package', name, '10 MB'];
+      const base = { op, name, title: 'Remove ' + name + '?', size: 'Frees ' + size, steps: 1, order: [id], sys: [], cta: 'Remove', verb: 'Removing', done: 'Removed ' + name };
+      if (o === 'system') return { ...base, what: '1 package removed · part of the system', items: [{ n: id, tag: 'part of the system' }], sys: [id],
+        warnText: name + ' is part of the system', warnNames: 'Restore it any time under Packages › Your changes.', after: name + ' is gone until you restore it under Packages › Your changes.' };
+      if (o === 'flatpak') return { ...base, what: '1 Flatpak removed · your documents stay', items: [{ n: id, tag: 'flatpak' }], after: 'Runtimes it shared stay until no other app needs them.' };
+      if (o === 'android') return { ...base, what: '1 Android app removed', items: [{ n: id, tag: 'android' }], sys: [id],
+        warnText: 'Its data inside Android is deleted', warnNames: 'Files it saved to the tablet’s own storage stay.' };
+      return { ...base, what: '1 package removed · your documents stay', items: [{ n: id, tag: pack ? 'from the ' + pack + ' pack' : 'added by you' }] };
+    }
+    if (op === 'install' && name === 'retroarch') {
+      const order = ['retroarch-joypad-autoconfig', 'libretro-core-info', 'retroarch-assets', 'ffmpeg-libavcodec', 'ffmpeg-libavformat', 'ffmpeg-libswscale', 'ffmpeg-libswresample', 'mbedtls', 'miniupnpc', 'libudev-zero', 'retroarch', 'mesa-dri-gallium'];
+      return { op, name, title: 'Install RetroArch?', what: '11 new packages, 1 upgraded', size: 'Download 48 MB · uses 160 MB', mb: 48, steps: 12, order,
+        items: order.map(n => ({ n, tag: n === 'mesa-dri-gallium' ? '24.2.7 → 24.2.8' : 'new' })), sys: [], cta: 'Install', verb: 'Installing', done: 'Installed RetroArch (12 packages)', after: 'RetroArch is in the app drawer under Games.' };
+    }
+    if (op === 'remove' && name === 'sdl2') {
+      const order = ['koreader', 'stellarium', 'glassine-games', 'sdl2_ttf', 'sdl2_image', 'sdl2'];
+      return { op, name, title: 'Remove sdl2?', what: '6 packages removed', size: 'Frees 182 MB', steps: 6, order,
+        items: order.map(n => ({ n, tag: ['koreader', 'stellarium', 'glassine-games'].includes(n) ? 'part of the system' : 'removed' })), sys: ['koreader', 'stellarium', 'glassine-games'],
+        cta: 'Remove 6 packages', verb: 'Removing', done: 'Removed sdl2 (6 packages)', after: 'KOReader and Stellarium are gone until you restore them under Your changes.' };
+    }
+    if (op === 'update' && name === '*') {
+      const order = X.UPD.map(u => u[0]);
+      return { op, name, title: 'Update ' + order.length + ' packages?', what: order.length + ' upgraded', size: 'Download 186 MB · uses 4 MB more', mb: 186, steps: order.length, order,
+        items: X.UPD.map(([n, a, b]) => ({ n, tag: a + ' → ' + b })), sys: [], cta: 'Update all', verb: 'Upgrading', done: 'Updated ' + order.length + ' packages' };
+    }
+    const d = X.D[name] || { v: '', dl: '1 MB', size: '3 MB' };
+    const M = { install: ['Install ' + pr + '?', '1 new package', 'Download ' + d.dl + ' · uses ' + d.size, 'Install', 'Installing', 'Installed ' + pr, 'new'],
+      remove: ['Remove ' + pr + '?', '1 package removed', 'Frees ' + d.size, 'Remove', 'Removing', 'Removed ' + pr, 'removed'],
+      restore: ['Restore ' + pr + '?', 'Puts the system’s package back', 'Download ' + d.dl + ' · uses ' + d.size, 'Restore', 'Installing', 'Restored ' + pr, 'system version'],
+      downgrade: ['Restore the system’s ' + pr + '?', 'Replaces your newer version', 'Download ' + d.dl, 'Restore', 'Downgrading', 'Restored the system’s ' + pr, 'system version'],
+      update: ['Update ' + pr + '?', '1 upgraded', 'Download ' + d.dl, 'Update', 'Upgrading', 'Updated ' + pr, 'upgrade'] }[op];
+    return { op, name, title: M[0], what: M[1], size: M[2], steps: 1, order: [name], items: [{ n: name, tag: M[6] }], sys: [], cta: M[3], verb: M[4], done: M[5] };
+  }
+
+  pkRunLine(r) {
+    const plan = this.pkPlan(r.op, r.name), item = plan.order[Math.min(r.i, plan.steps) - 1];
+    const verb = plan.items[r.i - 1] && /→/.test(plan.items[r.i - 1].tag) ? 'Upgrading' : plan.verb;
+    return { label: '(' + r.i + '/' + plan.steps + ') ' + verb + ' ' + item, val: r.mbText || (plan.mb ? (plan.mb * r.i / plan.steps).toFixed(1) + ' of ' + plan.mb + ' MB' : plan.what), icon: 'pending' };
+  }
+
+  pkApply(st, op, name) {
+    const add = (a, n) => a.includes(n) ? a : [...a, n], del = (a, n) => a.filter(x => x !== n);
+    if (op === 'uninstall') { const [o, id] = this.appOrigins()[name] || ['package', name];
+      return { uninstalled: add(st.uninstalled || [], name), pkInst: del(st.pkInst, id), pkAdded: del(st.pkAdded, id), pkRemoved: o === 'system' ? add(st.pkRemoved, id) : st.pkRemoved }; }
+    if (op === 'install') return { pkInst: add(st.pkInst, name), pkAdded: st.pkRemoved.includes(name) ? st.pkAdded : add(st.pkAdded, name), pkRemoved: del(st.pkRemoved, name) };
+    if (op === 'remove') { const plan = this.pkPlan(op, name), gone = plan.order; return { pkInst: st.pkInst.filter(x => !gone.includes(x)), pkAdded: st.pkAdded.filter(x => !gone.includes(x)), pkRemoved: st.pkAdded.includes(name) ? st.pkRemoved : [...st.pkRemoved, ...gone.filter(x => !st.pkAdded.includes(x) && !st.pkRemoved.includes(x))] }; }
+    if (op === 'restore') return { pkRemoved: del(st.pkRemoved, name), pkInst: add(st.pkInst, name) };
+    if (op === 'downgrade') return { pkNewer: del(st.pkNewer, name) };
+    if (op === 'update') return name === '*' ? { pkUpd: 'none' } : {};
+    return {};
+  }
+
+  pkStart(op, name) {
+    const plan = this.pkPlan(op, name);
+    clearInterval(this.pkT);
+    this.setState({ pkSheet: null, pkPlanPg: 0, pkRun: { op, name, i: 1 } });
+    this.pkT = setInterval(() => {
+      const r = this.state.pkRun;
+      if (!r || r.fixed) { clearInterval(this.pkT); return; }
+      if (r.i >= plan.steps) { clearInterval(this.pkT); this.setState(st => ({ pkRun: null, pkRes: { kind: op === 'update' && name === '*' ? 'notes' : 'ok', op, name }, ...this.pkApply(st, op, name) })); }
+      else this.setState({ pkRun: { ...r, i: r.i + 1 } });
+    }, 1000);
+  }
+
+  pkPreset(p) {
+    const r = { op: 'install', name: 'retroarch' };
+    return ({
+      typing: { topic: 'packages', pkQ: 'retroa' },
+      search: { topic: 'pkgSearch', pkQ: 'retroarch' },
+      'search-lib': { topic: 'pkgSearch', pkQ: 'lib' },
+      detail: { topic: 'pkg', pkSel: 'retroarch', pkFrom: 'pkgSearch' },
+      'detail-installed': { topic: 'pkg', pkSel: 'htop', pkFrom: 'pkgChanges' },
+      ack: { topic: 'pkg', pkSel: 'retroarch', pkFrom: 'pkgSearch', pkAck: false, pkSheet: { ack: true, op: 'install', name: 'retroarch' } },
+      install: { topic: 'pkg', pkSel: 'retroarch', pkFrom: 'pkgSearch', pkAck: true, pkSheet: r },
+      'install-p2': { topic: 'pkg', pkSel: 'retroarch', pkFrom: 'pkgSearch', pkAck: true, pkSheet: r, pkPlanPg: 1 },
+      remove: { topic: 'pkg', pkSel: 'sdl2', pkFrom: 'pkgSearch', pkAck: true, pkSheet: { op: 'remove', name: 'sdl2' } },
+      progress: { topic: 'pkg', pkSel: 'vim', pkFrom: 'pkgChanges', pkAck: true, pkRun: { ...r, i: 3, fixed: true, mbText: '12.4 of 48 MB' } },
+      'progress-page': { topic: 'packages', pkAck: true, pkRun: { ...r, i: 3, fixed: true, mbText: '12.4 of 48 MB' } },
+      ok: { topic: 'pkg', pkSel: 'retroarch', pkFrom: 'pkgSearch', pkAck: true, pkInst: ['libretro-mgba', 'htop', 'vim', 'sdl2', 'retroarch'], pkAdded: ['retroarch', 'htop', 'vim'], pkRes: { kind: 'ok', ...r } },
+      notes: { topic: 'pkgUpdates', pkAck: true, pkUpd: 'none', pkRes: { kind: 'notes', op: 'update', name: '*' } },
+      error: { topic: 'pkg', pkSel: 'retroarch', pkFrom: 'pkgSearch', pkAck: true, pkRes: { kind: 'error', ...r } },
+      output: { topic: 'pkgOutput', pkSel: 'retroarch', pkAck: true },
+      changes: { topic: 'pkgChanges', pkAck: true, pkInst: ['libretro-mgba', 'htop', 'vim', 'sdl2', 'retroarch'], pkAdded: ['retroarch', 'htop', 'vim'] },
+      'upd-never': { topic: 'pkgUpdates', pkUpd: 'never' },
+      'upd-list': { topic: 'pkgUpdates', pkUpd: 'list', pkAck: true },
+      'upd-none': { topic: 'pkgUpdates', pkUpd: 'none' },
+      main: { topic: 'packages' },
+      uninstall: { topic: 'app', pkAck: true, pkSheet: { op: 'uninstall', name: this.props.app || 'KOReader' } },
+      'uninstall-done': { topic: 'app', pkAck: true, pkRes: { kind: 'ok', op: 'uninstall', name: this.props.app || 'Calendar' }, uninstalled: [this.props.app || 'Calendar'] }
+    })[p] || null;
+  }
+
+
+  themesBase() {
+    const serifLbl = f => ({ lblFont: `400 14px ${f}`, lblVar: 'small-caps', lblCase: 'lowercase', lblLs: '.1em' });
+    return {
+      white: {
+        screenBg: 'var(--il-paper,#ffffff)', ink: 'var(--il-ink,#111111)', sub: 'var(--il-ink-soft,#4a4a4a)', fontUI: "'IBM Plex Sans',sans-serif",
+        lblFont: "500 10.5px 'IBM Plex Mono',monospace", lblVar: 'normal', lblCase: 'uppercase', lblLs: '.08em',
+        barBg: 'var(--il-paper,#ffffff)', barFg: 'var(--il-ink,#111111)', barBorder: '1.5px solid var(--il-ink,#111111)', barShadow: 'none', stitch: 'none', stitchColor: 'var(--il-ink,#111111)',
+        plateR: '8px', plateOnBg: 'var(--il-ink,#111111)', plateOnFg: 'var(--il-paper,#ffffff)', plateOnSh: 'none', plateOffSh: 'none',
+        wsFont: "500 13px 'IBM Plex Mono'", titleFont: "500 14px 'IBM Plex Sans'", numFont: "500 13px 'IBM Plex Mono'",
+        divBg: 'var(--il-paper,#ffffff)', divDrag: 'var(--il-ink,#111111)', divSh: 'inset 0 0 0 1px var(--il-ink,#111111)', gripBg: 'var(--il-ink,#111111)', gripDrag: 'var(--il-paper,#ffffff)', gripR: '2px', grip: [56, 4], grips: 1, gripSh: 'none', divStitch: false,
+        gridBg: 'var(--il-ink,#111111)',
+        cardBg: 'var(--il-paper,#ffffff)', cardBorder: '1.5px solid var(--il-ink,#111111)', cardR: '16px', cardSh: 'none', emboss: 'none',
+        sep: '1px dotted var(--il-ink,#111111)', sepSoft: '1px solid var(--il-ink,#111111)', headRule: '1.5px solid var(--il-ink,#111111)',
+        nameFont: "600 17px 'IBM Plex Sans'", headFont: "600 18px 'IBM Plex Sans'", headVar: 'normal', headLs: '0', dateFont: "400 13px 'IBM Plex Sans'",
+        btnBg: 'var(--il-paper,#ffffff)', btnSh: 'inset 0 0 0 1.5px var(--il-ink,#111111),0 3px 0 var(--il-shade,#b4b4b4)', btnR: '12px', selBg: 'var(--il-ink,#111111)', selFg: 'var(--il-paper,#ffffff)', selSh: 'none',
+        togR: '18px', togOnBg: 'var(--il-ink,#111111)', togOnFg: 'var(--il-paper,#ffffff)', togOnSh: '0 3px 0 var(--il-shade,#b4b4b4)',
+        grooveTop: '20px', grooveH: '6px', grooveR: '3px', grooveBg: 'var(--il-paper,#ffffff)', grooveSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', fillTop: '20px', fillH: '6px',
+        knobTop: '10px', knobML: '-13px', knobW: '26px', knobH: '26px', knobR: '50%', knobBg: 'var(--il-paper,#ffffff)', knobBd: '2px solid var(--il-ink,#111111)',
+        trayBg: 'var(--il-paper,#ffffff)', traySh: 'inset 0 0 0 1.5px var(--il-ink,#111111),inset 0 3px 0 var(--il-rule,#d6d6d6)', trayR: '12px', segR: '9px', segFont: "400 14px 'IBM Plex Sans'", segOnBg: 'var(--il-ink,#111111)', segOnFg: 'var(--il-paper,#ffffff)', segOnSh: '0 2px 0 var(--il-shade,#b4b4b4)',
+        chipBg: 'var(--il-paper,#ffffff)', chipSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', chipR: '10px',
+        pwrBg: 'var(--il-ink,#111111)', pwrFg: 'var(--il-paper,#ffffff)', pwrSh: '0 3px 0 var(--il-shade,#b4b4b4)', pwrR: '21px',
+        padBg: 'var(--il-paper,#ffffff)', padBorder: '1.5px solid var(--il-ink,#111111)', padR: '18px', padSh: 'none', padFg: 'var(--il-ink,#111111)', folderR: '10px', folderSh: '0 4px 0 var(--il-shade,#b4b4b4)', folderTabSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', folderFont: "400 13px/1.35 'IBM Plex Sans'",
+        appBg: 'var(--il-paper,#ffffff)', appSh: 'inset 0 0 0 1.5px var(--il-ink,#111111)', appR: '12px', appNameFont: "500 14px 'IBM Plex Sans'", appNameVar: 'normal', appNameLs: '0', appCatFont: "400 11.5px 'IBM Plex Sans'",
+        searchFont: "400 14px 'IBM Plex Sans'", pageFont: "500 12px 'IBM Plex Mono'",
+        tabR: '0 10px 10px 0', tabFont: "500 13px 'IBM Plex Sans'", tabLs: '0', tabOnBg: 'var(--il-paper,#ffffff)', tabOffBg: 'var(--il-paper,#ffffff)',
+        tabOnSh: 'inset -1.5px 0 0 var(--il-ink,#111111),inset 0 1.5px 0 var(--il-ink,#111111),inset 0 -1.5px 0 var(--il-ink,#111111)', tabOffSh: 'inset 0 0 0 1.5px var(--il-ink,#111111),inset -6px 0 0 var(--il-rule,#dcdcdc)',
+        ratioFont: "600 15px 'IBM Plex Mono'", snapFont: "500 12px 'IBM Plex Mono'", frac: false,
+        ws: ['1', '2', '3'], qsTitle: 'Quick settings', lTitle: 'Apps', nTitle: 'Notifications',
+        nTitleFont: "600 15px 'IBM Plex Sans'", nBodyFont: "400 13.5px/1.45 'IBM Plex Sans'"
+      },
+      editorial: {
+        screenBg: 'var(--il-paper,#ffffff)', ink: 'var(--il-ink,#111111)', sub: 'var(--il-ink-soft,#555555)', fontUI: "'Source Serif 4',serif",
+        ...serifLbl("'Source Serif 4',serif"),
+        barBg: 'var(--il-paper,#ffffff)', barFg: 'var(--il-ink,#111111)', barBorder: '3px double var(--il-ink,#111111)', barShadow: 'none', stitch: 'none', stitchColor: 'var(--il-ink,#111111)',
+        plateR: '0', plateOnBg: 'transparent', plateOnFg: 'var(--il-ink,#111111)', plateOnSh: 'inset 0 -2px 0 var(--il-ink,#111111)', plateOffSh: 'none',
+        wsFont: "italic 400 16px 'Source Serif 4'", titleFont: "italic 400 16px 'Source Serif 4'", numFont: "400 15px 'Source Serif 4'",
+        divBg: 'var(--il-paper,#ffffff)', divDrag: 'var(--il-ink,#111111)', divSh: 'inset 0 0 0 1px var(--il-ink,#111111)', gripBg: 'var(--il-ink,#111111)', gripDrag: 'var(--il-paper,#ffffff)', gripR: '0', grip: [40, 2], grips: 1, gripSh: 'none', divStitch: false,
+        gridBg: 'var(--il-ink,#111111)',
+        cardBg: 'var(--il-paper,#ffffff)', cardBorder: '1px solid var(--il-ink,#111111)', cardR: '0', cardSh: '0 0 0 5px var(--il-paper,#ffffff),0 0 0 6px var(--il-ink,#111111)', emboss: 'none',
+        sep: '1px solid var(--il-ink,#111111)', sepSoft: '1px solid var(--il-ink,#111111)', headRule: '1px solid var(--il-ink,#111111)',
+        nameFont: "600 20px 'Source Serif 4'", headFont: "600 22px 'Source Serif 4'", headVar: 'normal', headLs: '0', dateFont: "italic 400 14px 'Source Serif 4'",
+        btnBg: 'transparent', btnSh: 'inset 0 0 0 1px var(--il-ink,#111111),inset 0 0 0 4px var(--il-paper,#ffffff),inset 0 0 0 5px var(--il-rule,#d0d0d0)', btnR: '26px', selBg: 'var(--il-ink,#111111)', selFg: 'var(--il-paper,#ffffff)', selSh: 'none',
+        togR: '50%', togOnBg: 'var(--il-ink,#111111)', togOnFg: 'var(--il-paper,#ffffff)', togOnSh: 'inset 0 0 0 4px var(--il-ink,#111111),inset 0 0 0 5px var(--il-paper,#ffffff)',
+        grooveTop: '22px', grooveH: '1px', grooveR: '0', grooveBg: 'var(--il-ink,#111111)', grooveSh: 'none', fillTop: '21px', fillH: '3px',
+        knobTop: '13px', knobML: '-10px', knobW: '20px', knobH: '20px', knobR: '50%', knobBg: 'var(--il-paper,#ffffff)', knobBd: '1.5px solid var(--il-ink,#111111)',
+        trayBg: 'transparent', traySh: 'inset 0 -1px 0 var(--il-ink,#111111)', trayR: '0', segR: '0', segFont: "400 15px 'Source Serif 4'", segOnBg: 'transparent', segOnFg: 'var(--il-ink,#111111)', segOnSh: 'inset 0 -2px 0 var(--il-ink,#111111)',
+        chipBg: 'transparent', chipSh: 'inset 0 0 0 1px var(--il-ink,#111111)', chipR: '0',
+        pwrBg: 'transparent', pwrFg: 'var(--il-ink,#111111)', pwrSh: 'inset 0 0 0 1px var(--il-ink,#111111)', pwrR: '21px',
+        padBg: 'var(--il-paper,#ffffff)', padBorder: '1px solid var(--il-ink,#111111)', padR: '0', padSh: '0 0 0 5px var(--il-paper,#ffffff),0 0 0 6px var(--il-ink,#111111)', padFg: 'var(--il-ink,#111111)', folderR: '0', folderSh: 'none', folderTabSh: 'inset 0 0 0 1px var(--il-ink,#111111)', folderFont: "400 14px/1.35 'Source Serif 4'",
+        appBg: 'transparent', appSh: 'inset 0 -1px 0 var(--il-ink,#111111)', appR: '0', appNameFont: "400 16px 'Source Serif 4'", appNameVar: 'normal', appNameLs: '0', appCatFont: "italic 400 13px 'Source Serif 4'",
+        searchFont: "italic 400 15px 'Source Serif 4'", pageFont: "italic 400 15px 'Source Serif 4'",
+        tabR: '0', tabFont: "400 15px 'Source Serif 4'", tabLs: '.06em', tabOnBg: 'var(--il-paper,#ffffff)', tabOffBg: 'var(--il-paper,#ffffff)',
+        tabOnSh: 'inset -1px 0 0 var(--il-ink,#111111),inset 0 1px 0 var(--il-ink,#111111),inset 0 -1px 0 var(--il-ink,#111111),3px 3px 0 var(--il-ink,#111111)', tabOffSh: 'inset 0 0 0 1px var(--il-ink,#111111),3px 3px 0 var(--il-rule,#c8c8c8)',
+        ratioFont: "italic 400 22px 'Source Serif 4'", snapFont: "italic 400 16px 'Source Serif 4'", frac: true,
+        ws: ['i', 'ii', 'iii'], qsTitle: 'Controls', lTitle: 'Applications', nTitle: 'Notices',
+        nTitleFont: "600 17px 'Source Serif 4'", nBodyFont: "400 15px/1.45 'Source Serif 4'"
+      },
+      stationery: {
+        screenBg: 'var(--il-paper,#ffffff)', ink: 'var(--il-ink,#1b1b1b)', sub: 'var(--il-ink-soft,#555555)', fontUI: "'EB Garamond',serif",
+        ...serifLbl("'EB Garamond',serif"),
+        barBg: 'var(--il-ink,#111111)', barFg: 'var(--il-paper,#ffffff)', barBorder: 'none', barShadow: '0 3px 0 var(--il-shade,#a0a0a0)', stitch: 'block', stitchColor: 'var(--il-gilt)',
+        plateR: '3px', plateOnBg: 'var(--il-paper,#ffffff)', plateOnFg: 'var(--il-ink,#1b1b1b)', plateOnSh: 'inset 0 0 0 1px var(--il-ink,#1b1b1b),inset 0 0 0 3px var(--il-paper,#ffffff),inset 0 0 0 4px var(--il-ink,#1b1b1b),inset 0 -3px 0 4px var(--il-rule,#d0d0d0)', plateOffSh: 'none',
+        wsFont: "italic 400 16px 'EB Garamond'", titleFont: "italic 400 17px 'EB Garamond'", numFont: "400 16px 'EB Garamond'",
+        divBg: 'var(--il-ink,#111111)', divDrag: 'var(--il-ink,#111111)', divSh: 'none', gripBg: 'var(--il-paper,#ffffff)', gripDrag: 'var(--il-paper,#ffffff)', gripR: '50%', grip: [9, 9], grips: 3, gripSh: 'inset 0 -2px 0 var(--il-rule,#bdbdbd)', divStitch: true,
+        gridBg: 'var(--il-ink,#111111)',
+        cardBg: 'var(--il-paper,#ffffff)', cardBorder: 'none', cardR: '4px', cardSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 0 var(--il-paper,#ffffff),0 3px 0 1px var(--il-ink,#1b1b1b),0 6px 0 0 var(--il-paper,#ffffff),0 6px 0 1px var(--il-ink,#1b1b1b),0 10px 0 1px var(--il-rule,#c8c8c8)', emboss: 'block',
+        sep: '1.5px dashed var(--il-ink,#1b1b1b)', sepSoft: '1px solid var(--il-ink,#1b1b1b)', headRule: '1px solid var(--il-ink,#1b1b1b)',
+        nameFont: "italic 500 22px/1.1 'EB Garamond'", headFont: "500 22px 'EB Garamond'", headVar: 'small-caps', headLs: '.1em', dateFont: "italic 400 16px 'EB Garamond'",
+        btnBg: 'var(--il-paper,#ffffff)', btnSh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),inset 0 4px 0 var(--il-rule,#d0d0d0)', btnR: '10px', selBg: 'var(--il-ink,#1b1b1b)', selFg: 'var(--il-paper,#ffffff)', selSh: 'inset 0 0 0 1px var(--il-ink,#000000),inset 0 3px 0 var(--il-ink,#000000)',
+        togR: '50%', togOnBg: 'var(--il-ink,#1b1b1b)', togOnFg: 'var(--il-paper,#ffffff)', togOnSh: 'inset 0 0 0 5px var(--il-ink,#1b1b1b),inset 0 0 0 6.5px var(--il-paper,#ffffff),0 3px 0 var(--il-shade,#8a8a8a)',
+        grooveTop: '19px', grooveH: '8px', grooveR: '4px', grooveBg: 'var(--il-paper,#ffffff)', grooveSh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),inset 0 3px 0 var(--il-rule,#d0d0d0)', fillTop: '21.5px', fillH: '3px',
+        knobTop: '9px', knobML: '-3px', knobW: '6px', knobH: '28px', knobR: '3px', knobBg: 'var(--il-ink,#1b1b1b)', knobBd: 'none',
+        trayBg: 'var(--il-paper,#ffffff)', traySh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),inset 0 4px 0 var(--il-rule,#d0d0d0)', trayR: '9px', segR: '6px', segFont: "400 17px 'EB Garamond'", segOnBg: 'var(--il-paper,#ffffff)', segOnFg: 'var(--il-ink,#1b1b1b)', segOnSh: '0 0 0 1.5px var(--il-ink,#1b1b1b),0 3px 0 var(--il-shade,#8a8a8a)',
+        chipBg: 'var(--il-paper,#ffffff)', chipSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 var(--il-shade,#b4b4b4)', chipR: '2px',
+        pwrBg: 'var(--il-ink,#1b1b1b)', pwrFg: 'var(--il-on-accent,#ececec)', pwrSh: 'inset 0 0 0 1px var(--il-ink,#0a0a0a),inset 0 0 0 2.5px var(--il-shade,#8f8f8f),0 2px 0 var(--il-shade,#8a8a8a)', pwrR: '21px',
+        padBg: 'var(--il-ink,#111111)', padBorder: 'none', padR: '8px', padSh: '0 4px 0 var(--il-shade,#a0a0a0)', padFg: 'var(--il-paper,#ffffff)', folderR: '2px 4px 4px 4px', folderSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 0 var(--il-paper,#ffffff),0 3px 0 1px var(--il-ink,#1b1b1b)', folderTabSh: 'none', folderFont: "400 14px/1.35 'EB Garamond'",
+        appBg: 'var(--il-paper,#ffffff)', appSh: '0 0 0 1px var(--il-ink,#1b1b1b),0 3px 0 var(--il-rule,#c8c8c8)', appR: '2px', appNameFont: "500 15px 'EB Garamond'", appNameVar: 'small-caps', appNameLs: '.1em', appCatFont: "italic 400 13px 'EB Garamond'",
+        searchFont: "italic 400 17px 'EB Garamond'", pageFont: "italic 400 17px 'EB Garamond'",
+        tabR: '0 5px 5px 0', tabFont: "400 15px 'EB Garamond'", tabLs: '.1em', tabOnBg: 'var(--il-paper,#ffffff)', tabOffBg: 'var(--il-paper,#ffffff)',
+        tabOnSh: 'inset -1.5px 0 0 var(--il-ink,#1b1b1b),inset 0 1.5px 0 var(--il-ink,#1b1b1b),inset 0 -1.5px 0 var(--il-ink,#1b1b1b),0 2px 0 var(--il-ink,#1b1b1b)', tabOffSh: 'inset 0 0 0 1.5px var(--il-ink,#1b1b1b),0 2px 0 var(--il-shade,#7a7a7a)',
+        ratioFont: "italic 400 22px 'EB Garamond'", snapFont: "italic 400 16px 'EB Garamond'", frac: true,
+        ws: ['i', 'ii', 'iii'], qsTitle: 'The desk', lTitle: 'Index', nTitle: 'The post',
+        nTitleFont: "500 19px 'EB Garamond'", nBodyFont: "400 16px/1.4 'EB Garamond'"
+      }
+    };
+  }
+
+  themes() {
+    const B = this.themesBase(), p = this.props;
+    const c = n => 'var(--il-' + n + ')';
+    const ink = c('ink'), acc = c('accent'), on = c('on-accent'), hl = c('highlight'), paper = c('paper'), gilt = c('gilt'), lea = c('leather-dark');
+    const set = (o, kv) => { for (const k in kv) if (k in o || k === 'lblC' || k === 'ilv') o[k] = kv[k]; };
+    set(B.white, { plateOnBg: hl, plateOnFg: ink, selBg: hl, selFg: ink,
+      togOnBg: acc, togOnFg: on, togOnSh: c('keycap'), segOnBg: acc, segOnFg: on, segOnSh: c('keycap'),
+      tabOnBg: hl, btnSh: 'inset 0 0 0 1.5px ' + ink + ',' + c('keycap'), pwrSh: c('keycap'), lblC: c('ink-soft') });
+    set(B.editorial, { plateOnFg: acc, plateOnSh: 'inset 0 -2px 0 ' + acc, segOnFg: acc, segOnSh: 'inset 0 -2px 0 ' + acc,
+      selBg: acc, selFg: on, togOnBg: acc, togOnFg: on, togOnSh: 'inset 0 0 0 4px ' + acc + ',inset 0 0 0 5px ' + paper,
+      btnR: '0', btnSh: 'inset 0 0 0 1px ' + ink + ',' + c('offset'), pwrR: '0', pwrSh: 'inset 0 0 0 1px ' + ink + ',' + c('offset'),
+      padSh: c('passe-partout'), cardSh: c('passe-partout'), lblC: acc });
+    set(B.stationery, { barBg: lea, barFg: on, barShadow: 'none', stitchColor: gilt,
+      divBg: lea, divDrag: lea, gripBg: gilt, gripDrag: gilt, gripSh: 'none', gridBg: lea,
+      padBg: acc, padFg: on, padSh: 'none', cardR: '3px', cardSh: c('card-stack'), btnR: '6px', chipR: '6px', appR: '3px',
+      selBg: acc, selFg: on, selSh: 'none', togOnBg: acc, togOnFg: on, togOnSh: 'inset 0 0 0 5px ' + acc + ',inset 0 0 0 6.5px ' + gilt,
+      pwrBg: acc, pwrFg: on, pwrSh: 'inset 0 0 0 1.5px ' + gilt, lblC: c('gold') });
+    for (const vk of ['white', 'editorial', 'stationery']) { B[vk].ilv = this.ilVars(vk, p.scheme, p.pen); B[vk].screenBg = paper; }
+    return B;
+  }
+
+  ilVars(voice, scheme, pen) {
+    const V = ['white', 'editorial', 'stationery'].includes(voice) ? voice : 'white';
+    const S = scheme === 'night' || scheme === 'eink' ? scheme : 'paper';
+    const id = S === 'eink' ? (V === 'stationery' ? 'stationery-eink' : 'eink') : V + '-' + S;
+    const T = Component.ilTokens(this);
+    if (!T) return '--il-theme:' + id;
+    const i = ['1', '2', '3'].indexOf(String(pen ?? '1')), n = i < 0 ? 0 : i, sfx = n ? '-' + (n + 1) : '';
+    const g = name => {
+      let x = T[name];
+      x = x && typeof x === 'object' ? x[id] : x;
+      if (x == null) return null;
+      const m = /^\{([a-z0-9-]+)\}$/.exec(x);
+      if (!m) return x;
+      const r = m[1] === 'accent' || m[1] === 'highlight' ? m[1] + sfx : m[1];
+      return g(r);
+    };
+    const paper = g('paper'), ink = g('ink'), shade = g('shade');
+    const gap = this.ilGaps()[id];
+    const v = { paper, sheet: g('sheet'), ink, 'ink-soft': g('ink-soft'), rule: g('rule'), shade,
+      dim: S === 'night' ? (V === 'stationery' ? g('rule') : g('ink-soft')) : shade,
+      accent: g('accent' + sfx), highlight: g('highlight' + sfx), 'on-accent': g('on-accent'), 'on-accent-soft': g('on-accent-soft'), pen: g('pen'),
+      focus: g('focus'), 'focus-on-leather': g('focus-on-leather'), 'focus-on-cream': g('focus-on-cream'), gold: g('gold'), gilt: g('gilt'),
+      'leather-dark': n && gap ? gap[n - 1] : g('leather-dark'), wax: g('wax'),
+      keycap: '0 3px 0 ' + shade, 'passe-partout': '0 0 0 5px ' + paper + ',0 0 0 6px ' + ink, offset: '3px 3px 0 ' + ink,
+      'card-stack': (V === 'stationery' && g('card-stack')) || ('0 3px 0 ' + shade) };
+    return Object.keys(v).map(k => '--il-' + k + ':' + v[k]).join(';') + ';--il-theme:' + id;
+  }
+
+  ilGaps() {
+    // Leather for Stationery pens 2 and 3. Interleaf has only one leather-dark per theme;
+    // move these into Interleaf as leather-dark-2 / leather-dark-3 and delete this table.
+    return { 'stationery-paper': ['#10241a', '#0f182a'], 'stationery-night': ['#0a1610', '#090e19'], 'stationery-eink': ['#111111', '#111111'] };
+  }
+
+  static ilTokens(c) {
+    // Live link to the Interleaf design system installed on this canvas (project/ds/interleaf).
+    const K = Component;
+    if (K._ilT !== undefined) return K._ilT;
+    if (!K._ilP) {
+      K._ilW = [];
+      K._ilP = fetch('ds/interleaf/tokens.json')
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => {
+          const T = {};
+          if (j) for (const sec of [j.color, j.shadow]) for (const t of (sec && sec.tokens) || []) T[t.name] = t.value;
+          K._ilT = j ? T : null;
+        })
+        .catch(() => { K._ilT = null; })
+        .then(() => { const w = K._ilW; K._ilW = []; for (const x of w) { try { x.forceUpdate(); } catch (e) {} } });
+    }
+    if (c && K._ilW.indexOf(c) < 0) K._ilW.push(c);
+    return null;
+  }
+
+  dither() {
+    if (Component._dith) return Component._dith;
+    const out = {}, W = 72, H = 40;
+    if (typeof document === 'undefined') return out;
+    const v = (x, y) => { const g = Math.min(1, Math.max(0, x / W * 1.25 - 0.15)), d = Math.hypot(x - W * 0.74, y - H * 0.5), R = H * 0.36, c = Math.min(1, Math.max(0, (R * 1.5 - d) / (R * 0.7))); return Math.max(g, c); };
+    const B = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]];
+    const hash = (x, y) => { let h = (x * 374761393 + y * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177; return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+    const make = fn => { const c = document.createElement('canvas'); c.width = W; c.height = H; const ctx = c.getContext('2d'), im = ctx.createImageData(W, H); const px = fn(); for (let i = 0; i < W * H; i++) { const o = px[i] ? 255 : 17; im.data[i * 4] = im.data[i * 4 + 1] = im.data[i * 4 + 2] = o; im.data[i * 4 + 3] = 255; } ctx.putImageData(im, 0, 0); return c.toDataURL(); };
+    const grid = f => () => { const a = []; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) a.push(f(x, y)); return a; };
+    out.Off = make(grid((x, y) => v(x, y) > 0.5));
+    out.Bayer = make(grid((x, y) => v(x, y) > (B[y % 4][x % 4] + 0.5) / 16));
+    out.Blue = make(grid((x, y) => v(x, y) > (hash(x, y) * 0.7 + hash(y + 91, x + 7) * 0.3)));
+    out.Dizzy = make(() => { const e = []; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) e.push(v(x, y)); const a = new Array(W * H); for (let y = 0; y < H; y++) { const r = y % 2 === 1; for (let i = 0; i < W; i++) { const x = r ? W - 1 - i : i, j = y * W + x, o = e[j] > 0.5 ? 1 : 0, er = e[j] - o, dx = r ? -1 : 1; a[j] = o; if (x + dx >= 0 && x + dx < W) e[j + dx] += er * 7 / 16; if (y + 1 < H) { if (x - dx >= 0 && x - dx < W) e[j + W - dx] += er * 3 / 16; e[j + W] += er * 5 / 16; if (x + dx >= 0 && x + dx < W) e[j + W + dx] += er / 16; } } } return a; });
+    return (Component._dith = out);
+  }
+
+  renderVals() {
+    const s = this.state, u = p => this.setState(p);
+    const LAND = (this.props.orient ?? 'portrait') === 'landscape';
+    const TH = this.themes(), themeId = TH[s.theme ?? this.props.theme] ? (s.theme ?? this.props.theme) : 'white';
+    const t = TH[themeId];
+    const KS = {
+      stationery: { F: "'EB Garamond',serif", row: "400 19.5px/1.25 'EB Garamond',serif", sub: "italic 400 16px/1.35 'EB Garamond',serif", subC: 'var(--il-ink-soft,#3d3d3d)', title: "500 26px/1.1 'EB Garamond',serif", titleVar: 'small-caps', titleLs: '.13em', head: "500 15px/1 'EB Garamond',serif", headVar: 'all-small-caps', headCase: 'none', headLs: '.2em', onLbl: "600 14px/1 'EB Garamond',serif", val: "italic 400 19.5px/1.2 'EB Garamond',serif", big: "400 32px/1 'EB Garamond',serif", tab: "400 17.5px/1 'EB Garamond',serif", tabLs: '.06em', segFs: '19px', zoneFs: '17px',
+        sep: '1.5px dashed var(--il-ink,#111111)', rule: '1px solid var(--il-ink,#111111)', sheetTop: '1.5px dashed var(--il-ink,#111111)', cardR: '6px', cardSh: '0 2px 0 var(--il-paper,#ffffff),0 3.5px 0 var(--il-ink,#111111),0 5px 0 var(--il-paper,#ffffff),0 6.5px 0 var(--il-ink,#111111),0 11px 0 var(--il-rule,#cfcfcf)', frame: 'block', headH: '92px',
+        tabR: '0 5px 5px 0', tabSh: '1px 3px 0 var(--il-dim,#9a9a9a)', tabOnSh: '1px 3px 0 var(--il-ink,#111111)', tabOnBg: 'var(--il-paper,#ffffff)', tabOnFg: 'var(--il-ink,#111111)', tglSh: '0 4px 0 var(--il-dim,#9a9a9a)', pillSh: 'none', segR: '12px', segOnR: '9px', segOnBg: 'var(--il-paper,#ffffff)', segOnFg: 'var(--il-ink,#111111)', segOnBd: '1.5px solid var(--il-ink,#111111)', segOnSh: '0 2px 0 var(--il-ink,#111111)' },
+      editorial: { F: "'Source Serif 4',serif", row: "400 17.5px/1.3 'Source Serif 4',serif", sub: "italic 400 14.5px/1.4 'Source Serif 4',serif", subC: 'var(--il-ink-soft,#3d3d3d)', title: "600 24px/1.1 'Source Serif 4',serif", titleVar: 'normal', titleLs: '0', head: "600 11.5px/1 'Source Serif 4',serif", headVar: 'normal', headCase: 'uppercase', headLs: '.16em', onLbl: "600 11px/1 'Source Serif 4',serif", val: "italic 400 17.5px/1.2 'Source Serif 4',serif", big: "400 30px/1 'Source Serif 4',serif", tab: "400 16px/1 'Source Serif 4',serif", tabLs: '0', segFs: '16.5px', zoneFs: '15.5px',
+        sep: '1px solid var(--il-ink,#111111)', rule: '2px solid var(--il-ink,#111111)', sheetTop: '3px double var(--il-ink,#111111)', cardR: '2px', cardSh: 'none', frame: 'none', headH: '86px',
+        tabR: '0 2px 2px 0', tabSh: 'none', tabOnSh: 'none', tabOnBg: 'var(--il-paper,#ffffff)', tabOnFg: 'var(--il-ink,#111111)', tglSh: 'none', pillSh: 'none', segR: '3px', segOnR: '2px', segOnBg: 'var(--il-ink,#111111)', segOnFg: 'var(--il-paper,#ffffff)', segOnBd: '1.5px solid var(--il-ink,#111111)', segOnSh: 'none' },
+      white: { F: "'IBM Plex Sans',sans-serif", row: "500 16px/1.3 'IBM Plex Sans',sans-serif", sub: "400 13.5px/1.4 'IBM Plex Sans',sans-serif", subC: 'var(--il-ink-soft,#4a4a4a)', title: "600 21px/1.15 'IBM Plex Sans',sans-serif", titleVar: 'normal', titleLs: '0', head: "600 11px/1 'IBM Plex Sans',sans-serif", headVar: 'normal', headCase: 'uppercase', headLs: '.12em', onLbl: "600 11px/1 'IBM Plex Sans',sans-serif", val: "500 15px/1.2 'IBM Plex Mono',monospace", big: "500 26px/1 'IBM Plex Mono',monospace", tab: "500 14.5px/1 'IBM Plex Sans',sans-serif", tabLs: '0', segFs: '15px', zoneFs: '14px',
+        sep: '1px solid var(--il-rule,#bdbdbd)', rule: '1.5px solid var(--il-ink,#111111)', sheetTop: '1.5px solid var(--il-ink,#111111)', cardR: '14px', cardSh: 'none', frame: 'none', headH: '80px',
+        tabR: '0 12px 12px 0', tabSh: 'none', tabOnSh: 'none', tabOnBg: 'var(--il-ink,#111111)', tabOnFg: 'var(--il-paper,#ffffff)', tglSh: 'none', pillSh: 'none', segR: '12px', segOnR: '9px', segOnBg: 'var(--il-ink,#111111)', segOnFg: 'var(--il-paper,#ffffff)', segOnBd: '1.5px solid var(--il-ink,#111111)', segOnSh: 'none' }
+    };
+    { const c = n => 'var(--il-' + n + ')';
+      Object.assign(KS.white, { tabOnBg: c('highlight'), tabOnFg: c('ink'), segOnBg: c('accent'), segOnFg: c('on-accent'), segOnBd: '1.5px solid ' + c('accent') });
+      Object.assign(KS.editorial, { tabOnFg: c('accent'), segOnBg: c('accent'), segOnFg: c('on-accent'), segOnBd: '1.5px solid ' + c('accent'), cardSh: c('passe-partout') });
+      Object.assign(KS.stationery, { cardSh: c('card-stack'), cardR: '3px', segOnFg: c('ink') }); }
+    const k = KS[themeId];
+    const DIM = 'var(--il-dim,#9a9a9a)';
+    const pp = String(this.props.page || 'eink').split('#');
+    const topic = s.topic ?? pp[0], sub = s.sub !== undefined ? s.sub : (pp[1] != null ? { sec: +pp[1] } : null);
+    const appName = s.appName ?? this.props.app ?? 'Stellarium';
+    const win = s.win ?? this.props.win ?? 'full';
+    const dev = LAND ? { ow: 1060, pad: '29px 28px 29px 44px', sw: 936, sh: 702 } : { ow: 760, pad: '28px 29px 44px', sw: 702, sh: 936 };
+    const AW = dev.sw, AH = dev.sh - 52, half = x => Math.floor((x - 12) / 2);
+    const cols2 = win === 'column' || win === 'quarter', rows2 = win === 'row' || win === 'quarter';
+    const winW = s.bw || (cols2 ? half(AW) : AW), winH = s.bh || (rows2 ? half(AH) : AH);
+    const narrow = winW < 560, tabW = narrow ? 56 : 158, M = narrow ? 10 : 15, padX = narrow ? 18 : 28;
+    const cardW = winW - M - tabW - (narrow ? 8 : 22), cardH = winH - M * 2 - 8, cw = cardW - padX * 2;
+    const tabH = narrow ? 54 : 64;
+    // Small windows (narrow, or shorter than 700 px) get the compact header: 60 px, pager inside it, no card Refresh (the shell's top bar has one).
+    const compact = narrow || winH < 700;
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const pos = e => { const r = e.currentTarget.getBoundingClientRect(); return (e.clientX - r.left) / r.width * 100; };
+    const drag = fn => ({ pd: e => { if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.sd = true; fn(e); }, pm: e => { if (this.sd) fn(e); }, pu: () => { this.sd = false; } });
+    const flip = key => () => u(st => ({ [key]: !st[key] })), set = key => v => u({ [key]: v });
+    const step = (e, d) => ({ ArrowRight: d, ArrowUp: d, ArrowLeft: -d, ArrowDown: -d })[e.key] || 0;
+    const segOpt = on => on ? { bg: k.segOnBg, fg: k.segOnFg, bd: k.segOnBd, sh: k.segOnSh } : { bg: 'transparent', fg: 'var(--il-ink,#111111)', bd: '1.5px solid transparent', sh: 'none' };
+
+    const W = {
+      head: (label, right, noRule) => ({ k: 'section-head', label, right: right || '', h: 48, rule: noRule ? 'none' : k.rule }),
+      tog: (label, sub, on, fn) => ({ k: 'toggle', label, sub: sub || '', h: sub ? 80 : 58, state: on ? 'On' : 'Off', trk: on ? 'var(--il-accent)' : 'var(--il-paper,#ffffff)', knb: on ? 'var(--il-on-accent)' : 'var(--il-ink,#111111)', jc: on ? 'flex-end' : 'flex-start', on: fn }),
+      seg: (label, opts, cur, fn, subs) => {
+        // One row when every option fits its label; otherwise two per row, never squeezed or cut.
+        const fs = parseFloat(k.segFs) || 16, need = opts.reduce((a, o) => a + o.length * fs * 0.56 + 16, 0) + 9;
+        const cols = need <= cw ? opts.length : 2, rows = Math.ceil(opts.length / cols);
+        return { k: 'segmented', label, cols, rows, sub: subs ? (subs[opts.indexOf(cur)] || '') : '', h: (subs ? 140 : 112) + (rows - 1) * 51, opts: opts.map(o => ({ l: o, on: () => fn(o), ...segOpt(o === cur) })) }; },
+      note: text => ({ k: 'note', label: text, h: 76, nosep: true }),
+      sl: (label, v, fn, unit) => ({ k: 'slider', label, val: v + (unit || ''), h: 92, w: v + '%', now: v, kd: e => { const d = step(e, 10); if (d) { e.preventDefault(); fn(clamp(v + d, 0, 100)); } }, ...drag(e => fn(clamp(Math.round(pos(e) / 10) * 10, 0, 100))) }),
+      off: (label, v, base, fn) => ({ k: 'offset', now: v, kd: e => { const d = step(e, 5); if (d) { e.preventDefault(); fn(clamp(v + d, -base, 100 - base)); } }, label, val: clamp(base + v, 0, 100) + ' %', sub: 'Schedule ' + base + ' %' + (v ? ' · ' + (v > 0 ? '+' : '−') + Math.abs(v) : ''), h: 124, w: (50 + v) + '%', fl: Math.min(50, 50 + v) + '%', fw: Math.abs(v) + '%', hasReset: true, rFg: v ? 'var(--il-ink,#111111)' : DIM, reset: () => fn(0), ...drag(e => fn(clamp(Math.round((pos(e) - 50) / 5) * 5, -50, 50))) }),
+      link: (label, sub, fn, icon) => ({ k: 'link', label, sub: sub || '', icon: icon || '', h: sub ? 80 : 58, on: fn || null, chev: fn ? 'block' : 'none' }),
+      info: (label, val) => ({ k: 'info', label, val, h: 52 }),
+      app: (name, icon, note, fn, badge, bIcon) => ({ k: 'app', label: name, icon, sub: note, h: 70, on: fn, badge: badge || '', bIcon: bIcon || '', badgeD: badge ? 'flex' : 'none' }),
+      radio: (label, on, fn) => ({ k: 'radio', label, h: 54, on: fn, dot: on ? 'block' : 'none' }),
+      btn: (label, sub, btn, fn, enabled) => ({ k: 'button', label, sub, btn, h: 80, on: fn, bFg: enabled === false ? DIM : 'var(--il-ink,#111111)' })
+    };
+
+    // Fluidity: four steps that describe how motion feels; the waveforms behind them are the daemon's business.
+    const FLU = ['Fluid', 'Balanced', 'Clear', 'Calm'];
+    const FLU_SUB = ['Moves fastest; motion leaves faint trails', 'Quick while moving, clean as soon as it stops', 'Sharper greys while moving; a little slower', 'Fewest flashes; changes settle gently'];
+    const GRAD_SUB = 'Starts clear and speeds up the longer you scroll or draw';
+    const DRAW = ['GPU', 'GPU, short jobs', 'Chunked', 'CPU'];
+    const DRAW_SUB = ['The graphics chip, as the desktop', 'The graphics chip for short bursts, then the processor', 'The graphics chip in small pieces, so one slow scene can’t stall the screen', 'The processor only; slower, steadier on e-ink'];
+    const CONTENT = ['Auto', 'Text', 'Pictures', 'Motion'];
+    const CONTENT_SUB = ['Judged from what changes on screen', 'Pages of text: clean, sharp refreshes', 'Images and drawings: full greys', 'Games and video: stays fast and never falls back to full refreshes'];
+
+    const DESC = { Off: 'Flat black and white; cleanest text, no greys', Bayer: 'Ordered grid; steady in motion, visible pattern', Blue: 'Even grain; balanced detail and motion', Dizzy: 'Diffused grain; sharpest detail, may shimmer in motion' };
+    const DI = this.dither(), dCols = cw < 400 ? 2 : 4, tileW = (cw - 12 - (dCols - 1) * 4) / dCols - 12, ph = Math.round(clamp(tileW * 0.56, 40, 64));
+    const dith = (label, cur, fn) => ({ k: 'dithering', label, sub: DESC[cur], cols: dCols, ph: ph + 'px', h: 96 + (4 / dCols) * (ph + 44), opts: ['Off', 'Bayer', 'Blue', 'Dizzy'].map(l => { const on = l === cur; return { l, ref: el => { if (el && DI[l]) el.style.backgroundImage = 'url(' + DI[l] + ')'; }, on: () => fn(l), bd: on ? k.segOnBd : '1.5px solid transparent', sh: on ? k.segOnSh : 'none', fw: on && themeId === 'white' ? '600' : '400' }; }) });
+
+    const fDay = x => clamp((x - 6.8) / 1.2, 0, 1) * clamp((19.7 - x) / 1.6, 0, 1), dNow = 0;
+    const bF = d => s.bMin + (s.bMax - s.bMin) * d, wF = d => s.wMax - (s.wMax - s.wMin) * d;
+    const bars = (label, f, lo, hi) => ({ k: 'bars', label, h: 82, nosep: true, val: lo + '–' + hi + ' %',
+      bars: Array.from({ length: 24 }, (_, hr) => { const v = f(fDay(hr + .5)); return { h: Math.round(7 + (v - lo) / Math.max(1, hi - lo) * 25) + 'px', bg: hr <= 20 ? 'var(--il-ink,#111111)' : 'var(--il-paper,#ffffff)' }; }) });
+
+    const rot = (() => { const NM = ['Upright', 'Turned right', 'Upside down', 'Turned left'], cur = s.rotAuto ? s.sensor : s.rot, a = segOpt(s.rotAuto);
+      return { k: 'rotation', label: 'Rotation', h: 126, val: (s.rotAuto ? 'Auto · ' : 'Locked · ') + NM[cur / 90], autoOn: () => u(st => ({ rotAuto: !st.rotAuto, rot: st.rotAuto ? st.rot : st.sensor })), aBg: a.bg, aFg: a.fg, aBd: a.bd, aSh: a.sh,
+        opts: [0, 90, 180, 270].map(d => ({ deg: d + 'deg', ...segOpt(!s.rotAuto && s.rot === d), bs: s.rotAuto && s.sensor === d ? 'dashed' : 'solid', on: () => u({ rotAuto: false, rot: d }) })) }; })();
+
+    const APPS = [['Stellarium', 'nights_stay'], ['KOReader', 'menu_book'], ['Firefox ESR', 'public'], ['Terminal', 'terminal'], ['Notes', 'edit_note'], ['Software', 'storefront'], ['Files', 'folder'], ['Calendar', 'calendar_month'], ['Mail', 'mail'], ['Gnumeric', 'table_chart'], ['Documents', 'description'], ['Dictionary', 'dictionary'], ['Feeds', 'rss_feed'], ['Music', 'music_note'], ['Podcasts', 'podcasts'], ['Chess', 'chess'], ['Sudoku', 'grid_on'], ['Calculator', 'calculate'], ['Transit', 'train']]
+      .concat(s.pkInst.includes('retroarch') ? [['RetroArch', 'sports_esports']] : []).filter(([n]) => !(s.uninstalled || []).includes(n));
+    const ORG = this.appOrigins(), OI = this.originInfo(), orgOf = n => (ORG[n] || ['package'])[0];
+    const ovOf = (st, n) => { const b = st.ov[n] || {};
+      return { fluOwn: false, flu: st.flu, grad: st.grad, contentOwn: false, content: 'Auto', dith: false, dithV: st.dith, draw: st.draw, freeze: 'Auto', fav: false, ...b,
+        drawOwn: b.drawOwn ?? (b.draw != null && b.draw !== st.draw), freezeOwn: b.freezeOwn ?? (b.freeze != null && b.freeze !== 'Auto') }; };
+    const nOv = o => (o.fluOwn ? 1 : 0) + (o.contentOwn ? 1 : 0) + (o.dith ? 1 : 0) + (o.drawOwn ? 1 : 0) + (o.freezeOwn ? 1 : 0);
+    // The override row: every per-app setting follows a default until "Own …" is turned on.
+    const own = (label, def, on, fn) => W.tog('Own ' + label, (on ? 'Default is ' : 'Follows the default: ') + def, on, fn);
+    const ovTxt = n => n ? n + (n === 1 ? ' setting changed' : ' settings changed') : 'Follows the defaults';
+    const setOv = (kk, v) => u(st => ({ ov: { ...st.ov, [appName]: { ...ovOf(st, appName), [kk]: v } } }));
+
+    const S = (title, items, o) => ({ title, items: items.filter(Boolean), ...(o || {}) });
+    const det = (title, rows) => () => u({ sub: { detail: { title, rows } }, subPrev: sub, pg: 0 });
+    const pickGo = key => () => u({ sub: { pick: key }, subPrev: sub, pg: 0 });
+    const TOP = [['eink', 'E-ink', 'tablet_android'], ['apps', 'Apps', 'apps'], ['power', 'Power', 'battery_5_bar', 1], ['appearance', 'Appearance', 'format_paint'], ['network', 'Wi-Fi', 'wifi'], ['sound', 'Sound', 'volume_up', 1], ['light', 'Light', 'light_mode', 1], ['bluetooth', 'Bluetooth', 'bluetooth'], ['keyboard', 'Keyboard', 'keyboard', 1], ['gestures', 'Gestures', 'swipe'], ['time', 'Date & time', 'schedule'], ['language', 'Language', 'language'], ['about', 'About', 'info']];
+    const tInfo = TOP.find(x => x[0] === topic);
+    const DIRS = [['left', 'arrow_back', 'Swipe left'], ['right', 'arrow_forward', 'Swipe right'], ['up', 'arrow_upward', 'Swipe up'], ['down', 'arrow_downward', 'Swipe down']];
+    const GACT = ['Previous screen', 'Next screen', 'Full screen', 'Leave full screen', 'Home', 'Notifications', 'Quick settings', 'Refresh screen', 'Back', 'Forward', 'Nothing'];
+    const CITIES = ['Lisbon', 'London', 'Paris', 'Berlin', 'Helsinki', 'New York', 'Tokyo'];
+    const LANGS = ['English (UK)', 'English (US)', 'Deutsch', 'Español', 'Français', 'Português'];
+    const cap1 = x => x[0].toUpperCase() + x.slice(1);
+    const nightTxt = 'Night since 19:42';
+
+    const einkItems = (o) => [own('fluidity', s.flu, o.fluOwn, () => setOv('fluOwn', !o.fluOwn)), o.fluOwn && W.seg('Fluidity', FLU, o.flu, v => setOv('flu', v), FLU_SUB), o.fluOwn && W.tog('Gradual speed-up', GRAD_SUB, o.grad, () => setOv('grad', !o.grad)),
+      own('content', 'Auto', o.contentOwn, () => setOv('contentOwn', !o.contentOwn)), o.contentOwn && W.seg('Content', CONTENT, o.content, v => setOv('content', v), CONTENT_SUB),
+      own('dithering', s.dith, o.dith, () => setOv('dith', !o.dith)), o.dith && dith('Pattern', o.dithV, v => setOv('dithV', v))];
+
+    const PAGES = {
+      // Sections as implemented: Motion, Dithering, Refresh, Advanced (folded), Rendering. Only settings na1-epdd has.
+      eink: () => [S('Motion', [W.seg('Fluidity', FLU, s.flu, set('flu'), FLU_SUB), W.tog('Gradual speed-up', GRAD_SUB, s.grad, flip('grad'))], { foldLast: 2, summary: 'Fluidity: ' + s.flu + ' · gradual speed-up ' + (s.grad ? 'on' : 'off') }),
+        S('Dithering', [dith('Pattern', s.dith, set('dith'))], { foldLast: 1, summary: 'Pattern: ' + s.dith }),
+        S('Refresh', [W.seg('Clean refresh after', ['0.5 s', '1 s', '2 s'], s.idle, set('idle')), W.tog('Anti-ghosting', 'Clears traces that earlier pages leave behind', s.ag, flip('ag'))], { summary: 'Clean refresh after ' + s.idle + ' · anti-ghosting ' + (s.ag ? 'on' : 'off') }),
+        S('Advanced', [W.tog('Rail hammer', null, s.rail, flip('rail')), W.tog('Next frame', null, s.nextf, flip('nextf')), W.seg('Colours to grey', ['Natural', 'Even'], s.c2g, set('c2g'), ['Weights colours as the eye sees them', 'Treats red, green and blue alike'])], { asRow: 'Rail hammer ' + (s.rail ? 'on' : 'off') + ' · next frame ' + (s.nextf ? 'on' : 'off') + ' · colours to grey: ' + s.c2g.toLowerCase() }),
+        S('Rendering', [W.seg('Apps draw with', DRAW, s.draw, set('draw'), DRAW_SUB), W.note('Each app can draw its own way: Apps › the app › Rendering.')], { summary: 'Apps draw with ' + s.draw })],
+      apps: () => { const row = ([n, ic]) => { const oi = OI[orgOf(n)], newer = s.pkNewer.includes((ORG[n] || [])[1]);
+          return W.app(n, ic, (newer ? 'Newer than the system · ' : '') + ovTxt(nOv(ovOf(s, n))), () => u({ topic: 'app', appName: n, sub: null, pg: 0 }), oi[0], oi[1]); };
+        return [S('', [W.link('Packages', 'Alpine packages, also software without a store page', () => u({ topic: 'packages', sub: null, subPrev: null, pg: 0 }), 'deployed_code'),
+          W.link('App sources', 'Core · System · Package · Flatpak · Android', det('App sources', Object.values(OI).map(x => [x[0], x[2] + (x[4] ? ' · updates ' + x[3].toLowerCase() : ' · can’t be removed')])), 'help')]),
+          S('Customised', APPS.filter(([n]) => nOv(ovOf(s, n))).map(row), { list: true }), S('All apps', APPS.filter(([n]) => !nOv(ovOf(s, n))).map(row), { right: APPS.length + ' installed', list: true })].filter(x => x.items.length); },
+      app: () => { const o = ovOf(s, appName), n = nOv(o), og = ORG[appName] || ['package', appName], oi = OI[og[0]], gone = (s.uninstalled || []).includes(appName);
+        return [pkStatus(),
+        S('E-ink', einkItems(o), { asRow: ['Fluidity ' + (o.fluOwn ? o.flu.toLowerCase() : 'default'), 'content ' + (o.contentOwn ? o.content.toLowerCase() : 'auto'), 'dithering ' + (o.dith ? o.dithV.toLowerCase() : 'default')].join(' · ') }),
+        S('Rendering', [own('rendering', s.draw, o.drawOwn, () => setOv('drawOwn', !o.drawOwn)), o.drawOwn && W.seg('Draws with', DRAW, o.draw, v => setOv('draw', v), DRAW_SUB), W.note('Changes apply the next time the app starts. Apps started from a terminal keep the default.')], { summary: o.drawOwn ? 'Draws with ' + o.draw : 'Follows the default: ' + s.draw }),
+        S('Background', [own('freezing', 'Auto', o.freezeOwn, () => setOv('freezeOwn', !o.freezeOwn)), o.freezeOwn && W.seg('Freeze in background', ['Off', 'Auto', 'Always'], o.freeze, v => setOv('freeze', v), ['Keeps running on other screens', 'Frozen when idle on another screen, but not while it plays audio', 'Frozen whenever its screen is hidden'])]),
+        S('Home', [W.tog('Favourite', 'Listed first among the apps on Home', o.fav, () => setOv('fav', !o.fav)), W.btn('Reset to defaults', 'Clear every setting for this app', 'Reset', () => u(st => { const x = { ...st.ov }; delete x[appName]; return { ov: x }; }), n > 0 || o.fav)]),
+        S('Source', [W.info('Comes from', oi[0] + ' · ' + oi[2]), W.info(og[0] === 'flatpak' || og[0] === 'android' ? 'App id' : 'Package', og[1]), og[3] && W.info('Pack', og[3]), W.info('Updates', oi[3]),
+          gone ? W.info('Status', 'Removed') : W.btn('Remove ' + appName, !oi[4] ? 'Runs the tablet; can’t be removed' : running ? BUSY : 'Shows what goes with it before anything changes', 'Remove', oi[4] ? pkAsk('uninstall', appName) : null, oi[4] && !running)], { summary: oi[0] + ' · ' + og[1] + (gone ? ' · removed' : '') })].filter(Boolean); },
+      light: () => s.managed ? [
+        S('', [W.tog('Managed brightness & warmth', 'Follows the time of day', true, () => u({ managed: false, light: clamp(Math.round((bF(dNow) + s.bOff) / 10) * 10, 0, 100), warm: clamp(Math.round((wF(dNow) + s.wOff) / 10) * 10, 0, 100) }))]),
+        S('Today', [bars('Brightness', bF, s.bMin, s.bMax), bars('Warmth', wF, s.wMin, s.wMax), { k: 'axis', h: 44, nosep: true }], { right: nightTxt, noRule: true }),
+        S('Now', [W.off('Brightness', s.bOff, Math.round(bF(dNow)), set('bOff')), W.off('Warmth', s.wOff, Math.round(wF(dNow)), set('wOff'))], { right: 'Shifts the schedule up or down' }),
+        S('', [W.tog('Keep a night glow', 'Never below 5 %, so the light stays on', s.glow, flip('glow')), W.link('Range & schedule', `Brightness ${s.bMin}–${s.bMax} % · warmth ${s.wMin}–${s.wMax} %`, () => u({ sub: { range: 1 }, subPrev: null, pg: 0 }))])
+      ] : [S('', [W.tog('Managed brightness & warmth', 'Off · values stay as set', false, () => u({ managed: true, bOff: 0, wOff: 0 }))]), S('Manual', [W.sl('Brightness', s.light, set('light'), ' %'), W.sl('Warmth', s.warm, set('warm'), ' %')])],
+      lightRange: () => [S('Brightness', [W.sl('At night', s.bMin, v => u({ bMin: Math.min(v, s.bMax) }), ' %'), W.sl('By day', s.bMax, v => u({ bMax: Math.max(v, s.bMin) }), ' %')]), S('Warmth', [W.sl('At night', s.wMax, v => u({ wMax: Math.max(v, s.wMin) }), ' %'), W.sl('By day', s.wMin, v => u({ wMin: Math.min(v, s.wMax) }), ' %')]), S('Schedule', [W.info('Night from', '19:42'), W.info('Day from', '07:48'), W.info('Location', s.tz)])],
+      network: () => [S('Wi-Fi', [W.tog('Wi-Fi', null, s.wifi, flip('wifi')), s.wifi && W.link('Pi-hole home', 'Connected · strong signal', det('Pi-hole home', [['Signal', 'Strong'], ['Security', 'WPA2'], ['Address', '192.168.1.42'], ['Speed', '72 Mb/s']]), 'wifi'), s.wifi && W.link('Studio 5G', 'Saved · weak signal', det('Studio 5G', [['Signal', 'Weak'], ['Security', 'WPA3'], ['Last used', 'Friday']]), 'wifi_2_bar'), s.wifi && W.link('Other network', null, () => {}, 'add')]),
+        S('Connection', [W.tog('Airplane mode', 'Turns off Wi-Fi and Bluetooth', s.air, flip('air'))])],
+      bluetooth: () => [S('Bluetooth', [W.tog('Bluetooth', null, s.bt, flip('bt')), s.bt && W.link('Page turner', 'Connected · battery 80 %', det('Page turner', [['Status', 'Connected'], ['Battery', '80 %'], ['Type', 'Remote']]), 'settings_remote'), s.bt && W.link('Headphones', 'Paired', det('Headphones', [['Status', 'Paired'], ['Codec', 'AAC']]), 'headphones'), s.bt && W.link('Pair a new device', null, () => {}, 'add')]),
+        S('Visibility', [W.tog('Visible to nearby devices', 'Only while this page is open', s.btVis, flip('btVis'))])],
+      sound: () => [S('Volume', [W.sl('Volume', s.vol, set('vol'), ' %'), W.tog('Mute', null, s.mute, flip('mute'))]), S('Output', [W.seg('Play through', ['Speaker', 'Headphones', 'Bluetooth'], s.out, set('out'))]), S('Alerts', [W.tog('Notification sound', null, s.nsound, flip('nsound'))])],
+      appearance: () => [S('Theme', [W.seg('Theme', ['White', 'Editorial', 'Stationery'], cap1(themeId), o => u({ theme: o.toLowerCase() }))]), S('Text', [W.sl('Text size', s.tsize, set('tsize'), ' %'), W.seg('Typeface', ['Sans', 'Serif'], s.face, set('face'))]), S('Rotation', [rot]), S('Top bar', [W.tog('Battery percentage', null, s.pct, flip('pct')), W.tog('Seconds on the clock', null, s.secs, flip('secs'))])],
+      gestures: () => [3, 4].map(n => S(n === 3 ? 'Three fingers' : 'Four fingers', DIRS.map(([d, ic, l]) => W.link(l, s.g[n + d], pickGo('g' + n + d), ic)))).concat([S('Edges', [W.tog('Swipe down from the top', 'Opens notifications', s.edge, flip('edge'))])]),
+      power: () => [S('Battery', [W.info('Charge', '69 %'), W.info('Estimate', 'About 3 weeks of reading'), W.info('Health', 'Good')]), S('Saving', [W.tog('Battery saver', 'Slower refresh, no background sync', s.saver, flip('saver')), W.seg('Sleep after', ['2 min', '5 min', '10 min', '30 min'], s.sleepAfter, set('sleepAfter'))]), S('Sleep', [W.tog('Show the sleep notice', 'A small pill over the last page', s.pill, flip('pill'))])],
+      keyboard: () => [S('On-screen keyboard', [W.tog('Show when typing', 'Opens when a text field is selected', s.osk, flip('osk')), W.seg('Size', ['Small', 'Medium', 'Large'], s.kbSize, set('kbSize')), W.tog('Flash keys', 'Inverts each key briefly when tapped', s.kbFlash, flip('kbFlash'))]), S('Hardware', [W.link('Layout', 'English (UK)', () => {})])],
+      time: () => [S('Clock', [W.tog('Set automatically', 'From the network', s.autoT, flip('autoT')), W.seg('Format', ['24-hour', '12-hour'], s.fmt, set('fmt'))]), S('Place', [W.link('Time zone', s.tz, pickGo('tz'), 'public'), W.info('Now', '20:11 · Mon 28 Sep')])],
+      language: () => [S('Language', [W.link('System language', s.lang, pickGo('lang'), 'language')]), S('Formats', [W.info('Dates', '28/09/2026'), W.info('Numbers', '1,234.5')])],
+      gallery: () => [S('Toggle', [W.tog('Gradual speed-up', GRAD_SUB, s.grad, flip('grad'))], { list: true }),
+        S('Segmented', [W.seg('Fluidity', FLU, s.flu, set('flu'), FLU_SUB)], { list: true }),
+        S('Dithering', [dith('Pattern', s.dith, set('dith'))], { list: true }),
+        S('Slider', [W.sl('Volume', s.vol, set('vol'), ' %')], { list: true }),
+        S('Offset', [W.off('Brightness', s.bOff, Math.round(bF(dNow)), set('bOff'))], { list: true }),
+        S('Schedule bars', [bars('Brightness', bF, s.bMin, s.bMax), { k: 'axis', h: 44, nosep: true }], { list: true, right: nightTxt }),
+        S('Rotation', [rot], { list: true }),
+        S('Link, info, radio', [W.link('Pi-hole home', 'Connected · strong signal', () => {}, 'wifi'), W.info('Display', '1404 × 1872 · 227 ppi'), W.radio('Lisbon', true, () => {})], { list: true }),
+        S('Button', [W.btn('Check for updates', 'Never checked. Nothing is fetched until you tap Check.', 'Check', () => {}, true)], { list: true }),
+        S('App row', [W.app('KOReader', 'menu_book', '3 settings changed', () => {}, 'System', 'inventory_2')], { list: true }),
+        S('Package row', [W.pkg('retroarch')], { list: true }),
+        S('Search field', [W.search()], { list: true }),
+        S('Progress line', [{ k: 'status', ...this.pkRunLine({ op: 'install', name: 'retroarch', i: 3, mbText: '12.4 of 48 MB' }), h: 100, nosep: true }], { list: true }),
+        S('Note', [W.note('Changes apply the next time the app starts. Apps started from a terminal keep the default.')], { list: true })],
+      about: () => [S('Device', [W.info('Model', 'Reader 10.3″'), W.info('Display', '1404 × 1872 · 227 ppi'), W.info('Storage', '21.4 of 64 GB')]), S('System', [W.info('System', 'Debian 12 · XFCE 4.18'), W.info('Kernel', '6.6'), W.link('Software updates', '3 available', () => {}, 'system_update')])]
+    };
+
+    // ---------- Packages: widgets, pages, sheet, keyboard ----------
+    const PX = this.pkData(), PKD = PX.D, isInst = n => s.pkInst.includes(n), running = !!s.pkRun, BUSY = 'Another change is running';
+    const pkOpen = n => () => u(st => ({ topic: 'pkg', pkSel: n, pkFrom: st.topic, sub: null, subPrev: null, pg: 0 }));
+    const pkTo = id => () => u({ topic: id, sub: null, subPrev: null, pg: 0 });
+    const pkAsk = (op, name) => running ? null : () => u(st => st.pkRun ? null : st.pkAck ? { pkSheet: { op, name }, pkPlanPg: 0 } : { pkSheet: { ack: true, op, name }, pkPlanPg: 0 });
+    // A plain text field. Focus opens the system on-screen keyboard (the OSK daemon) with a Search enter key; Settings draws no keyboard.
+    W.search = () => ({ k: 'search', label: 'Search', h: 80, nosep: true, q: s.pkQ || '', change: e => u({ pkQ: e.target.value }),
+      submit: e => { e.preventDefault(); if ((this.state.pkQ || '').trim()) u({ topic: 'pkgSearch', pg: 0 }); } });
+    W.count = (label, n, sub, fn) => ({ ...W.link(label, sub || 'None', fn), val: String(n) });
+    W.pkg = n => { const d = PKD[n] || {}; return { k: 'pkg', label: n, val: d.v || '', sub: d.d || '', instD: isInst(n) ? 'flex' : 'none', h: 80, on: pkOpen(n) }; };
+    W.para = text => ({ k: 'para', label: text, h: 78, nosep: true });
+    W.mono = text => ({ k: 'mono', label: text, h: 30 + 21 * text.split('\n').length, nosep: true });
+    const pkStatus = () => s.pkRun ? S('', [{ k: 'status', ...this.pkRunLine(s.pkRun), h: 100, nosep: true }]) : null;
+    const ERR = 'ERROR: unable to select packages:\n  retroarch-1.21.0-r0:\n    conflicts: retroarch-git-1.21.0_git20261028-r0\n      [cmd:retroarch=1.21.0-r0]\n    satisfies: world[retroarch]';
+    const ERR_FULL = ['fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/main/aarch64/APKINDEX.tar.gz', 'fetch https://dl-cdn.alpinelinux.org/alpine/v3.21/community/aarch64/APKINDEX.tar.gz', 'fetch https://repo.glassine.org/v3.21/aarch64/APKINDEX.tar.gz', ...ERR.split('\n'), '  retroarch-git-1.21.0_git20261028-r0:', '    conflicts: retroarch-1.21.0-r0', '      [cmd:retroarch=1.21.0_git20261028-r0]', '    satisfies: world[retroarch-git]', '', 'apk add retroarch: exit status 1', 'Nothing was changed.'];
+    const NEWER = { firefox: '142.0.1 · the system has 142.0', mesa: '24.2.8 · the system has 24.2.7' };
+    Object.assign(PAGES, {
+      packages: () => [pkStatus(),
+        S('Search', [W.search(), W.note('Alpine packages, including software without a store page, such as RetroArch. Flatpaks are in Software.')]),
+        S('Your changes', [W.count('Added by you', s.pkAdded.length, s.pkAdded.join(', '), pkTo('pkgChanges')), W.count('Removed by you', s.pkRemoved.length, s.pkRemoved.join(', '), pkTo('pkgChanges')), W.count('Newer than the system', s.pkNewer.length, s.pkNewer.join(', '), pkTo('pkgChanges'))]),
+        S('Updates', [s.pkUpd === 'list' ? { ...W.link(PX.UPD.length + ' updates available', 'Last checked today at 22:41', pkTo('pkgUpdates'), 'system_update') }
+          : W.btn('Check for updates', running ? BUSY : s.pkUpd === 'none' ? 'Up to date · last checked today at 22:41' : 'Never checked. Nothing is fetched until you tap Check.', 'Check', running ? null : () => u({ pkUpd: 'list', topic: 'pkgUpdates', pg: 0 }), !running)])].filter(Boolean),
+      pkgSearch: () => { const q = (s.pkQ || '').toLowerCase(); const lib = q === 'lib' || q === 'lib-';
+        const list = lib ? PX.LIB : /retro|libretro/.test(q) ? PX.RETRO : Object.keys(PKD).filter(n => q && (n.includes(q) || PKD[n].d.toLowerCase().includes(q)));
+        const total = lib ? PX.libTotal : list.length;
+        return [pkStatus(), S(total + (total === 1 ? ' result' : ' results'), [total > 100 && W.note('More than 100 results; the first 100 are shown. Refine your search to see the rest.'), !list.length && W.note('No package matches. Try part of the name, or a word from its description.'), ...list.map(W.pkg)], { right: lib ? 'Showing 100' : 'Alpine packages' })].filter(Boolean); },
+      pkg: () => { const n = s.pkSel, d = PKD[n] || { v: '', d: '', dl: '', size: '', url: '' }, inst = isInst(n);
+        return [pkStatus(), S('', [W.para(d.d)]),
+          S('Package', [W.info('Version', d.v), W.info('Status', inst ? (s.pkAdded.includes(n) ? 'Installed · added by you' : 'Installed') : 'Not installed'), W.info('Download', d.dl), W.info('Installed size', d.size), W.info('Homepage', d.url)]),
+          S('', [W.btn(inst ? 'Remove ' + this.pkPretty(n) : 'Install ' + this.pkPretty(n), running ? BUSY : inst ? 'Shows what goes with it before anything changes' : 'Shows what comes along before anything changes', inst ? 'Remove' : 'Install', pkAsk(inst ? 'remove' : 'install', n), !running)])].filter(Boolean); },
+      pkgChanges: () => [pkStatus(), S('', [W.note('Kept when the system updates. Manual edits of the system are not.')]),
+        S('Added by you', s.pkAdded.length ? s.pkAdded.map(n => W.btn(n, running ? BUSY : (PKD[n] ? PKD[n].v : '') + ' · ' + (PKD[n] ? PKD[n].d : ''), 'Remove', pkAsk('remove', n), !running)) : [W.info('Nothing yet', '')], { right: s.pkAdded.length + ' packages' }),
+        S('Removed by you', s.pkRemoved.length ? s.pkRemoved.map(n => W.btn(n, running ? BUSY : 'Part of the system · removed by you', 'Restore', pkAsk('restore', n), !running)) : [W.info('Nothing yet', '')]),
+        S('Newer than the system', s.pkNewer.length ? s.pkNewer.map(n => W.btn(n, running ? BUSY : NEWER[n] || 'Newer than the system', 'Restore', pkAsk('downgrade', n), !running)) : [W.info('Nothing yet', '')])].filter(Boolean),
+      pkgUpdates: () => { const chk = running ? null : () => u({ pkUpd: 'list', pg: 0 });
+        if (s.pkUpd === 'never') return [pkStatus(), S('', [W.note('GlassineOS never checks on its own. Checking fetches the package lists, about 2 MB; nothing is installed.'), W.btn('Check for updates', running ? BUSY : 'Never checked', 'Check', chk, !running)])].filter(Boolean);
+        if (s.pkUpd === 'none') return [pkStatus(), S('', [W.info('Status', 'Up to date'), W.info('Last checked', 'Today at 22:41'), W.btn('Check again', running ? BUSY : 'Fetches the package lists, about 2 MB', 'Check', chk, !running)])].filter(Boolean);
+        return [pkStatus(), S('', [W.btn(PX.UPD.length + ' updates', running ? BUSY : 'Download 186 MB · last checked today at 22:41', 'Update all', pkAsk('update', '*'), !running)]),
+          S('Available', PX.UPD.map(([n, a, b]) => W.btn(n, a + ' → ' + b, 'Update', pkAsk('update', n), !running)))].filter(Boolean); },
+      pkgOutput: () => { const L = ERR_FULL, out = []; for (let i = 0; i < L.length; i += 6) out.push(W.mono(L.slice(i, i + 6).join('\n'))); return [S('', [W.note('apk add retroarch · today at 22:47 · exit status 1')]), S('', out)]; }
+    });
+    const PKT = { packages: ['Packages', 'Apps', 'apps'], pkgSearch: ['“' + (s.pkQ || '') + '”', 'Packages', 'packages'],
+      pkg: [s.pkSel, s.pkFrom === 'pkgChanges' ? 'Your changes' : s.pkFrom === 'pkgSearch' ? 'Results' : 'Packages', s.pkFrom || 'pkgSearch'],
+      pkgChanges: ['Your changes', 'Packages', 'packages'], pkgUpdates: ['Updates', 'Packages', 'packages'], pkgOutput: ['apk output', s.pkSel, 'pkg'] };
+
+    // the sheet on the card: first-change note, plan, result
+    let sh = { show: false };
+    const btnP = (label, on) => ({ label, on, show: true }), noBtn = { label: '', on: null, show: false };
+    if (s.pkSheet && s.pkSheet.ack) {
+      const nx = s.pkSheet;
+      sh = { show: true, icon: 'info', title: 'Before your first change', lines: [{ t: 'Packages you add or remove are kept when the system updates. Manual edits of the system are not.' }, { t: 'This note appears only once.', sub: true }],
+        b2: btnP('Cancel', () => u({ pkSheet: null })), b1: btnP('OK', () => u({ pkAck: true, pkSheet: { op: nx.op, name: nx.name }, pkPlanPg: 0 })) };
+    } else if (s.pkSheet) {
+      const plan = this.pkPlan(s.pkSheet.op, s.pkSheet.name), per = 6, lp = Math.max(1, Math.ceil(plan.items.length / per)), pgI = clamp(s.pkPlanPg || 0, 0, lp - 1);
+      sh = { show: true, icon: plan.op === 'remove' || plan.op === 'uninstall' ? 'delete' : 'download', title: plan.title, lines: [{ t: plan.what }], hasList: true,
+        listHead: plan.op === 'remove' || plan.op === 'uninstall' ? 'Removed' : 'What comes along', items: plan.items.slice(pgI * per, pgI * per + per).map(x => ({ n: x.n, tag: x.tag, fw: plan.sys.includes(x.n) ? '600' : '400' })),
+        listPaged: lp > 1, listLabel: (pgI + 1) + '/' + lp, lPrev: () => u({ pkPlanPg: Math.max(0, pgI - 1) }), lNext: () => u({ pkPlanPg: Math.min(lp - 1, pgI + 1) }), lPrevFg: pgI === 0 ? DIM : 'var(--il-ink,#111111)', lNextFg: pgI === lp - 1 ? DIM : 'var(--il-ink,#111111)',
+        hasWarn: plan.sys.length > 0, warn: plan.warnText || ('Also removes ' + plan.sys.length + ' packages that are part of the system'), warnNames: plan.warnNames || plan.sys.join(', '),
+        size: plan.size, b2: btnP('Cancel', () => u({ pkSheet: null })), b1: btnP(plan.cta, () => this.pkStart(plan.op, plan.name)) };
+    } else if (s.pkRes) {
+      const R = s.pkRes, plan = this.pkPlan(R.op, R.name), close = () => u({ pkRes: null });
+      if (R.kind === 'ok') sh = { show: true, icon: 'check_circle', title: plan.done, lines: plan.after ? [{ t: plan.after }] : [], b2: noBtn, b1: btnP('Done', close) };
+      else if (R.kind === 'notes') sh = { show: true, icon: 'check_circle', title: plan.done, lines: [{ t: 'Done, with two things to know.' }], hasFiles: true, filesHead: '2 settings files kept',
+        filesText: 'Your version stays; the new default was saved next to it as …apk-new.', files: [{ f: '/etc/xdg/labwc/rc.xml.apk-new' }, { f: '/etc/conf.d/syncthing.apk-new' }],
+        hasRestart: true, restart: 'Restart the desktop to use the new version of labwc.', b2: btnP('Later', close), b1: btnP('Restart desktop', close) };
+      else sh = { show: true, icon: 'error', title: 'RetroArch wasn’t installed', lines: [{ t: 'apk stopped with this message. Nothing was changed.' }], hasMono: true, mono: ERR,
+        b2: btnP('Details', () => u({ pkRes: null, topic: 'pkgOutput', pg: 0 })), b1: btnP('Close', close) };
+    }
+    sh = { hasList: false, hasWarn: false, hasFiles: false, hasRestart: false, hasMono: false, listPaged: false, lines: [], items: [], files: [], size: '', b1: noBtn, b2: noBtn, ...sh };
+    sh.sizeD = sh.size ? 'block' : 'none'; sh.b2D = sh.b2.show ? 'flex' : 'none';
+    sh.lines = sh.lines.map(l => ({ t: l.t, font: l.sub ? k.sub : k.row, c: l.sub ? k.subC : 'var(--il-ink,#111111)' }));
+
+
+    const isPick = !!(sub && sub.pick), isDet = !!(sub && sub.detail), isSec = !!(sub && sub.sec != null), isRange = !!(sub && sub.range);
+    const pageTitle = topic === 'gallery' ? 'Widgets' : topic === 'app' ? appName : PKT[topic] ? PKT[topic][0] : (tInfo ? tInfo[1] : 'Settings');
+    let secs = isRange ? PAGES.lightRange() : (PAGES[topic] || PAGES.eink)();
+    let secTitle = '';
+    if (isPick) {
+      const kk = sub.pick, kind = kk === 'tz' ? 'tz' : kk === 'lang' ? 'lang' : 'g', cur = kind === 'tz' ? s.tz : kind === 'lang' ? s.lang : s.g[kk.slice(1)];
+      secTitle = kind === 'tz' ? 'Time zone' : kind === 'lang' ? 'System language' : (kk[1] === '3' ? 'Three fingers' : 'Four fingers') + ' · ' + DIRS.find(d => d[0] === kk.slice(2))[2].toLowerCase();
+      secs = [S(secTitle, (kind === 'tz' ? CITIES : kind === 'lang' ? LANGS : GACT).map(o => W.radio(o, o === cur, () => u(st => ({ ...(kind === 'tz' ? { tz: o } : kind === 'lang' ? { lang: o } : { g: { ...st.g, [kk.slice(1)]: o } }), sub: st.subPrev ?? null, subPrev: null, pg: 0 })))))];
+    } else if (isDet) { secTitle = sub.detail.title; secs = [S(secTitle, sub.detail.rows.map(([a, b]) => W.info(a, b)))]; }
+    else if (isRange) secTitle = 'Range & schedule';
+    else if (isSec) { const sc = secs[clamp(sub.sec, 0, secs.length - 1)]; secTitle = sc.title; secs = [{ ...sc, title: '' }]; }
+
+    const inSub = isPick || isDet || isSec || isRange;
+    let hd;
+    if (inSub) hd = { title: secTitle, backLabel: pageTitle, hasBack: true, back: () => u(st => ({ sub: (isPick || isDet) ? (st.subPrev ?? null) : null, subPrev: null, pg: 0 })) };
+    else if (PKT[topic]) hd = { title: PKT[topic][0], backLabel: PKT[topic][1], hasBack: true, back: () => u({ topic: PKT[topic][2], sub: null, subPrev: null, pg: 0 }) };
+    else if (topic === 'app') hd = { title: appName, backLabel: 'Apps', hasBack: true, back: () => u({ topic: 'apps', sub: null, pg: 0 }) };
+    else hd = { title: pageTitle, hasBack: false };
+
+    hd.refresh = () => {}; hd.backAria = 'Back to ' + (hd.backLabel || '');
+    const secH = sc => (sc.title ? 48 : 0) + sc.items.reduce((a, w) => a + w.h, 0);
+    const headPx = compact ? 60 : parseInt(k.headH), CL = compact ? 64 : 80;
+    let cap = cardH - 3 - headPx - 4;
+    const col = new Set(secs.map((sc, i) => sc.asRow && !inSub ? i : -1).filter(i => i >= 0));
+    const total = () => secs.reduce((a, sc, i) => a + (col.has(i) ? CL : secH(sc)), 0);
+    // Fold tallest first. With three or more titled sections every one may fold (the page becomes an index of rows); with fewer, one stays open and the page pages instead.
+    const titled = secs.filter(x => x.title).length, keepOpen = titled >= 3 ? 0 : 1;
+    if (!inSub && secs.length > 2) while (total() > cap && col.size < secs.length - keepOpen) {
+      // foldLast ranks a page's main controls: rank 0 (unmarked) folds first, then 1, then 2; tallest first within a rank.
+      const pickTallest = r => { let bi = -1, bh = 0; secs.forEach((sc, i) => { if (!col.has(i) && sc.title && !sc.list && (sc.foldLast || 0) === r && secH(sc) > bh) { bh = secH(sc); bi = i; } }); return bi; };
+      let bi = -1; for (let r = 0; r <= 2 && bi < 0; r++) bi = pickTallest(r);
+      if (bi < 0) break; col.add(bi);
+    }
+    const blocks = [];
+    secs.forEach((sc, i) => {
+      const si = isSec ? sub.sec : i;
+      if (col.has(i)) return blocks.push({ ...W.link(sc.title, sc.asRow || sc.summary || (sc.items.length === 1 ? (sc.items[0].val || sc.items[0].sub || sc.items[0].label) : sc.items.slice(0, 2).map(w => w.label).join(' · ') + (sc.items.length > 2 ? ' · …' : '')), () => u({ sub: { sec: i }, pg: 0 })), h: CL, sec: sc.title, si });
+      if (sc.title) blocks.push({ ...W.head(sc.title, sc.right, sc.noRule), sec: sc.title, si });
+      sc.items.forEach(w => blocks.push({ ...w, sec: sc.title, si }));
+    });
+    const sum = a => a.reduce((x, b) => x + b.h, 0);
+    let fit = [...col].some(i => !secs[i].asRow) ? 'collapsed' : 'open', pages = [blocks];
+    if (sum(blocks) > cap) {
+      if (!compact) cap -= 66; pages = []; let cur = [], acc = 0;
+      blocks.forEach((b, j) => { const need = b.k === 'section-head' && blocks[j + 1] ? b.h + blocks[j + 1].h : b.h; if (cur.length && acc + need > cap) { pages.push(cur); cur = []; acc = 0; } cur.push(b); acc += b.h; });
+      if (cur.length) pages.push(cur);
+      fit = fit === 'collapsed' ? 'collapsed+paged' : 'paged';
+    }
+    const np = pages.length, pg = clamp(s.pg, 0, np - 1);
+    this._fitInfo = { fit, compact, pages: np, collapsed: secs.filter((x, i) => col.has(i)).map(x => x.title), w: Math.round(winW), h: Math.round(winH), cw: Math.round(cw), narrow, tabsPaged: Math.floor((cardH - 15 + 5) / (tabH + 5)) < TOP.length };
+    const shown = pages[pg].map((b, j, arr) => { const nx = arr[j + 1]; return { sub: '', val: '', icon: '', right: '', rule: 'none', ...b, sep: b.k === 'section-head' || b.nosep ? 'none' : k.sep,
+      isHead: b.k === 'section-head', isTog: b.k === 'toggle', isSeg: b.k === 'segmented', isNote: b.k === 'note', isSl: b.k === 'slider', isRange: b.k === 'range', isLink: b.k === 'link', isInfo: b.k === 'info', isApp: b.k === 'app', isRadio: b.k === 'radio', isDith: b.k === 'dithering', isBars: b.k === 'bars', isAxis: b.k === 'axis', isOff: b.k === 'offset', isBtn: b.k === 'button', isRot: b.k === 'rotation', isSearch: b.k === 'search', isPkg: b.k === 'pkg', isStatus: b.k === 'status', isPara: b.k === 'para', isMono: b.k === 'mono', valD: b.k === 'link' && b.val ? 'block' : 'none', instD: b.instD || 'none',
+      subD: b.sub ? 'block' : 'none', iconD: b.icon ? 'block' : 'none', rightD: b.right && cw > 380 ? 'block' : 'none' }; });
+
+    const active = topic === 'app' || PKT[topic] ? 'apps' : topic;
+    const goTopic = id => () => u({ topic: id, sub: null, subPrev: null, pg: 0 });
+    const mkTab = (label, icon, on, isOn, fill) => ({ label, icon, on, fill: fill ? 1 : 0, bg: isOn ? k.tabOnBg : 'var(--il-paper,#ffffff)', fg: isOn ? k.tabOnFg : 'var(--il-ink,#111111)', sh: isOn ? k.tabOnSh : k.tabSh, w: (isOn ? tabW + 12 : tabW) + 'px', ml: isOn ? '-4px' : '0', bl: isOn ? 'none' : '1.5px solid var(--il-ink,#111111)', extra: '', exD: 'none' });
+    const slots = Math.floor((cardH - 15 + 5) / (tabH + 5));
+    let tabs;
+    if (slots >= TOP.length) tabs = TOP.map(([id, l, ic, f]) => mkTab(l, ic, goTopic(id), id === active, f));
+    else {
+      const per = Math.max(1, slots - 1), tpN = Math.ceil(TOP.length / per), ai = Math.max(0, TOP.findIndex(x => x[0] === active)), tp = clamp(s.tabPg ?? Math.floor(ai / per), 0, tpN - 1);
+      tabs = TOP.slice(tp * per, tp * per + per).map(([id, l, ic, f]) => mkTab(l, ic, goTopic(id), id === active, f))
+        .concat([{ ...mkTab(`More · ${tp + 1}/${tpN}`, 'more_vert', () => u({ tabPg: (tp + 1) % tpN }), false), extra: `${tp + 1}/${tpN}`, exD: narrow ? 'block' : 'none' }]);
+    }
+
+    const plateOn = { bg: t.plateOnBg, fg: t.plateOnFg, sh: t.plateOnSh }, plateOff = { bg: 'transparent', fg: t.barFg, sh: t.plateOffSh };
+    const escKey = e => { if (e.key !== 'Escape') return; const st = this.state; let pp = null;
+      if (st.pkSheet) pp = { pkSheet: null }; else if (st.pkRes) pp = { pkRes: null };
+      else if (hd.hasBack) { e.preventDefault(); hd.back(); return; }
+      if (pp) { e.preventDefault(); u(pp); } };
+    return { escKey, ilKey: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } }, 
+      bare: true, wrap: false, rootRef: el => { this.el = el; }, themeId, orientId: LAND ? 'landscape' : 'portrait', win, pageProp: this.props.page || 'eink', appProp: this.props.app || 'Stellarium',
+      t, k, devF: { ow: dev.ow + 'px', pad: dev.pad, sw: dev.sw + 'px', sh: dev.sh + 'px' },
+      g: { cx: M + 'px', cy: M + 'px', cw: cardW + 'px', ch: cardH + 'px', padX: padX + 'px', tabTop: '15px', tabH: tabH + 'px', tabPad: narrow ? '0' : '13px', tabAi: narrow ? 'center' : 'flex-start', tabLblD: narrow ? 'none' : 'block', rfPad: narrow ? '0 12px' : '0 18px 0 14px', backPad: narrow ? '0 12px' : '0 20px 0 12px', hGap: narrow ? '8px' : '22px', titleF: narrow ? k.title.replace(/\d+px/, '19px') : compact ? k.title.replace(/\d+px/, '22px') : k.title, headH: headPx + 'px', headMode: compact ? 'compact' : 'roomy', rfD: compact ? 'none' : 'flex', onLblD: cw > 300 ? 'block' : 'none' },
+      wsList: t.ws.map((l, i) => ({ label: l, ...(i === 1 ? plateOn : plateOff), fw: i === 1 ? '600' : '400' })),
+      barTitle: 'Settings — ' + pageTitle,
+      gCols: cols2 ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', gRows: rows2 ? 'minmax(0,1fr) minmax(0,1fr)' : 'minmax(0,1fr)', gBg: win === 'full' ? t.screenBg : t.gridBg,
+      others: win === 'full' ? [] : win === 'quarter' ? ['software', 'terminal', 'notes'] : ['browser'],
+      hd, blocks: shown, sh, pageId: (isRange ? 'light:range' : topic) + (isSec ? '#' + sub.sec : isPick ? ':' + sub.pick : isDet ? ':detail' : ''), fit, cap,
+      paged: np > 1, hdPaged: np > 1 && compact, footPaged: np > 1 && !compact, pageShort: (pg + 1) + '/' + np, pageLabel: 'Page ' + (pg + 1) + ' of ' + np, prevFg: pg === 0 ? DIM : 'var(--il-ink,#111111)', nextFg: pg === np - 1 ? DIM : 'var(--il-ink,#111111)',
+      prev: () => u({ pg: Math.max(0, pg - 1) }), next: () => u({ pg: Math.min(np - 1, pg + 1) }),
+      tabs,
+      chips: [['full', 'Full screen'], ['column', 'Left half'], ['row', 'Top half'], ['quarter', 'Quarter']].map(([id, label]) => ({ label, bg: win === id ? 'var(--il-accent)' : 'transparent', fg: win === id ? 'var(--il-on-accent)' : 'var(--il-ink,#111111)', on: () => u({ win: id, pg: 0, tabPg: null }) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

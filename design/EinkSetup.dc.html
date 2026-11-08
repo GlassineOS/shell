@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&amp;family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&amp;display=block" rel="stylesheet"><style>[data-il-root] [tabindex]:focus-visible{outline:2px solid var(--il-ring,var(--il-focus));outline-offset:2px}[data-ring="leather"]{--il-ring:var(--il-focus-on-leather)}[data-ring="leather"] [data-cream="1"]:focus-visible{outline-color:var(--il-focus-on-cream);box-shadow:0 0 0 4px var(--il-focus-on-leather)!important}</style></helmet>
+<div style="display:flex;flex-direction:column;gap:12px;width:760px">
+<div style="width:760px;background:#262626;border-radius:28px;padding:28px 29px 44px;box-sizing:border-box">
+<div data-widget="setup" data-il-root="" style="width:702px;{{ ilv }};height:936px;position:relative;overflow:hidden;background:var(--il-paper);color:var(--il-ink);font-family:{{ k.F }};display:flex;flex-direction:column">
+
+<div data-ring="leather" style="flex:none;position:relative;height:{{ k.headH }};display:flex;align-items:center;gap:14px;padding:0 24px;box-sizing:border-box;background:{{ k.headBg }};color:{{ k.headFg }};border-bottom:{{ k.headRule }}">
+<div style="display:{{ k.stitch }};position:absolute;left:7px;right:7px;top:7px;border-top:1.5px dashed var(--il-gilt)"></div>
+<div style="display:{{ k.stitch }};position:absolute;left:7px;right:7px;bottom:7px;border-top:1.5px dashed var(--il-gilt)"></div>
+<svg width="34" height="34" viewBox="0 0 48 48" aria-hidden="true" style="position:relative;flex:none"><rect x="2" y="4" width="30" height="34" rx="5" style="fill:none;stroke:currentColor;stroke-width:2.5"></rect><rect x="14" y="10" width="30" height="34" rx="5" transform="rotate(6 29 27)" style="fill:var(--il-highlight)"></rect><path d="M20 30 C 26 24, 30 34, 38 26" transform="rotate(6 29 27)" style="fill:none;stroke:var(--il-pen);stroke-width:3;stroke-linecap:round"></path></svg>
+<div style="position:relative;display:flex;flex-direction:column;gap:1px;min-width:0"><span style="font:{{ k.brand }};font-variant:{{ k.brandVar }};letter-spacing:{{ k.brandLs }};color:{{ k.brandC }}">GlassineOS</span><span style="font:{{ k.hsub }};opacity:.92">{{ hdr.sub }}</span></div>
+<span style="flex:1"></span>
+<sc-if value="{{ hdr.showSteps }}" hint-placeholder-val="{{ true }}"><div style="position:relative;display:flex;align-items:center;gap:6px"><sc-for list="{{ hdr.steps }}" as="st" hint-placeholder-count="8"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ st.on }}" data-cream="{{ st.cream }}" aria-label="{{ st.name }}" title="{{ st.name }}" style="min-width:{{ k.stepW }};height:32px;padding:0 4px;box-sizing:border-box;display:flex;align-items:center;justify-content:center;border-radius:{{ k.stepR }};cursor:pointer;font:{{ k.stepFont }};background:{{ st.bg }};color:{{ st.fg }};box-shadow:{{ st.sh }}">{{ st.n }}</div></sc-for></div></sc-if>
+<sc-if value="{{ hdr.showBattery }}" hint-placeholder-val="{{ false }}"><div style="position:relative;display:flex;align-items:center;gap:6px;font:{{ k.mono }}"><span style="font:400 20px/1 'Material Symbols Outlined'">battery_5_bar</span>74 % · charging</div></sc-if>
+</div>
+
+<div style="flex:1;min-height:0;overflow:hidden;padding:26px 32px 18px;box-sizing:border-box;display:flex;flex-direction:column;gap:16px">
+<sc-if value="{{ pg.show }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;gap:8px">
+<span style="font:{{ k.lbl }};font-variant:{{ k.lblVar }};text-transform:{{ k.lblCase }};letter-spacing:{{ k.lblLs }};color:{{ k.lblC }}">{{ pg.eyebrow }}</span>
+<span style="font:{{ k.display }};letter-spacing:{{ k.displayLs }};text-wrap:balance">{{ pg.title }}</span>
+<span style="font:{{ k.lead }};color:var(--il-ink-soft);max-width:600px;text-wrap:pretty">{{ pg.lead }}</span>
+</div></sc-if>
+
+<sc-if value="{{ is.welcome }}" hint-placeholder-val="{{ true }}"><div style="display:flex;flex-direction:column;gap:14px">
+<span style="font:{{ k.lbl }};font-variant:{{ k.lblVar }};text-transform:{{ k.lblCase }};letter-spacing:{{ k.lblLs }};color:{{ k.lblC }};padding-bottom:6px;border-bottom:{{ k.sepStrong }}">Language</span>
+<div style="display:flex;flex-direction:column;gap:4px"><sc-for list="{{ langs }}" as="l" hint-placeholder-count="7"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ l.on }}" style="height:54px;padding:0 16px;display:flex;align-items:center;gap:14px;cursor:pointer;border-radius:{{ k.rowR }};background:{{ l.bg }};color:{{ l.fg }};box-shadow:{{ l.sh }}"><span style="flex:1;font:{{ k.row }}">{{ l.native }}</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">{{ l.en }}</span><span style="width:24px;font:400 22px/1 'Material Symbols Outlined';visibility:{{ l.vis }}">check</span></div></sc-for></div>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:{{ k.sep }}"><span style="font:400 22px/1 'Material Symbols Outlined'">accessibility_new</span><span style="flex:1;font:{{ k.row }}">Larger text</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">Applies from the next page</span><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tg.big.on }}" style="width:56px;height:32px;border-radius:16px;box-sizing:border-box;padding:3px;display:flex;justify-content:{{ tg.big.jc }};cursor:pointer;background:{{ tg.big.trk }};box-shadow:inset 0 0 0 1.5px var(--il-ink)"><div style="width:26px;height:26px;border-radius:13px;background:{{ tg.big.knb }}"></div></div></div>
+</div></sc-if>
+
+<sc-if value="{{ is.look }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:14px">
+<sc-for list="{{ voices }}" as="vc" hint-placeholder-count="3"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ vc.on }}" style="display:flex;align-items:center;gap:18px;padding:12px;cursor:pointer;border-radius:{{ k.cardR }};background:{{ vc.bg }};box-shadow:{{ vc.sh }}">
+<div style="flex:none;{{ vc.ilv }};width:200px;height:96px;position:relative;overflow:hidden;background:var(--il-paper);color:var(--il-ink);border-radius:{{ vc.pr }};box-shadow:inset 0 0 0 1px var(--il-ink)">
+<div style="height:24px;background:{{ vc.barBg }};border-bottom:{{ vc.barBd }};position:relative"><div style="display:{{ vc.stitch }};position:absolute;left:3px;right:3px;top:3px;bottom:3px;border-top:1px dashed var(--il-gilt);border-bottom:1px dashed var(--il-gilt)"></div></div>
+<div style="position:absolute;left:12px;top:32px;font:{{ vc.titleF }}">Aa</div>
+<div style="position:absolute;left:62px;top:36px;font:{{ vc.lblF }};font-variant:{{ vc.lblVar }};text-transform:{{ vc.lblCase }};letter-spacing:.08em;color:{{ vc.lblC }}">{{ vc.lbl }}</div>
+<div style="position:absolute;left:62px;top:54px;height:10px;width:62px;background:var(--il-highlight);border-radius:{{ vc.hlR }}"></div>
+<div style="position:absolute;right:10px;bottom:10px;width:42px;height:22px;border-radius:{{ vc.btnR }};background:var(--il-accent);box-shadow:{{ vc.btnSh }}"></div>
+</div>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;color:{{ vc.fg }}"><span style="font:{{ vc.nameF }};font-variant:{{ vc.nameVar }};letter-spacing:{{ vc.nameLs }}">{{ vc.name }}</span><span style="font:{{ k.sub }};color:var(--il-ink-soft);text-wrap:pretty">{{ vc.desc }}</span></div>
+<span style="font:400 24px/1 'Material Symbols Outlined';visibility:{{ vc.vis }}">check_circle</span>
+</div></sc-for>
+<span style="font:{{ k.sub }};color:var(--il-ink-soft)">GlassineOS draws in greys for e-ink; the voice sets type, edges and rules. You can change it later in Settings › Appearance.</span>
+</div></sc-if>
+
+<sc-if value="{{ is.location }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:14px">
+<div style="height:52px;padding:0 16px;display:flex;align-items:center;gap:12px;border-radius:{{ k.fieldR }};background:{{ k.fieldBg }};box-shadow:{{ k.fieldFocus }}"><span style="font:400 22px/1 'Material Symbols Outlined'">search</span><span style="font:{{ k.row }}">Dres</span><span style="width:2px;height:24px;margin-left:-10px;background:var(--il-pen)"></span><span style="flex:1"></span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">3 places</span></div>
+<div style="display:flex;flex-direction:column;gap:4px"><sc-for list="{{ cities }}" as="c" hint-placeholder-count="3"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ c.on }}" style="min-height:60px;padding:8px 16px;box-sizing:border-box;display:flex;align-items:center;gap:14px;cursor:pointer;border-radius:{{ k.rowR }};background:{{ c.bg }};color:{{ c.fg }};box-shadow:{{ c.sh }}"><span style="font:400 22px/1 'Material Symbols Outlined'">location_on</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font:{{ k.row }}">{{ c.name }}</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">{{ c.tz }}</span></div><span style="font:{{ k.mono }}">{{ c.time }}</span></div></sc-for></div>
+<span style="font:{{ k.sub }};color:var(--il-ink-soft);display:flex;align-items:center;gap:8px"><span style="font:400 18px/1 'Material Symbols Outlined'">wifi_find</span>Suggested from your network’s address. No location service is used.</span>
+<span style="font:{{ k.lbl }};font-variant:{{ k.lblVar }};text-transform:{{ k.lblCase }};letter-spacing:{{ k.lblLs }};color:{{ k.lblC }};margin-top:6px;padding-bottom:6px;border-bottom:{{ k.sepStrong }}">Time and formats</span>
+<div style="display:flex;flex-direction:column">
+<div style="height:58px;display:flex;align-items:center;gap:12px;border-bottom:{{ k.sep }}"><span style="flex:1;font:{{ k.row }}">Time zone</span><span style="font:{{ k.mono }}">{{ loc.tz }}</span></div>
+<div style="height:58px;display:flex;align-items:center;gap:12px;border-bottom:{{ k.sep }}"><div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font:{{ k.row }}">Set time automatically</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">From the network once it is connected</span></div><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tg.ntp.on }}" style="width:56px;height:32px;border-radius:16px;box-sizing:border-box;padding:3px;display:flex;justify-content:{{ tg.ntp.jc }};cursor:pointer;background:{{ tg.ntp.trk }};box-shadow:inset 0 0 0 1.5px var(--il-ink)"><div style="width:26px;height:26px;border-radius:13px;background:{{ tg.ntp.knb }}"></div></div></div>
+<div style="height:62px;display:flex;align-items:center;gap:12px;border-bottom:{{ k.sep }}"><span style="flex:1;font:{{ k.row }}">Clock</span><div style="display:flex;padding:3px;gap:3px;border-radius:{{ k.btnR }};box-shadow:{{ k.traySh }}"><sc-for list="{{ clocks }}" as="ck" hint-placeholder-count="2"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ ck.on }}" style="height:40px;padding:0 16px;display:flex;align-items:center;cursor:pointer;border-radius:{{ k.segR }};font:{{ k.row }};font-weight:{{ ck.fw }};background:{{ ck.bg }};color:{{ ck.fg }};box-shadow:{{ ck.sh }}">{{ ck.label }}</div></sc-for></div></div>
+<div style="height:58px;display:flex;align-items:center;gap:12px"><div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font:{{ k.row }}">Formats</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">Dates, numbers and the first day of the week</span></div><span style="font:{{ k.mono }}">{{ loc.fmt }}</span><span style="font:400 22px/1 'Material Symbols Outlined'">chevron_right</span></div>
+</div>
+</div></sc-if>
+
+<sc-if value="{{ is.keyboard }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:12px">
+<div style="display:flex;flex-direction:column;gap:3px"><sc-for list="{{ layouts }}" as="ly" hint-placeholder-count="5"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ ly.on }}" style="height:48px;padding:0 16px;display:flex;align-items:center;gap:14px;cursor:pointer;border-radius:{{ k.rowR }};background:{{ ly.bg }};color:{{ ly.fg }};box-shadow:{{ ly.sh }}"><span style="flex:1;font:{{ k.row }}">{{ ly.name }}</span><span style="font:{{ k.mono }};color:var(--il-ink-soft)">{{ ly.code }}</span><span style="width:24px;font:400 22px/1 'Material Symbols Outlined';visibility:{{ ly.vis }}">check</span></div></sc-for></div>
+<span style="font:{{ k.lbl }};font-variant:{{ k.lblVar }};text-transform:{{ k.lblCase }};letter-spacing:{{ k.lblLs }};color:{{ k.lblC }};margin-top:4px">Try it</span>
+<div style="height:48px;padding:0 16px;display:flex;align-items:center;gap:2px;border-radius:{{ k.fieldR }};background:{{ k.fieldBg }};box-shadow:{{ k.fieldFocus }}"><span style="font:{{ k.row }}">{{ kb.test }}</span><span style="width:2px;height:24px;margin-left:2px;background:var(--il-pen)"></span></div>
+<div style="display:flex;flex-direction:column;gap:6px;padding:12px;border-radius:{{ k.cardR }};background:var(--il-sheet);box-shadow:{{ k.cardFlat }}"><sc-for list="{{ kb.rows }}" as="kr" hint-placeholder-count="3"><div style="display:flex;gap:5px;padding-left:{{ kr.pad }}"><sc-for list="{{ kr.keys }}" as="ky" hint-placeholder-count="10"><div style="width:44px;height:40px;display:flex;align-items:center;justify-content:center;border-radius:{{ k.keyR }};font:{{ k.keyF }};background:{{ ky.bg }};color:{{ ky.fg }};box-shadow:{{ ky.sh }}">{{ ky.c }}</div></sc-for></div></sc-for></div>
+<div style="height:56px;display:flex;align-items:center;gap:12px"><div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font:{{ k.row }}">On-screen keyboard</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">Opens in text fields when no keyboard is attached</span></div><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tg.osk.on }}" style="width:56px;height:32px;border-radius:16px;box-sizing:border-box;padding:3px;display:flex;justify-content:{{ tg.osk.jc }};cursor:pointer;background:{{ tg.osk.trk }};box-shadow:inset 0 0 0 1.5px var(--il-ink)"><div style="width:26px;height:26px;border-radius:13px;background:{{ tg.osk.knb }}"></div></div></div>
+</div></sc-if>
+
+<sc-if value="{{ is.network }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:6px">
+<sc-for list="{{ nets }}" as="nt" hint-placeholder-count="5"><div style="display:flex;flex-direction:column;border-radius:{{ k.rowR }};background:{{ nt.bg }};box-shadow:{{ nt.sh }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ nt.on }}" style="height:58px;padding:0 16px;display:flex;align-items:center;gap:14px;cursor:pointer;color:{{ nt.fg }}"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ nt.icon }}</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:1px"><span style="font:{{ k.row }}">{{ nt.name }}</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">{{ nt.sub }}</span></div><span style="font:400 20px/1 'Material Symbols Outlined';color:var(--il-ink-soft)">{{ nt.lock }}</span></div>
+<sc-if value="{{ nt.open }}" hint-placeholder-val="{{ false }}"><div style="padding:4px 16px 16px;display:flex;flex-direction:column;gap:10px"><div style="display:flex;gap:10px;align-items:center"><div style="flex:1;height:48px;padding:0 14px;display:flex;align-items:center;gap:10px;border-radius:{{ k.fieldR }};background:var(--il-paper);box-shadow:{{ k.fieldFocus }}"><span style="font:400 20px/1 'Material Symbols Outlined'">key</span><span style="font:{{ k.row }};letter-spacing:.18em">{{ pw.wifi }}</span><span style="width:2px;height:22px;background:var(--il-pen)"></span><span style="flex:1"></span><span tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ pw.toggle }}" style="font:400 22px/1 'Material Symbols Outlined';cursor:pointer">{{ pw.eye }}</span></div><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ nt.connect }}" style="height:48px;padding:0 20px;display:flex;align-items:center;cursor:pointer;border-radius:{{ k.btnR }};font:{{ k.btnF }};background:{{ k.priBg }};color:{{ k.priFg }};box-shadow:{{ k.priSh }}">{{ nt.cta }}</div></div><span style="font:{{ k.sub }};color:var(--il-ink-soft)">{{ nt.note }}</span></div></sc-if>
+</div></sc-for>
+<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;margin-top:6px;border-top:{{ k.sep }}"><span style="font:400 22px/1 'Material Symbols Outlined'">add</span><span style="font:{{ k.row }}">Hidden network…</span></div>
+</div></sc-if>
+
+<sc-if value="{{ is.account }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ fields }}" as="f" hint-placeholder-count="5"><div style="display:flex;align-items:center;gap:16px"><span style="width:132px;flex:none;font:{{ k.row }}">{{ f.label }}</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px"><div style="height:44px;padding:0 14px;display:flex;align-items:center;gap:8px;border-radius:{{ k.fieldR }};background:{{ k.fieldBg }};box-shadow:{{ f.sh }}"><span style="font:{{ f.font }};letter-spacing:{{ f.ls }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ f.value }}</span><span style="display:{{ f.caret }};width:2px;height:22px;background:var(--il-pen)"></span><span style="flex:1"></span><span tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ f.act }}" style="font:400 22px/1 'Material Symbols Outlined';cursor:pointer">{{ f.icon }}</span></div><span style="display:{{ f.hintD }};font:{{ k.sub }};color:var(--il-ink-soft)">{{ f.hint }}</span></div></div></sc-for>
+<div style="display:flex;flex-direction:column;gap:3px;padding:10px 16px;margin:2px 0 0 148px;border-radius:{{ k.cardR }};background:var(--il-sheet)"><sc-for list="{{ pwRules }}" as="r" hint-placeholder-count="3"><div style="display:flex;align-items:center;gap:10px;font:{{ k.sub }}"><span style="font:400 20px/1 'Material Symbols Outlined'">{{ r.icon }}</span><span style="color:{{ r.fg }}">{{ r.label }}</span></div></sc-for></div>
+<div style="display:flex;flex-direction:column;margin-top:4px;border-top:{{ k.sep }}">
+<div style="height:56px;display:flex;align-items:center;gap:12px;border-bottom:{{ k.sep }}"><div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font:{{ k.row }}">Use it for administrator tasks</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">Software updates and system settings ask for it</span></div><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tg.admin.on }}" style="width:56px;height:32px;border-radius:16px;box-sizing:border-box;padding:3px;display:flex;justify-content:{{ tg.admin.jc }};cursor:pointer;background:{{ tg.admin.trk }};box-shadow:inset 0 0 0 1.5px var(--il-ink)"><div style="width:26px;height:26px;border-radius:13px;background:{{ tg.admin.knb }}"></div></div></div>
+<div style="height:56px;display:flex;align-items:center;gap:12px"><div style="flex:1;display:flex;flex-direction:column;gap:2px"><span style="font:{{ k.row }}">Log in without the password</span><span style="font:{{ k.sub }};color:var(--il-ink-soft)">Anyone who wakes the tablet gets to your files</span></div><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tg.auto.on }}" style="width:56px;height:32px;border-radius:16px;box-sizing:border-box;padding:3px;display:flex;justify-content:{{ tg.auto.jc }};cursor:pointer;background:{{ tg.auto.trk }};box-shadow:inset 0 0 0 1.5px var(--il-ink)"><div style="width:26px;height:26px;border-radius:13px;background:{{ tg.auto.knb }}"></div></div></div>
+</div>
+</div></sc-if>
+
+<sc-if value="{{ is.software }}" hint-placeholder-val="{{ false }}"><div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px">
+<sc-for list="{{ packs }}" as="pk" hint-placeholder-count="10"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ pk.on }}" style="height:100px;padding:12px 14px;box-sizing:border-box;display:flex;flex-direction:column;gap:5px;cursor:pointer;border-radius:{{ k.cardR }};background:{{ pk.bg }};box-shadow:{{ pk.sh }}">
+<div style="display:flex;align-items:center;gap:10px"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ pk.icon }}</span><span style="flex:1;min-width:0;font:{{ k.packF }};font-variant:{{ k.packVar }};letter-spacing:{{ k.packLs }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pk.name }}</span><sc-if value="{{ pk.rec }}" hint-placeholder-val="{{ false }}"><span style="font:{{ k.tagF }};font-variant:{{ k.lblVar }};text-transform:{{ k.lblCase }};letter-spacing:.06em;padding:2px 6px;border-radius:{{ k.tagR }};background:var(--il-highlight);color:var(--il-ink)">{{ pk.recLabel }}</span></sc-if><div style="width:24px;height:24px;flex:none;display:flex;align-items:center;justify-content:center;border-radius:{{ k.cbR }};background:{{ pk.cbBg }};color:{{ pk.cbFg }};box-shadow:{{ pk.cbSh }}"><span style="font:600 18px/1 'Material Symbols Outlined';visibility:{{ pk.vis }}">check</span></div></div>
+<span style="font:{{ k.sub }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pk.desc }}</span>
+<div style="display:flex;align-items:baseline;gap:8px;margin-top:auto"><span style="flex:1;min-width:0;font:{{ k.appsF }};color:var(--il-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ pk.apps }}</span><span style="font:{{ k.mono }};white-space:nowrap">{{ pk.size }}</span></div>
+</div></sc-for>
+</div>
+<span style="font:{{ k.sub }};color:var(--il-ink-soft)">Packs install from the GlassineOS archive after setup and can be added or removed any time in Software. Containers start only when you use them, so they don’t cost battery while the tablet sleeps.</span>
+</sc-if>
+
+<sc-if value="{{ is.review }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;border-top:{{ k.sepStrong }}">
+<sc-for list="{{ review }}" as="rv" hint-placeholder-count="7"><div style="min-height:58px;padding:8px 0;box-sizing:border-box;display:flex;align-items:center;gap:14px;border-bottom:{{ k.sep }}"><span style="width:26px;font:400 22px/1 'Material Symbols Outlined'">{{ rv.icon }}</span><span style="width:120px;flex:none;font:{{ k.lbl }};font-variant:{{ k.lblVar }};text-transform:{{ k.lblCase }};letter-spacing:{{ k.lblLs }};color:{{ k.lblC }}">{{ rv.label }}</span><span style="flex:1;min-width:0;font:{{ k.row }};text-wrap:pretty">{{ rv.value }}</span><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ rv.on }}" style="height:40px;padding:0 14px;display:flex;align-items:center;cursor:pointer;border-radius:{{ k.btnR }};font:{{ k.btnF }};background:{{ k.btnBg }};box-shadow:{{ k.btnSh }}">Change</div></div></sc-for>
+</div>
+<div style="display:flex;gap:14px;padding:14px 16px;border-radius:{{ k.cardR }};box-shadow:{{ k.noteSh }}"><span style="font:400 24px/1 'Material Symbols Outlined'">info</span><span style="font:{{ k.sub }};text-wrap:pretty">Setup writes only to the GlassineOS partition. Android and TWRP stay where they are: Power › Restart into Android still works afterwards.</span></div>
+</sc-if>
+
+<sc-if value="{{ is.installing }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column;gap:18px">
+<div style="display:flex;gap:4px"><sc-for list="{{ inst.bar }}" as="b" hint-placeholder-count="12"><div style="flex:1;height:16px;border-radius:{{ k.barR }};background:{{ b.bg }};box-shadow:inset 0 0 0 1.5px var(--il-ink)"></div></sc-for></div>
+<div style="display:flex;justify-content:space-between;font:{{ k.mono }}"><span>{{ inst.now }}</span><span>{{ inst.pct }}</span></div>
+<div style="display:flex;flex-direction:column;border-top:{{ k.sepStrong }}"><sc-for list="{{ inst.steps }}" as="ist" hint-placeholder-count="8"><div style="height:52px;display:flex;align-items:center;gap:14px;border-bottom:{{ k.sep }};color:{{ ist.fg }}"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ ist.icon }}</span><span style="flex:1;font:{{ k.row }};font-weight:{{ ist.fw }}">{{ ist.label }}</span><span style="font:{{ k.mono }}">{{ ist.note }}</span></div></sc-for></div>
+<div style="display:flex;gap:14px;padding:14px 16px;border-radius:{{ k.cardR }};background:var(--il-sheet)"><span style="font:400 24px/1 'Material Symbols Outlined'">contrast</span><span style="font:{{ k.sub }};text-wrap:pretty">The screen redraws once per step, not continuously. You can put the tablet down; it won’t sleep until setup is done.</span></div>
+</div></sc-if>
+
+<sc-if value="{{ is.done }}" hint-placeholder-val="{{ false }}"><div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:22px;padding:0 12px">
+<svg width="96" height="96" viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="4" width="30" height="34" rx="5" style="fill:none;stroke:var(--il-ink);stroke-width:2"></rect><rect x="14" y="10" width="30" height="34" rx="5" transform="rotate(6 29 27)" style="fill:var(--il-highlight);stroke:var(--il-ink);stroke-width:1"></rect><path d="M20 30 C 26 24, 30 34, 38 26" transform="rotate(6 29 27)" style="fill:none;stroke:var(--il-pen);stroke-width:2.5;stroke-linecap:round"></path></svg>
+<span style="font:{{ k.lbl }};font-variant:{{ k.lblVar }};text-transform:{{ k.lblCase }};letter-spacing:{{ k.lblLs }};color:{{ k.lblC }}">{{ done.eyebrow }}</span>
+<span style="font:{{ k.display }};letter-spacing:{{ k.displayLs }}">{{ done.title }}</span>
+<span style="font:{{ k.lead }};color:var(--il-ink-soft);text-wrap:pretty">{{ done.lead }}</span>
+<div style="display:flex;flex-direction:column;border-top:{{ k.sep }}"><sc-for list="{{ done.tips }}" as="tp" hint-placeholder-count="3"><div style="min-height:58px;display:flex;align-items:center;gap:14px;border-bottom:{{ k.sep }}"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ tp.icon }}</span><span style="font:{{ k.row }};text-wrap:pretty">{{ tp.label }}</span></div></sc-for></div>
+</div></sc-if>
+</div>
+
+<sc-if value="{{ foot.show }}" hint-placeholder-val="{{ true }}"><div style="flex:none;height:84px;padding:0 32px;box-sizing:border-box;display:flex;align-items:center;gap:14px;border-top:{{ k.footRule }};background:var(--il-paper)">
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ foot.back }}" style="visibility:{{ foot.backVis }};height:48px;padding:0 18px 0 12px;display:flex;align-items:center;gap:6px;cursor:pointer;border-radius:{{ k.btnR }};font:{{ k.btnF }};background:{{ k.btnBg }};box-shadow:{{ k.btnSh }}"><span style="font:400 22px/1 'Material Symbols Outlined'">arrow_back</span>Back</div>
+<span style="flex:1;min-width:0;text-align:center;font:{{ k.sub }};color:var(--il-ink-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ foot.status }}</span>
+<sc-if value="{{ foot.showSkip }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ foot.skip }}" style="height:48px;padding:0 14px;display:flex;align-items:center;cursor:pointer;font:{{ k.btnF }};text-decoration:underline;text-underline-offset:4px">{{ foot.skipLabel }}</div></sc-if>
+<div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ foot.next }}" style="height:48px;padding:0 16px 0 22px;display:flex;align-items:center;gap:6px;cursor:pointer;border-radius:{{ k.btnR }};font:{{ k.btnF }};background:{{ k.priBg }};color:{{ k.priFg }};box-shadow:{{ k.priSh }}">{{ foot.nextLabel }}<span style="font:400 22px/1 'Material Symbols Outlined'">{{ foot.nextIcon }}</span></div>
+</div></sc-if>
+</div>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:6px"><sc-for list="{{ chips }}" as="tb" hint-placeholder-count="10"><div tabindex="0" role="button" onKeyDown="{{ ilKey }}" onClick="{{ tb.on }}" style="font:500 11.5px 'IBM Plex Mono';padding:7px 11px;border-radius:6px;border:1px solid rgba(0,0,0,.2);cursor:pointer;background:{{ tb.bg }};color:{{ tb.fg }}">{{ tb.label }}</div></sc-for></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:760,&quot;height&quot;:1080},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;white&quot;,&quot;editorial&quot;,&quot;stationery&quot;],&quot;default&quot;:&quot;white&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;scheme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;paper&quot;,&quot;night&quot;,&quot;eink&quot;],&quot;default&quot;:&quot;paper&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;pen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;1&quot;,&quot;2&quot;,&quot;3&quot;],&quot;default&quot;:&quot;1&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;step&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;welcome&quot;,&quot;look&quot;,&quot;location&quot;,&quot;keyboard&quot;,&quot;network&quot;,&quot;account&quot;,&quot;software&quot;,&quot;review&quot;,&quot;installing&quot;,&quot;done&quot;],&quot;default&quot;:&quot;welcome&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;layout&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;de&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;joined&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;packs&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { step: null, voice: null, pen: null, scheme: 'auto', lang: 'en-GB', big: false, city: 0, ntp: true, clock: '24', layout: 'de',
+    osk: true, net: 'Fernweh', joined: null, showPw: false, admin: true, auto: false, packs: ['reading', 'notes', 'containers'] };
+
+  componentDidMount() {
+    const p = this.props, st = {};
+    if (p.step) st.step = p.step;
+    if (p.packs) st.packs = String(p.packs).split(',').filter(Boolean);
+    if (p.layout) st.layout = p.layout;
+    if (p.joined) st.joined = p.joined;
+    this.setState(st);
+  }
+
+  steps() { return ['welcome', 'look', 'location', 'keyboard', 'network', 'account', 'software', 'review']; }
+
+  packList() {
+    return [
+      { id: 'reading', icon: 'menu_book', name: 'Reading', desc: 'Books, PDFs and comics, tuned for e-ink', apps: 'KOReader · Foliate · Calibre', mb: 420, rec: true },
+      { id: 'notes', icon: 'stylus_note', name: 'Note-taking', desc: 'Handwriting with pen pressure, and typed notes', apps: 'Xournal++ · Rnote · Joplin', mb: 340, rec: true },
+      { id: 'office', icon: 'description', name: 'Office', desc: 'Documents, spreadsheets and slides', apps: 'LibreOffice · Gnumeric', mb: 1150 },
+      { id: 'writing', icon: 'edit_document', name: 'Writing', desc: 'Distraction-free Markdown with grammar checks', apps: 'Apostrophe · LanguageTool · Pandoc', mb: 260 },
+      { id: 'containers', icon: 'deployed_code', name: 'Containers', desc: 'Run services in Docker, started on demand', apps: 'Docker Engine · Compose · lazydocker', mb: 620 },
+      { id: 'dev', icon: 'code', name: 'Development', desc: 'Editors, compilers and version control', apps: 'Git · VSCodium · Python 3 · build tools', mb: 1400 },
+      { id: 'science', icon: 'nights_stay', name: 'Science & education', desc: 'Sky charts, maps, flash cards, GIS', apps: 'Stellarium · Marble · WordQuiz · SAGA', mb: 780 },
+      { id: 'sync', icon: 'sync', name: 'Sync & backup', desc: 'Keep folders in step with your other devices', apps: 'Syncthing · Déjà Dup · Nextcloud', mb: 180 },
+      { id: 'android', icon: 'android', name: 'Android apps', desc: 'Run Android apps in a window (Waydroid)', apps: 'Waydroid · F-Droid', mb: 1900 },
+      { id: 'games', icon: 'chess', name: 'Games', desc: 'Slow games that suit a slow screen', apps: 'Chess · Sudoku · Solitaire · Crosswords', mb: 150 }
+    ];
+  }
+
+  voiceStyles() {
+    const c = n => 'var(--il-' + n + ')', ink = c('ink');
+    return {
+      white: { F: "'IBM Plex Sans',sans-serif", display: "600 34px/1.1 'IBM Plex Sans',sans-serif", displayLs: '-0.02em', lead: "400 16px/1.5 'IBM Plex Sans',sans-serif",
+        lbl: "500 11.5px/1.4 'IBM Plex Mono',monospace", lblVar: 'normal', lblCase: 'uppercase', lblLs: '.08em', lblC: c('ink-soft'),
+        row: "500 16px/1.3 'IBM Plex Sans',sans-serif", sub: "400 13.5px/1.4 'IBM Plex Sans',sans-serif", mono: "500 13px 'IBM Plex Mono',monospace", btnF: "600 15px 'IBM Plex Sans',sans-serif",
+        packF: "600 16px 'IBM Plex Sans',sans-serif", packVar: 'normal', packLs: '0', appsF: "400 12px 'IBM Plex Mono',monospace", tagF: "500 10.5px 'IBM Plex Mono',monospace", tagR: '4px',
+        brand: "600 17px 'IBM Plex Sans',sans-serif", brandVar: 'normal', brandLs: '0', brandC: ink, hsub: "500 11.5px 'IBM Plex Mono',monospace",
+        headH: '72px', headBg: c('paper'), headFg: ink, headRule: '1.5px solid ' + ink, stitch: 'none',
+        stepW: '32px', stepR: '50%', stepFont: "500 13px 'IBM Plex Mono',monospace",
+        stepOn: { bg: c('accent'), fg: c('on-accent'), sh: c('keycap') }, stepDone: { bg: c('highlight'), fg: ink, sh: 'inset 0 0 0 1.5px ' + ink }, stepTodo: { bg: 'transparent', fg: c('ink-soft'), sh: 'inset 0 0 0 1.5px ' + c('ink-soft') },
+        cardR: '16px', cardSh: 'inset 0 0 0 1.5px ' + ink + ',' + c('keycap'), cardFlat: 'inset 0 0 0 1.5px ' + ink, cardOnSh: 'inset 0 0 0 2.5px ' + ink + ',' + c('keycap'), cardOnBg: c('paper'),
+        rowR: '10px', sel: { bg: c('highlight'), fg: ink, sh: 'none' },
+        btnR: '12px', btnBg: c('paper'), btnSh: 'inset 0 0 0 1.5px ' + ink + ',' + c('keycap'), priBg: c('accent'), priFg: c('on-accent'), priSh: c('keycap'),
+        segR: '9px', segOn: { bg: c('accent'), fg: c('on-accent'), sh: 'none' }, traySh: 'inset 0 0 0 1.5px ' + ink,
+        fieldR: '12px', fieldBg: c('sheet'), field: 'inset 0 0 0 1.5px ' + ink, fieldFocus: 'inset 0 0 0 1.5px ' + ink + ',0 0 0 2px ' + c('paper') + ',0 0 0 4px ' + c('focus'),
+        sep: '1px dotted ' + ink, sepStrong: '1.5px solid ' + ink, footRule: '1.5px solid ' + ink, noteSh: 'inset 0 0 0 1.5px ' + ink,
+        cbR: '6px', keyR: '8px', keyF: "500 15px 'IBM Plex Sans',sans-serif", keySh: 'inset 0 0 0 1.5px ' + ink + ',0 2px 0 ' + c('shade'), barR: '4px',
+        nums: ['1', '2', '3', '4', '5', '6', '7', '8'], eyebrow: (i, n) => 'Step ' + i + ' of 8 · ' + n, rec: 'Suggested' },
+      editorial: { F: "'Source Serif 4',serif", display: "600 38px/1.08 'Source Serif 4',serif", displayLs: '-0.01em', lead: "italic 400 17px/1.5 'Source Serif 4',serif",
+        lbl: "400 15px/1.3 'Source Serif 4',serif", lblVar: 'small-caps', lblCase: 'lowercase', lblLs: '.1em', lblC: c('accent'),
+        row: "400 17.5px/1.3 'Source Serif 4',serif", sub: "italic 400 14.5px/1.4 'Source Serif 4',serif", mono: "400 13px 'IBM Plex Mono',monospace", btnF: "600 16px 'Source Serif 4',serif",
+        packF: "600 17.5px 'Source Serif 4',serif", packVar: 'normal', packLs: '0', appsF: "italic 400 13.5px 'Source Serif 4',serif", tagF: "400 13px 'Source Serif 4',serif", tagR: '0',
+        brand: "600 19px 'Source Serif 4',serif", brandVar: 'normal', brandLs: '0', brandC: ink, hsub: "italic 400 14px 'Source Serif 4',serif",
+        headH: '76px', headBg: c('paper'), headFg: ink, headRule: '3px double ' + ink, stitch: 'none',
+        stepW: '34px', stepR: '0', stepFont: "italic 400 17px 'Source Serif 4',serif",
+        stepOn: { bg: 'transparent', fg: c('accent'), sh: 'inset 0 -2px 0 ' + c('accent') }, stepDone: { bg: 'transparent', fg: ink, sh: 'none' }, stepTodo: { bg: 'transparent', fg: c('ink-soft'), sh: 'none' },
+        cardR: '0', cardSh: 'inset 0 0 0 1px ' + ink + ',' + c('passe-partout'), cardFlat: 'inset 0 0 0 1px ' + ink, cardOnSh: 'inset 0 0 0 2px ' + c('accent') + ',' + c('offset'), cardOnBg: c('paper'),
+        rowR: '0', sel: { bg: 'transparent', fg: c('accent'), sh: 'inset 0 -2px 0 ' + c('accent') },
+        btnR: '0', btnBg: 'transparent', btnSh: 'inset 0 0 0 1px ' + ink + ',' + c('offset'), priBg: c('accent'), priFg: c('on-accent'), priSh: c('offset'),
+        segR: '0', segOn: { bg: 'transparent', fg: c('accent'), sh: 'inset 0 -2px 0 ' + c('accent') }, traySh: 'inset 0 -1px 0 ' + ink,
+        fieldR: '0', fieldBg: 'transparent', field: 'inset 0 -1px 0 ' + ink, fieldFocus: 'inset 0 -2px 0 ' + c('focus'),
+        sep: '1px solid ' + c('rule'), sepStrong: '1px solid ' + ink, footRule: '3px double ' + ink, noteSh: 'inset 0 0 0 1px ' + ink + ',' + c('passe-partout'),
+        cbR: '0', keyR: '0', keyF: "400 17px 'Source Serif 4',serif", keySh: 'inset 0 0 0 1px ' + ink, barR: '0',
+        nums: ['i', 'ii', 'iii', 'iv', 'v', 'vi', 'vii', 'viii'], eyebrow: (i, n) => '§ ' + i + ' · ' + n.toLowerCase(), rec: 'suggested' },
+      stationery: { F: "'EB Garamond',serif", display: "italic 500 40px/1.08 'EB Garamond',serif", displayLs: '0', lead: "400 18.5px/1.45 'EB Garamond',serif",
+        lbl: "400 16px/1.3 'EB Garamond',serif", lblVar: 'small-caps', lblCase: 'lowercase', lblLs: '.1em', lblC: c('gold'),
+        row: "400 19px/1.25 'EB Garamond',serif", sub: "italic 400 16px/1.35 'EB Garamond',serif", mono: "400 13px 'IBM Plex Mono',monospace", btnF: "500 18px 'EB Garamond',serif",
+        packF: "500 18px 'EB Garamond',serif", packVar: 'small-caps', packLs: '.06em', appsF: "italic 400 14.5px 'EB Garamond',serif", tagF: "400 14px 'EB Garamond',serif", tagR: '2px',
+        brand: "500 20px 'EB Garamond',serif", brandVar: 'small-caps', brandLs: '.1em', brandC: c('gilt'), hsub: "italic 400 15px 'EB Garamond',serif",
+        headH: '84px', headBg: c('leather-dark'), headFg: c('on-accent'), headRule: 'none', stitch: 'block',
+        stepW: '36px', stepR: '3px', stepFont: "italic 400 17px 'EB Garamond',serif",
+        stepOn: { bg: c('paper'), fg: ink, sh: 'inset 0 0 0 1.5px ' + c('gilt') }, stepDone: { bg: 'transparent', fg: c('gilt'), sh: 'none' }, stepTodo: { bg: 'transparent', fg: c('on-accent'), sh: 'none' },
+        cardR: '3px', cardSh: c('card-stack'), cardFlat: 'inset 0 0 0 1px ' + c('ink-soft'), cardOnSh: 'inset 0 0 0 2px ' + c('accent') + ',' + c('card-stack'), cardOnBg: c('paper'),
+        rowR: '3px', sel: { bg: c('highlight'), fg: ink, sh: 'inset 0 0 0 1px ' + c('gold') },
+        btnR: '6px', btnBg: c('paper'), btnSh: 'inset 0 0 0 1.5px ' + ink + ',0 3px 0 ' + c('shade'), priBg: c('accent'), priFg: c('on-accent'), priSh: 'inset 0 0 0 1.5px ' + c('gilt') + ',0 3px 0 ' + c('shade'),
+        segR: '6px', segOn: { bg: c('accent'), fg: c('on-accent'), sh: 'inset 0 0 0 1px ' + c('gilt') }, traySh: 'inset 0 0 0 1.5px ' + ink,
+        fieldR: '3px', fieldBg: c('sheet'), field: 'inset 0 0 0 1px ' + ink, fieldFocus: 'inset 0 0 0 1px ' + ink + ',0 0 0 2px ' + c('paper') + ',0 0 0 4px ' + c('focus'),
+        sep: '1px solid ' + c('rule'), sepStrong: '1px solid ' + c('gold'), footRule: '1px solid ' + c('gold'), noteSh: c('card-stack'),
+        cbR: '3px', keyR: '4px', keyF: "400 19px 'EB Garamond',serif", keySh: '0 0 0 1px ' + ink + ',0 2px 0 ' + c('shade'), barR: '2px',
+        nums: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'], eyebrow: (i, n) => ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'][i - 1] + '. ' + n.toLowerCase(), rec: 'suggested' }
+    };
+  }
+
+  renderVals() {
+    const s = this.state, p = this.props, u = x => this.setState(x);
+    const voice = ['white', 'editorial', 'stationery'].includes(s.voice ?? p.theme) ? (s.voice ?? p.theme) : 'white';
+    const pen = '1';
+    const scheme = 'eink';
+    const k = this.voiceStyles()[voice];
+    const ink = 'var(--il-ink)';
+    const ST = this.steps(), all = [...ST, 'installing', 'done'];
+    const step = all.includes(s.step ?? p.step) ? (s.step ?? p.step) : 'welcome';
+    const si = ST.indexOf(step);
+    const go = id => () => u({ step: id });
+    const sel = on => on ? k.sel : { bg: 'transparent', fg: ink, sh: 'none' };
+    const seg = on => on ? { ...k.segOn, fw: '600' } : { bg: 'transparent', fg: ink, sh: 'none', fw: '400' };
+    const tog = key => { const on = !!s[key]; return { on: () => u(st => ({ [key]: !st[key] })), jc: on ? 'flex-end' : 'flex-start', trk: on ? 'var(--il-accent)' : 'var(--il-paper)', knb: on ? 'var(--il-on-accent)' : ink }; };
+    const NAMES = { welcome: 'Welcome', look: 'Look', location: 'Location', keyboard: 'Keyboard', network: 'Network', account: 'Account', software: 'Software', review: 'Review' };
+
+    const LANGS = [['en-GB', 'English (UK)', 'English'], ['en-US', 'English (US)', 'English'], ['de', 'Deutsch', 'German'], ['fr', 'Français', 'French'], ['es', 'Español', 'Spanish'], ['nb', 'Norsk bokmål', 'Norwegian'], ['nl', 'Nederlands', 'Dutch'], ['pl', 'Polski', 'Polish']];
+    const langs = LANGS.map(([id, native, en]) => { const on = s.lang === id, st = sel(on); return { native, en: on ? '' : en, on: () => u({ lang: id }), vis: on ? 'visible' : 'hidden', ...st }; });
+
+    const VD = { white: ['White', 'The instrument. Plex Sans, ink keylines, a highlighter for what is current.', 'Label'], editorial: ['Editorial', 'The journal. Source Serif, double rules, rubricated labels, square corners.', 'label'], stationery: ['Stationery', 'The desk. Garamond on laid paper, a leather bar with gilt stitching.', 'label'] };
+    const VS = this.voiceStyles();
+    const voices = ['white', 'editorial', 'stationery'].map(v => { const on = v === voice, x = VS[v];
+      return { name: VD[v][0], desc: VD[v][1], lbl: VD[v][2], on: () => u({ voice: v, pen: '1' }), ilv: this.ilVars(v, scheme, v === voice ? pen : '1'),
+        bg: on ? k.cardOnBg : 'transparent', sh: on ? k.cardOnSh : k.cardFlat, fg: ink, vis: on ? 'visible' : 'hidden',
+        titleF: x.display.replace(/\d+px\/[\d.]+/, '40px/1'), lblF: x.lbl.replace(/[\d.]+px\/[\d.]+/, v === 'white' ? '9.5px/1' : '13px/1'), lblVar: x.lblVar, lblCase: x.lblCase, lblC: x.lblC,
+        nameF: x.packF.replace(/[\d.]+px/, '22px'), nameVar: x.packVar, nameLs: x.packLs,
+        pr: v === 'white' ? '10px' : v === 'editorial' ? '0' : '3px', hlR: v === 'white' ? '3px' : '0', btnR: x.btnR, btnSh: v === 'editorial' ? '2px 2px 0 var(--il-ink)' : v === 'white' ? '0 2px 0 var(--il-shade)' : 'inset 0 0 0 1px var(--il-gilt)',
+        barBg: v === 'stationery' ? 'var(--il-leather-dark)' : 'var(--il-paper)', barBd: v === 'white' ? '1.5px solid var(--il-ink)' : v === 'editorial' ? '3px double var(--il-ink)' : 'none', stitch: v === 'stationery' ? 'block' : 'none' }; });
+
+    const CITIES = [['Dresden, Germany', 'Europe/Berlin · CET, UTC+1', '14:51'], ['Dresden, Ohio, USA', 'America/New_York · EDT, UTC−4', '09:51'], ['Dresden, Ontario, Canada', 'America/Toronto · EDT, UTC−4', '09:51']];
+    const cities = CITIES.map(([name, tz, time], i) => ({ name, tz, time: s.clock === '12' ? (i ? '9:51 am' : '2:51 pm') : time, on: () => u({ city: i }), ...sel(s.city === i) }));
+    const loc = { tz: CITIES[s.city][1].split(' · ')[0], fmt: s.city ? '10/31/2026 · 1,234.56' : '31.10.2026 · 1.234,56' };
+    const clocks = [['24', '24-hour'], ['12', '12-hour']].map(([id, label]) => ({ label, on: () => u({ clock: id }), ...seg(s.clock === id) }));
+
+    const LAY = [['en-gb', 'English (UK)', 'gb'], ['en-us', 'English (US)', 'us'], ['de', 'German', 'de'], ['de-nd', 'German, no dead keys', 'de nodeadkeys'], ['fr', 'French (AZERTY)', 'fr'], ['no', 'Norwegian', 'no']];
+    const layouts = LAY.map(([id, name, code]) => ({ name, code, on: () => u({ layout: id }), vis: s.layout === id ? 'visible' : 'hidden', ...sel(s.layout === id) }));
+    const ROWS = { 'en-gb': ['qwertyuiop[', 'asdfghjkl;\'', 'zxcvbnm,./'], 'en-us': ['qwertyuiop[', 'asdfghjkl;\'', 'zxcvbnm,./'], de: ['qwertzuiopü', 'asdfghjklöä', 'yxcvbnm,.-'], 'de-nd': ['qwertzuiopü', 'asdfghjklöä', 'yxcvbnm,.-'], fr: ['azertyuiop^', 'qsdfghjklmù', 'wxcvbn,;:!'], no: ['qwertyuiopå', 'asdfghjkløæ', 'zxcvbnm,.-'] }[s.layout];
+    const TEST = { 'en-gb': 'Greetings from Dresden', 'en-us': 'Greetings from Dresden', de: 'Grüße aus Dresden', 'de-nd': 'Grüße aus Dresden', fr: 'Bonjour de Dresde', no: 'Hilsen fra Dresden' }[s.layout];
+    const typed = new Set(TEST.toLowerCase());
+    const kb = { test: TEST, rows: ROWS.map((r, i) => ({ pad: [0, 14, 36][i] + 'px', keys: [...r].map(ch => { const hit = typed.has(ch); return { c: ch, bg: hit ? 'var(--il-highlight)' : 'var(--il-paper)', fg: ink, sh: k.keySh }; }) })) };
+
+    const NETS = [['Fernweh', 'network_wifi', 'WPA2 · strong', 'lock'], ['FRITZ!Box 7590 KQ', 'network_wifi_3_bar', 'WPA2 · good', 'lock'], ['Vodafone-7C21', 'network_wifi_2_bar', 'WPA3 · fair', 'lock'], ['Telekom_FON', 'network_wifi_2_bar', 'Open · sign-in page', ''], ['eduroam', 'network_wifi_1_bar', 'Enterprise · weak', 'badge']];
+    const nets = NETS.map(([name, icon, sub, lock]) => { const on = s.net === name, joined = s.joined === name;
+      return { name, icon, sub: joined ? 'Connected · ' + sub.split(' · ')[0] : sub, lock: joined ? 'check' : lock, open: on && !joined, on: () => u({ net: name }),
+        connect: () => u({ joined: name }), cta: 'Connect', note: 'Only used to fetch software packs and the time. The password is kept in the system keyring.',
+        bg: on ? (voice === 'editorial' ? 'transparent' : 'var(--il-sheet)') : 'transparent', sh: on ? k.cardFlat : 'none', fg: ink }; });
+    const pw = { wifi: s.showPw ? 'correct-horse-7' : '•••••••••••••••', eye: s.showPw ? 'visibility_off' : 'visibility', toggle: () => u(st => ({ showPw: !st.showPw })) };
+
+    const PWD = s.showPw ? 'Sternenstaub!2026' : '•••••••••••••••••';
+    const fieldsRaw = [['Your name', 'Anna Krause', '', 'Shown on the lock screen'], ['Username', 'anna', '', 'Your home folder: /home/anna'], ['Device name', 'anna-note', '', ''], ['Password', PWD, s.showPw ? 'visibility_off' : 'visibility', ''], ['Confirm', PWD, '', '']];
+    const fields = fieldsRaw.map(([label, value, icon, hint], i) => ({ label, value, icon, hint, hintD: hint ? 'block' : 'none', act: icon ? pw.toggle : null,
+      caret: i === 4 ? 'block' : 'none', sh: i === 4 ? k.fieldFocus : k.field, font: k.row, ls: i >= 3 && !s.showPw ? '.12em' : 'normal' }));
+    const pwRules = [['check_circle', 'At least 8 characters'], ['check_circle', 'Both entries match'], ['check_circle', 'Not on the list of common passwords']].map(([icon, label]) => ({ icon, label, fg: ink }));
+
+    const PL = this.packList();
+    const packs = PL.map(x => { const on = s.packs.includes(x.id);
+      return { ...x, size: x.mb >= 1000 ? (x.mb / 1000).toFixed(1) + ' GB' : x.mb + ' MB', recLabel: k.rec,
+        on: () => u(st => ({ packs: st.packs.includes(x.id) ? st.packs.filter(y => y !== x.id) : [...st.packs, x.id] })),
+        bg: on ? k.cardOnBg : 'transparent', sh: on ? k.cardOnSh : k.cardFlat, vis: on ? 'visible' : 'hidden',
+        cbBg: on ? 'var(--il-accent)' : 'transparent', cbFg: 'var(--il-on-accent)', cbSh: on ? 'none' : 'inset 0 0 0 1.5px ' + ink }; });
+    const chosen = PL.filter(x => s.packs.includes(x.id)), mb = chosen.reduce((a, x) => a + x.mb, 0);
+    const size = mb >= 1000 ? (mb / 1000).toFixed(2).replace(/0$/, '') + ' GB' : mb + ' MB';
+
+    const LN = LANGS.find(x => x[0] === s.lang)[1];
+    const review = [
+      ['translate', 'Language', LN, 'welcome'], ['palette', 'Look', VD[voice][0], 'look'],
+      ['schedule', 'Location', CITIES[s.city][0].split(',')[0] + ' · ' + loc.tz + ' · ' + s.clock + '-hour', 'location'], ['keyboard', 'Keyboard', LAY.find(x => x[0] === s.layout)[1], 'keyboard'],
+      ['wifi', 'Network', s.joined || 'Not connected — packs install later', 'network'], ['person', 'Account', 'Anna Krause (anna)' + (s.admin ? ' · administrator' : '') + (s.auto ? ' · no password at login' : ''), 'account'],
+      ['deployed_code', 'Software', chosen.length ? chosen.map(x => x.name).join(', ') + ' · ' + size : 'None', 'software']
+    ].map(([icon, label, value, id]) => ({ icon, label, value, on: go(id) }));
+
+    const INST = [['Creating your account', 'done'], ['Keyboard, time zone and formats', 'done'], ['Connecting to ' + (s.joined || 'Fernweh'), 'done'], ...chosen.map(x => ['Installing ' + x.name, '']), ['Cleaning up', '']];
+    const cur = Math.min(4, INST.length - 2);
+    INST.forEach((x, i) => { x[1] = i < cur ? 'done' : i === cur ? 'now' : 'todo'; });
+    const cp = chosen[cur - 3], inst = { now: '(' + (cur + 1) + '/' + INST.length + ') ' + INST[cur][0], pct: cp ? '112 of ' + Math.max(112, Math.round(mb * 0.4)) + ' MB' : '', bar: [],
+      steps: INST.map(([label, st]) => ({ label, icon: st === 'done' ? 'check_circle' : st === 'now' ? 'pending' : 'radio_button_unchecked', fw: st === 'now' ? '600' : '400', fg: st === 'todo' ? 'var(--il-ink-soft)' : ink, note: st === 'now' && cp ? '2 / ' + cp.apps.split(' · ').length : st === 'done' ? 'done' : '' })) };
+
+    const DONE = { white: ['Ready', 'All set, Anna.'], editorial: ['finis', 'All set, Anna.'], stationery: ['the desk is laid', 'All set, Anna.'] }[voice];
+    const done = { eyebrow: DONE[0], title: DONE[1], lead: chosen.length + ' packs installed. Your tablet is ready to read, write and work on.',
+      tips: [['swipe_up', 'Swipe three fingers up for the overview of your screens'], ['touch_app', 'Hold an app in the drawer for its menu and settings'], ['palette', 'Settings › Appearance changes voice, pen and scheme']].map(([icon, label]) => ({ icon, label })) };
+
+    const PAGES = {
+      welcome: ['Welcome to GlassineOS', 'A Linux system for e-ink tablets. Setup takes about five minutes, and nothing is written until the last step.'],
+      look: ['Choose a look', 'The voice sets type, edges and words; the pen colours what you mark. This page already follows your choice.'],
+      location: ['Where are you?', 'Sets the time zone, the clock and how dates and numbers are written.'],
+      keyboard: ['Keyboard layout', 'For an attached keyboard and the on-screen one. Keys you type light up below.'],
+      network: ['Connect to Wi-Fi', 'Needed for software packs and the time. You can skip this and connect later.'],
+      account: ['Your account', 'The only account on the tablet. Its password guards your files.'],
+      software: ['Software packs', 'Pick what you want installed now. ' + chosen.length + ' selected.'],
+      review: ['Set up this tablet?', 'Nothing changes until you tap Install. Tap a row to change it.'],
+      installing: ['Setting up', 'About six minutes. Keep the tablet on charge or above 30 %.'],
+      done: ['', '']
+    };
+    const pg = { show: step !== 'done', eyebrow: si >= 0 ? k.eyebrow(si + 1, NAMES[step]) : (step === 'installing' ? (voice === 'white' ? 'Installing' : 'installing') : ''), title: PAGES[step][0], lead: PAGES[step][1] };
+
+    const hdrSteps = ST.map((id, i) => { const x = i === si ? k.stepOn : i < si ? k.stepDone : k.stepTodo; return { n: k.nums[i], name: NAMES[id], on: go(id), cream: i === si && voice === 'stationery' ? '1' : '0', ...x }; });
+    const hdr = { steps: hdrSteps, showSteps: si >= 0, showBattery: si < 0, sub: si >= 0 ? (voice === 'white' ? 'First-run setup' : 'first-run setup') : step === 'installing' ? 'Installing' : 'Setup complete' };
+
+    const nextOf = id => ST[Math.min(ST.length - 1, ST.indexOf(id) + 1)];
+    const foot = { show: step !== 'installing', backVis: si > 0 ? 'visible' : 'hidden', back: go(ST[Math.max(0, si - 1)]),
+      status: { software: chosen.length + ' packs · ' + size + ' download · 41 GB free', network: s.joined ? 'Connected to ' + s.joined : 'Not connected', review: (INST.length) + ' steps · ' + (chosen.length ? size + ' download' : 'nothing to download') }[step] || '',
+      showSkip: step === 'network' || step === 'software', skipLabel: step === 'software' ? 'None for now' : 'Skip',
+      skip: step === 'software' ? () => u({ packs: [], step: 'review' }) : go('account'),
+      next: step === 'review' ? go('installing') : step === 'done' ? go('welcome') : go(nextOf(step)),
+      nextLabel: step === 'review' ? 'Install' : step === 'done' ? 'Start' : step === 'welcome' ? 'Begin' : 'Continue', nextIcon: step === 'review' ? 'download' : 'arrow_forward' };
+    if (step === 'done') { foot.backVis = 'hidden'; foot.status = 'Restart is not needed'; }
+
+    const chips = [...ST, 'installing', 'done'].map(id => ({ label: NAMES[id] || (id === 'installing' ? 'Installing' : 'Done'), on: go(id), bg: id === step ? '#111111' : '#ffffff', fg: id === step ? '#ffffff' : '#111111' }));
+
+    return { ilKey: e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } },  ilv: this.ilVars(voice, scheme, pen), k, hdr, pg, foot, chips,
+      is: Object.fromEntries(all.map(id => [id, id === step])),
+      langs, voices, cities, loc, clocks, layouts, kb, nets, pw, fields, pwRules, packs, review, inst, done,
+      tg: { big: tog('big'), ntp: tog('ntp'), osk: tog('osk'), admin: tog('admin'), auto: tog('auto') } };
+  }
+
+  ilVars(voice, scheme, pen) {
+    const V = ['white', 'editorial', 'stationery'].includes(voice) ? voice : 'white';
+    const S = scheme === 'night' || scheme === 'eink' ? scheme : 'paper';
+    const id = S === 'eink' ? (V === 'stationery' ? 'stationery-eink' : 'eink') : V + '-' + S;
+    const T = Component.ilTokens(this);
+    if (!T) return '--il-theme:' + id;
+    const i = ['1', '2', '3'].indexOf(String(pen ?? '1')), n = i < 0 ? 0 : i, sfx = n ? '-' + (n + 1) : '';
+    const g = name => {
+      let x = T[name];
+      x = x && typeof x === 'object' ? x[id] : x;
+      if (x == null) return null;
+      const m = /^\{([a-z0-9-]+)\}$/.exec(x);
+      if (!m) return x;
+      const r = m[1] === 'accent' || m[1] === 'highlight' ? m[1] + sfx : m[1];
+      return g(r);
+    };
+    const paper = g('paper'), ink = g('ink'), shade = g('shade');
+    const gap = this.ilGaps()[id];
+    const v = { paper, sheet: g('sheet'), ink, 'ink-soft': g('ink-soft'), rule: g('rule'), shade,
+      dim: S === 'night' ? (V === 'stationery' ? g('rule') : g('ink-soft')) : shade,
+      accent: g('accent' + sfx), highlight: g('highlight' + sfx), 'on-accent': g('on-accent'), 'on-accent-soft': g('on-accent-soft'), pen: g('pen'),
+      focus: g('focus'), 'focus-on-leather': g('focus-on-leather'), 'focus-on-cream': g('focus-on-cream'), gold: g('gold'), gilt: g('gilt'),
+      'leather-dark': n && gap ? gap[n - 1] : g('leather-dark'), wax: g('wax'),
+      keycap: '0 3px 0 ' + shade, 'passe-partout': '0 0 0 5px ' + paper + ',0 0 0 6px ' + ink, offset: '3px 3px 0 ' + ink,
+      'card-stack': (V === 'stationery' && g('card-stack')) || ('0 3px 0 ' + shade) };
+    return Object.keys(v).map(k => '--il-' + k + ':' + v[k]).join(';') + ';--il-theme:' + id;
+  }
+
+  ilGaps() {
+    // Leather for Stationery pens 2 and 3. Interleaf has only one leather-dark per theme;
+    // move these into Interleaf as leather-dark-2 / leather-dark-3 and delete this table.
+    return { 'stationery-paper': ['#10241a', '#0f182a'], 'stationery-night': ['#0a1610', '#090e19'], 'stationery-eink': ['#111111', '#111111'] };
+  }
+
+  static ilTokens(c) {
+    // Live link to the Interleaf design system installed on this canvas (project/ds/interleaf).
+    const K = Component;
+    if (K._ilT !== undefined) return K._ilT;
+    if (!K._ilP) {
+      K._ilW = [];
+      K._ilP = fetch('ds/interleaf/tokens.json')
+        .then(r => (r.ok ? r.json() : null))
+        .then(j => {
+          const T = {};
+          if (j) for (const sec of [j.color, j.shadow]) for (const t of (sec && sec.tokens) || []) T[t.name] = t.value;
+          K._ilT = j ? T : null;
+        })
+        .catch(() => { K._ilT = null; })
+        .then(() => { const w = K._ilW; K._ilW = []; for (const x of w) { try { x.forceUpdate(); } catch (e) {} } });
+    }
+    if (c && K._ilW.indexOf(c) < 0) K._ilW.push(c);
+    return null;
+  }
+}
+
+</script>
+</body>
+</html>

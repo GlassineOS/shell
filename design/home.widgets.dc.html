@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Writing a widget</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#1b1b1b}</style>
+</helmet>
+<div data-spec-id="home.widgets" style="width:1640px;height:1500px;box-sizing:border-box;padding:28px 32px;display:flex;flex-direction:column;gap:18px;background:#e6e6e6;color:#1b1b1b;font-family:'IBM Plex Sans',sans-serif">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font:500 13px/1.2 'IBM Plex Mono',monospace;color:#3d3d3d">home.widgets</span>
+<h1 style="margin:0;font:600 26px/1.2 'IBM Plex Sans',sans-serif">Writing a widget</h1>
+<p style="margin:0;max-width:900px;font:400 15px/1.5 'IBM Plex Sans',sans-serif;color:#2b2b2b;text-wrap:pretty">A widget is one script that returns a description, never pixels. Home owns drawing and timing, so a widget cannot animate, flash the panel or keep the CPU awake. Proposed language: Lua, because KOReader keeps its data as Lua tables and a sandboxed Lua is tiny. QuickJS would work the same way; this is an open decision.</p>
+</div>
+<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:28px;align-items:start">
+<div style="display:flex;flex-direction:column;gap:12px;min-width:0"><h2 style="margin:0;font:600 19px/1.2 'IBM Plex Sans'">The Continue reading widget, whole</h2><pre style="margin:0;padding:16px 18px;background:#ffffff;border:1.5px solid #1b1b1b;border-radius:10px;font:400 13.5px/1.5 'IBM Plex Mono',monospace;white-space:pre;overflow:hidden">-- ~/.local/share/glassine/widgets/reading/widget.lua
+return {
+  name    = &quot;Continue reading&quot;,
+  icon    = &quot;menu_book&quot;,
+  sizes   = { &quot;wide&quot;, &quot;half&quot; },              -- first is the default
+  reads   = { &quot;~/.config/koreader/history.lua&quot; },
+  refresh = { on_change = true },            -- or { every = &quot;1h&quot; }, never under 15 min
+
+  props   = {},                              -- settings this widget keeps; none here
+
+  render = function(ctx, props)
+    local last = ctx.load_lua(&quot;~/.config/koreader/history.lua&quot;)[1]
+    if not last then return { ui.text(&quot;Nothing read yet&quot;) } end
+    local doc  = ctx.load_lua(ctx.sidecar(last.file))   -- KOReader’s .sdr metadata
+    return {
+      ui.image{ src = &quot;cover:&quot; .. last.file, w = 64, h = 96, side = &quot;left&quot;,
+                alt = &quot;Cover of &quot; .. doc.doc_props.title },   -- a slot, not pixels
+      ui.title(doc.doc_props.title),
+      ui.text(doc.doc_props.authors),
+      ui.progress(doc.percent_finished),
+      ui.button(&quot;Continue&quot;, &quot;play_arrow&quot;, ui.open(&quot;koreader&quot;, last.file)),
+      ui.meta(&quot;Read &quot; .. ctx.ago(last.time)),
+    }
+  end,
+}</pre>
+<h2 style="margin:0;font:600 19px/1.2 'IBM Plex Sans';margin-top:10px">Settings: widget.edit.lua</h2><pre style="margin:0;padding:16px 18px;background:#ffffff;border:1.5px solid #1b1b1b;border-radius:10px;font:400 13.5px/1.5 'IBM Plex Mono',monospace;white-space:pre;overflow:hidden">-- …/widgets/app-category/widget.edit.lua  (Home&#x27;s own App category settings)
+-- Same ui, same sandbox, same lifecycle as widget.lua. Home runs it when you tap
+-- the widget&#x27;s settings button and again after every change.
+return {
+  render = function(ctx, props)
+    local rows = {}
+    for _, c in ipairs(ctx.apps.categories()) do
+      rows[#rows + 1] = { c.name, c.count .. &quot; apps&quot;,
+                          selected = (c.name == props.category),
+                          action   = ui.set{ category = c.name } }
+    end
+    return { ui.title(&quot;Show apps from&quot;), ui.list(rows) }
+  end,
+}
+-- widget.lua declares the defaults:  props = { category = &quot;Games&quot; }
+-- and gets them back as             render = function(ctx, props) … end</pre>
+<h2 style="margin:0;font:600 19px/1.2 'IBM Plex Sans';margin-top:10px">How Home sits in sway</h2><pre style="margin:0;padding:16px 18px;background:#ffffff;border:1.5px solid #1b1b1b;border-radius:10px;font:400 13.5px/1.5 'IBM Plex Mono',monospace;white-space:pre;overflow:hidden"># ~/.config/sway/config.d/home.conf
+exec glassine-home
+for_window [app_id=&quot;glassine-home&quot;] move scratchpad, fullscreen enable
+bindsym XF86HomePage exec glassine-shell home   # the bar’s Home button calls the same
+# glassine-shell listens on sway IPC: when a window closes and the focused
+# workspace is left empty, it runs [app_id=&quot;glassine-home&quot;] scratchpad show.</pre></div>
+<div style="display:flex;flex-direction:column;gap:12px;min-width:0"><h2 style="margin:0;font:600 19px/1.2 'IBM Plex Sans'">The seven primitives</h2>
+<table style="border-collapse:collapse;width:100%"><tbody><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-family:IBM Plex Mono,monospace;font-size:13.5px;white-space:nowrap">ui.title(text)</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">One line, bold. At most one per widget.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-family:IBM Plex Mono,monospace;font-size:13.5px;white-space:nowrap">ui.text(text, {soft=true})</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">One line; soft draws it in the secondary grey.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-family:IBM Plex Mono,monospace;font-size:13.5px;white-space:nowrap">ui.progress(0…1, label)</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">A bar with its number. No animation.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-family:IBM Plex Mono,monospace;font-size:13.5px;white-space:nowrap">ui.list({ {label, meta}, … })</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">Up to 4 rows; more are cut, not scrolled.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-family:IBM Plex Mono,monospace;font-size:13.5px;white-space:nowrap">ui.button(label, icon, action)</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">At most 2. Actions: ui.open(app, file?), ui.settings(page). Nothing else can run.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-family:IBM Plex Mono,monospace;font-size:13.5px;white-space:nowrap">ui.meta(text)</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">The small line at the bottom: when, from where.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-family:IBM Plex Mono,monospace;font-size:13.5px;white-space:nowrap">ui.image{src, w, h, side, fit, alt}</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">A slot of a fixed size that Home fills later. side = &quot;left&quot; or &quot;right&quot; pins it beside the text; without side it runs full width at height h. fit: cover (default) or contain. At most 2.</td></tr></tbody></table>
+<h2 style="margin:0;font:600 19px/1.2 'IBM Plex Sans';margin-top:10px">Rules Home enforces</h2>
+<table style="border-collapse:collapse;width:100%"><tbody><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Sandbox</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">Lua 5.4 with no os, io, require or load. A widget reads only the paths it lists in reads, through ctx.read and ctx.load_lua (which evaluates a data file in an empty environment). No network unless the manifest lists hosts in net, shown when you add it.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Refresh</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">Home runs render, never the widget itself: when a listed file changes, on its every interval (15 min at least), and once when Home appears. Results are compared; only a widget whose output changed is redrawn, as one partial refresh of its own card, batched with any others.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Time limit</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">render has 200 ms and 4 MB. Over that, or on an error, Home keeps the last good output and the meta line says so. Three failures in a row pause the widget until you open the gallery.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Settings</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">A widget with settings ships widget.edit.lua next to widget.lua: the same primitives, sandbox and limits, run the same way. Both render functions get (ctx, props). props start from the manifest’s defaults and are kept per widget, so two copies can differ. In edit scripts, list rows and buttons may carry ui.set{…}, which changes props; Home then re-runs both scripts. selected = true marks a row as the current choice.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Images</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">render never touches pixels: it returns a slot with a source and a size, so Home lays the card out at once and nothing moves later. Home then loads, scales to the slot, turns it grey and dithers it with the E-ink dithering setting in a low-priority worker, outside the 200 ms. It starts right after render, even while Home is hidden, so Home usually appears finished; otherwise the slot shows a dashed frame with its alt text and fills with one partial refresh of that rectangle only. Results are cached by source, its date or ETag, slot size and dithering, so an unchanged slot never loads twice. Sources: file: (inside reads), cover: (an ebook’s cover, via the thumbnailer), icon: (an app’s icon), https: (only hosts listed in net). Over 20 MB, or broken: the frame and alt text stay.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Look</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">Widgets have no colours, fonts or layout of their own. Home draws the seven primitives in the current voice at the card’s size: half is 2 columns, wide is 4, always one row of the page grid.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Pages</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">A page is 4 columns × 5 rows in portrait, two lanes of 4 × 3 in landscape. Widgets flow in order and a half fills the first free half on its page; one that doesn’t fit goes to the next lane or page. Favourite apps, All apps and App category are built into Home, drawn natively: 1 to 5 rows, each with its own pager. All apps is always on Home; App category can be added as often as you like.</td></tr><tr><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty;font-weight:600;white-space:nowrap">Where they live</td><td style="padding:9px 12px;border-top:1px solid #1b1b1b;vertical-align:top;font:400 14.5px/1.45 'IBM Plex Sans';text-wrap:pretty">Built-in widgets ship with glassine-home. Apps can bring one in their package under /usr/share/glassine/widgets. Your own go in ~/.local/share/glassine/widgets, one folder each; Home picks up a new folder without a restart.</td></tr></tbody></table></div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1640, "height": 1500}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

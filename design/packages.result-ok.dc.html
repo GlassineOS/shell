@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Result: success</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#1b1b1b}a:hover{color:#4a4a4a}</style>
+</helmet>
+<div data-spec-id="packages.result-ok" style="width:1124px;height:1540px;box-sizing:border-box;padding:28px 32px;display:flex;flex-direction:column;gap:18px;background:#e6e6e6;color:#1b1b1b;font-family:'IBM Plex Sans',sans-serif">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font:500 13px/1.2 'IBM Plex Mono',monospace;color:#3d3d3d">packages.result-ok</span>
+<h1 style="margin:0;font:600 26px/1.2 'IBM Plex Sans',sans-serif;text-wrap:balance">Result: success</h1>
+<p style="margin:0;max-width:900px;font:400 15px/1.5 'IBM Plex Sans',sans-serif;color:#2b2b2b;text-wrap:pretty">Change flow, step 3. A sheet naming what was done.</p>
+</div>
+<dc-import name="ThemeBar" voice="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" show-win="{{ yes }}" win="{{ win }}" orient="{{ orient }}" on-pick="{{ pick }}" hint-size="100%,150px"></dc-import>
+<dc-import name="EinkSettings" theme="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" win="{{ win }}" orient="{{ orient }}" nav="folder" page="pkg" pk="ok" hint-size="760px,1140px"></dc-import>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"voice": {"editor": "enum", "options": ["white", "editorial", "stationery"], "default": "white"}, "win": {"editor": "enum", "options": ["full", "column", "row", "quarter"], "default": "full"}, "orient": {"editor": "enum", "options": ["portrait", "landscape"], "default": "portrait"}, "$preview": {"width": 1124, "height": 1540}}'>
+class Component extends DCLogic {
+  state = {};
+  renderVals() {
+    const s = this.state, p = this.props;
+    return { voice: s.voice ?? p.voice ?? 'white', scheme: 'eink', pen: '1',
+      win: s.win ?? p.win ?? 'full', orient: s.orient ?? p.orient ?? 'portrait', yes: true, pick: (k, v) => this.setState({ [k]: v }) };
+  }
+}
+</script>
+</body>
+</html>

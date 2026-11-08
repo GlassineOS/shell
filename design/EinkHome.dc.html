@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home screen</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet"><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&amp;display=block" rel="stylesheet"></helmet>
+<div data-widget="home" data-widget-label="Home screen" data-mode="{{ mode }}" style="position:relative;width:100%;height:100%;box-sizing:border-box;padding:12px 16px 14px;background:var(--il-paper,#ffffff);color:var(--il-ink,#111111);display:flex;flex-direction:column;gap:12px;overflow:hidden">
+
+<div style="flex:none;display:flex;align-items:center;gap:8px;min-height:52px;padding-bottom:8px;border-bottom:{{ t.headRule }}">
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font:{{ t.headFont }};font-variant:{{ t.headVar }};letter-spacing:{{ t.headLs }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ headTitle }}</span><span style="font:{{ t.dateFont }};font-size:13px;color:{{ t.sub }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ headSub }}</span></div>
+<sc-if value="{{ paged }}" hint-placeholder-val="{{ true }}"><div data-widget="home-pager" style="flex:none;display:flex;align-items:center;gap:4px"><div tabindex="0" role="button" aria-label="Previous Home page" onKeyDown="{{ key }}" onClick="{{ pgPrev }}" style="width:44px;height:44px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ pgPrevFg }}"><span style="font:400 24px/1 'Material Symbols Outlined'">chevron_left</span></div><span style="min-width:34px;text-align:center;font:{{ t.pageFont }}">{{ pgLabel }}</span><div tabindex="0" role="button" aria-label="Next Home page" onKeyDown="{{ key }}" onClick="{{ pgNext }}" style="width:44px;height:44px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ pgNextFg }}"><span style="font:400 24px/1 'Material Symbols Outlined'">chevron_right</span></div></div></sc-if>
+<sc-for list="{{ headBtns }}" as="hb" hint-placeholder-count="1"><div tabindex="0" role="button" aria-label="{{ hb.label }}" title="{{ hb.label }}" onKeyDown="{{ key }}" onClick="{{ hb.on }}" style="flex:none;width:48px;height:48px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ hb.bg }};color:{{ hb.fg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ hb.icon }}</span></div></sc-for>
+</div>
+
+<div data-widget="home-page" style="position:relative;flex:1;min-height:0;overflow:hidden">
+<sc-if value="{{ peekPrev.show }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" aria-label="{{ peekPrev.aria }}" title="{{ peekPrev.aria }}" data-widget="page-peek" onKeyDown="{{ key }}" onClick="{{ peekPrev.on }}" style="position:absolute;top:{{ E.t }};bottom:{{ E.t }};left:{{ peekPrev.left }};width:{{ E.w }};box-sizing:border-box;padding:0;display:grid;grid-template-columns:repeat({{ G.C }},minmax(0,1fr));grid-template-rows:repeat({{ G.R }},minmax(0,1fr));gap:{{ G.gap }};cursor:pointer;outline:1.5px dashed var(--il-ink-soft,#4a4a4a);outline-offset:6px;border-radius:4px"><sc-for list="{{ peekPrev.boxes }}" as="gb" hint-placeholder-count="3"><div style="grid-column:{{ gb.gc }};grid-row:{{ gb.gr }};box-sizing:border-box;border:1.5px solid var(--il-ink-soft,#4a4a4a);border-radius:{{ t.btnR }};background:repeating-linear-gradient(135deg,var(--il-rule,#bbbbbb) 0 1px,transparent 1px 7px)"></div></sc-for></div></sc-if>
+<sc-if value="{{ peekNext.show }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" aria-label="{{ peekNext.aria }}" title="{{ peekNext.aria }}" data-widget="page-peek" onKeyDown="{{ key }}" onClick="{{ peekNext.on }}" style="position:absolute;top:{{ E.t }};bottom:{{ E.t }};left:{{ peekNext.left }};width:{{ E.w }};box-sizing:border-box;padding:0;display:grid;grid-template-columns:repeat({{ G.C }},minmax(0,1fr));grid-template-rows:repeat({{ G.R }},minmax(0,1fr));gap:{{ G.gap }};cursor:pointer;outline:1.5px dashed var(--il-ink-soft,#4a4a4a);outline-offset:6px;border-radius:4px"><sc-for list="{{ peekNext.boxes }}" as="gb" hint-placeholder-count="3"><div style="grid-column:{{ gb.gc }};grid-row:{{ gb.gr }};box-sizing:border-box;border:1.5px solid var(--il-ink-soft,#4a4a4a);border-radius:{{ t.btnR }};background:repeating-linear-gradient(135deg,var(--il-rule,#bbbbbb) 0 1px,transparent 1px 7px)"></div></sc-for></div></sc-if>
+<div data-widget="page-frame" style="position:absolute;left:{{ E.x }};right:{{ E.x }};top:{{ E.t }};bottom:{{ E.t }};outline:{{ E.frame }};outline-offset:6px;border-radius:4px">
+<div style="position:absolute;inset:0;display:grid;grid-template-columns:repeat({{ G.C }},minmax(0,1fr));grid-template-rows:repeat({{ G.R }},minmax(0,1fr));gap:{{ G.gap }}">
+<sc-for list="{{ cards }}" as="w" hint-placeholder-count="4">
+<sc-if value="{{ w.isAdd }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" aria-label="Add a widget" onKeyDown="{{ key }}" onClick="{{ openAdd }}" style="grid-column:{{ w.gc }};grid-row:{{ w.gr }};box-sizing:border-box;border:2px dashed var(--il-ink,#111111);border-radius:{{ t.btnR }};display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;font:{{ t.titleFont }}"><span style="font:400 26px/1 'Material Symbols Outlined'">add</span>Add widget</div></sc-if>
+<sc-if value="{{ w.isCard }}" hint-placeholder-val="{{ true }}">
+<div data-widget="home-widget" data-widget-label="{{ w.name }}" style="grid-column:{{ w.gc }};grid-row:{{ w.gr }};min-width:0;min-height:0;position:relative;box-sizing:border-box;padding:8px 12px;border-radius:{{ t.btnR }};background:{{ t.cardBg }};border:{{ w.border }};display:flex;flex-direction:column;gap:6px;overflow:hidden">
+<div style="flex:none;display:flex;align-items:center;gap:6px;min-width:0;min-height:24px"><span style="flex:none;font:400 18px/1 'Material Symbols Outlined'">{{ w.icon }}</span><span style="flex:1;min-width:0;font:{{ t.lblFont }};font-variant:{{ t.lblVar }};text-transform:{{ t.lblCase }};letter-spacing:{{ t.lblLs }};color:{{ t.lblC }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.name }}</span>
+<sc-if value="{{ w.pager.show }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" aria-label="Previous page of apps" onKeyDown="{{ key }}" onClick="{{ w.pager.prev }}" style="flex:none;width:40px;height:40px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ w.pager.prevFg }}"><span style="font:400 22px/1 'Material Symbols Outlined'">chevron_left</span></div><span style="flex:none;min-width:30px;text-align:center;font:{{ t.pageFont }};font-size:13px">{{ w.pager.label }}</span><div tabindex="0" role="button" aria-label="Next page of apps" onKeyDown="{{ key }}" onClick="{{ w.pager.next }}" style="flex:none;width:40px;height:40px;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer;color:{{ w.pager.nextFg }}"><span style="font:400 22px/1 'Material Symbols Outlined'">chevron_right</span></div></sc-if>
+<sc-if value="{{ w.editing }}" hint-placeholder-val="{{ false }}"><sc-for list="{{ w.ctl }}" as="c" hint-placeholder-count="2"><div tabindex="{{ c.tab }}" role="button" aria-label="{{ c.label }}" title="{{ c.label }}" onKeyDown="{{ key }}" onClick="{{ c.on }}" style="flex:none;width:40px;height:40px;box-sizing:border-box;border-radius:{{ t.btnR }};border:1.5px solid {{ c.fg }};color:{{ c.fg }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 20px/1 'Material Symbols Outlined'">{{ c.icon }}</span></div></sc-for></sc-if>
+</div>
+<sc-if value="{{ w.isApps }}" hint-placeholder-val="{{ false }}">
+<div data-widget="app-grid" style="flex:1;min-height:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat({{ w.appRows }},minmax(0,1fr));gap:4px;opacity:{{ w.appsOp }}">
+<sc-for list="{{ w.apps }}" as="ap" hint-placeholder-count="12"><div tabindex="0" role="button" aria-label="{{ ap.aria }}" onKeyDown="{{ key }}" onPointerDown="{{ ap.down }}" onPointerUp="{{ ap.up }}" onPointerLeave="{{ ap.cancel }}" onContextMenu="{{ noMenu }}" style="min-width:0;min-height:0;box-sizing:border-box;border-radius:{{ t.btnR }};outline:{{ ap.ol }};outline-offset:-2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;overflow:hidden"><div style="flex:none;width:48px;height:48px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center"><span style="font:400 26px/1 'Material Symbols Outlined'">{{ ap.icon }}</span></div><span style="max-width:100%;font:{{ t.appNameFont }};font-variant:{{ t.appNameVar }};letter-spacing:{{ t.appNameLs }};font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ ap.name }}</span></div></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{ w.isScript }}" hint-placeholder-val="{{ true }}">
+<div style="flex:1;min-height:0;display:flex;gap:12px;align-items:flex-start;overflow:hidden">
+<sc-if value="{{ w.hasSide }}" hint-placeholder-val="{{ false }}"><div data-widget="widget-image" data-state="{{ w.side.state }}" role="img" aria-label="{{ w.side.aria }}" style="flex:none;position:relative;box-sizing:border-box;width:{{ w.side.w }};height:{{ w.side.h }};border-radius:4px;overflow:hidden;border:{{ w.side.border }};background:{{ w.side.bg }};display:flex;align-items:center;justify-content:center"><sc-if value="{{ w.side.ready }}" hint-placeholder-val="{{ true }}"><span style="font:300 {{ w.side.glyphSz }}/1 'Material Symbols Outlined';color:var(--il-paper,#ffffff);background:var(--il-ink,#111111);border-radius:50%;padding:4px">{{ w.side.glyph }}</span></sc-if><sc-if value="{{ w.side.waiting }}" hint-placeholder-val="{{ false }}"><span style="padding:4px;text-align:center;font:{{ t.dateFont }};font-size:11px;line-height:1.25;color:{{ t.sub }};overflow:hidden">{{ w.side.alt }}</span></sc-if></div></sc-if>
+<div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px">
+<sc-for list="{{ w.body }}" as="n" hint-placeholder-count="3">
+<sc-if value="{{ n.isImage }}" hint-placeholder-val="{{ false }}"><div data-widget="widget-image" data-state="{{ n.img.state }}" role="img" aria-label="{{ n.img.aria }}" style="flex:none;position:relative;box-sizing:border-box;width:{{ n.img.w }};height:{{ n.img.h }};border-radius:4px;overflow:hidden;border:{{ n.img.border }};background:{{ n.img.bg }};display:flex;align-items:center;justify-content:center"><sc-if value="{{ n.img.ready }}" hint-placeholder-val="{{ true }}"><span style="font:300 {{ n.img.glyphSz }}/1 'Material Symbols Outlined';color:var(--il-paper,#ffffff);background:var(--il-ink,#111111);border-radius:50%;padding:4px">{{ n.img.glyph }}</span></sc-if><sc-if value="{{ n.img.waiting }}" hint-placeholder-val="{{ false }}"><span style="padding:4px;text-align:center;font:{{ t.dateFont }};font-size:11px;line-height:1.25;color:{{ t.sub }};overflow:hidden">{{ n.img.alt }}</span></sc-if></div></sc-if>
+<sc-if value="{{ n.isTitle }}" hint-placeholder-val="{{ false }}"><span style="font:{{ t.nameFont }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.text }}</span></sc-if>
+<sc-if value="{{ n.isText }}" hint-placeholder-val="{{ true }}"><span style="font:{{ t.dateFont }};font-size:14px;color:{{ n.fg }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ n.text }}</span></sc-if>
+<sc-if value="{{ n.isProgress }}" hint-placeholder-val="{{ false }}"><div style="display:flex;align-items:center;gap:10px"><div style="flex:1;height:8px;box-sizing:border-box;border:1.5px solid var(--il-ink,#111111);border-radius:4px;overflow:hidden"><div style="height:100%;width:{{ n.pct }};background:var(--il-ink,#111111)"></div></div><span style="flex:none;font:{{ t.numFont }};font-size:13px">{{ n.text }}</span></div></sc-if>
+<sc-if value="{{ n.isList }}" hint-placeholder-val="{{ false }}"><div style="display:flex;flex-direction:column"><sc-for list="{{ n.items }}" as="li" hint-placeholder-count="3"><div style="display:flex;align-items:baseline;gap:8px;padding:3px 0;border-bottom:1px dotted var(--il-rule,#bbbbbb)"><span style="flex:1;min-width:0;font:{{ t.dateFont }};font-size:14px;color:var(--il-ink,#111111);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ li.label }}</span><span style="flex:none;font:{{ t.dateFont }};font-size:12px;color:{{ t.sub }}">{{ li.meta }}</span></div></sc-for></div></sc-if>
+<sc-if value="{{ n.isButton }}" hint-placeholder-val="{{ false }}"><div tabindex="0" role="button" onKeyDown="{{ key }}" onClick="{{ n.on }}" style="align-self:flex-start;height:36px;padding:0 12px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;gap:6px;cursor:pointer;font:{{ t.titleFont }}"><span style="font:400 20px/1 'Material Symbols Outlined'">{{ n.icon }}</span>{{ n.text }}</div></sc-if>
+</sc-for>
+</div>
+</div>
+<sc-if value="{{ w.hasMeta }}" hint-placeholder-val="{{ true }}"><span style="flex:none;font:{{ t.dateFont }};font-size:11.5px;color:{{ t.sub }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ w.meta }}</span></sc-if>
+</sc-if>
+</div>
+</sc-if>
+</sc-for>
+</div>
+<sc-for list="{{ swaps }}" as="sw" hint-placeholder-count="0"><div tabindex="0" role="button" aria-label="{{ sw.aria }}" title="{{ sw.aria }}" data-widget="widget-swap" onKeyDown="{{ key }}" onClick="{{ sw.on }}" style="position:absolute;left:{{ sw.x }};top:{{ sw.y }};transform:{{ sw.tf }};z-index:3;width:44px;height:44px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.selBg }};color:{{ t.selFg }};display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 0 3px var(--il-paper,#ffffff)"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ sw.icon }}</span></div></sc-for>
+</div>
+<sc-for list="{{ cross }}" as="cx" hint-placeholder-count="0"><div tabindex="{{ cx.tab }}" role="button" aria-label="{{ cx.aria }}" title="{{ cx.aria }}" data-widget="page-move" onKeyDown="{{ key }}" onClick="{{ cx.on }}" style="opacity:{{ cx.op }};position:absolute;left:{{ cx.x }};top:50%;transform:translate(-50%,-50%);z-index:4;width:44px;height:44px;box-sizing:border-box;border-radius:50%;background:var(--il-paper,#ffffff);color:var(--il-ink,#111111);border:2px solid var(--il-ink,#111111);box-shadow:0 0 0 3px var(--il-paper,#ffffff);display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 24px/1 'Material Symbols Outlined'">{{ cx.icon }}</span></div></sc-for>
+</div>
+<div style="flex:none;text-align:center;font:{{ t.dateFont }};font-size:12.5px;color:{{ t.sub }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ hint }}</div>
+
+<sc-if value="{{ showSheet }}" hint-placeholder-val="{{ false }}">
+<div onClick="{{ closeSheet }}" style="position:absolute;inset:0;z-index:4;background:transparent"></div>
+<div role="dialog" aria-label="{{ sheet.title }}" data-widget="{{ sheet.wid }}" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:{{ sheet.w }};max-height:calc(100% - 24px);z-index:5;box-sizing:border-box;background:{{ t.cardBg }};border:{{ t.cardBorder }};border-radius:{{ t.cardR }};box-shadow:{{ t.cardSh }};padding:16px 18px;display:flex;flex-direction:column;gap:10px;overflow:auto">
+<div style="display:flex;align-items:center;gap:12px;padding-bottom:8px;border-bottom:{{ t.headRule }}"><span style="font:300 30px/1 'Material Symbols Outlined'">{{ sheet.icon }}</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font:{{ t.nameFont }}">{{ sheet.title }}</span><span style="font:{{ t.dateFont }};font-size:13px;color:{{ t.sub }}">{{ sheet.sub }}</span></div><div tabindex="0" role="button" aria-label="Close" title="Close" onKeyDown="{{ key }}" onClick="{{ closeSheet }}" style="width:44px;height:44px;flex:none;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font:400 22px/1 'Material Symbols Outlined'">close</span></div></div>
+<div style="display:grid;grid-template-columns:repeat({{ sheet.cols }},minmax(0,1fr));column-gap:22px">
+<sc-for list="{{ sheet.rows }}" as="r" hint-placeholder-count="4"><div onClick="{{ r.rowOn }}" aria-label="{{ r.rowAria }}" style="cursor:{{ r.cur }};min-width:0;display:flex;align-items:center;gap:12px;min-height:{{ sheet.rowH }};padding:6px 0;border-bottom:{{ t.sepSoft }}"><span style="flex:none;width:28px;text-align:center;font:400 24px/1 'Material Symbols Outlined'">{{ r.icon }}</span><div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px"><span style="font:{{ t.titleFont }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ r.name }}</span><span style="font:{{ t.dateFont }};font-size:12.5px;line-height:1.35;color:{{ t.sub }};display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:{{ sheet.clamp }};overflow:hidden">{{ r.sub }}</span></div><sc-if value="{{ r.hasBtn }}" hint-placeholder-val="{{ true }}"><div tabindex="0" role="button" aria-label="{{ r.btnAria }}" onKeyDown="{{ key }}" onClick="{{ r.on }}" style="flex:none;height:44px;min-width:44px;padding:0 12px;box-sizing:border-box;border-radius:{{ t.btnR }};background:{{ t.btnBg }};box-shadow:{{ t.btnSh }};color:{{ r.fg }};display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;font:{{ t.titleFont }}"><span style="font:400 22px/1 'Material Symbols Outlined'">{{ r.btnIcon }}</span>{{ r.btn }}</div></sc-if></div></sc-for>
+</div>
+<sc-if value="{{ sheet.hasNote }}" hint-placeholder-val="{{ false }}"><span style="font:{{ t.dateFont }};font-size:12.5px;color:{{ t.sub }};text-wrap:pretty">{{ sheet.note }}</span></sc-if>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":702,"height":884},"mode":{"editor":"enum","options":["browse","edit","add","menu","loading","page2","settings"],"default":"browse"},"orient":{"editor":"enum","options":["portrait","landscape"],"default":"portrait"},"t":{"editor":null},"apps":{"editor":null},"onOpen":{"editor":null}}'>
+class Component extends DCLogic {
+  // The home screen: a separate app the window manager keeps in its scratchpad and shows full screen (see shell.home).
+  // Home is pages of widgets on a fixed grid. Apps is a built-in widget (drawn natively, no sandbox); every other widget
+  // is a script that returns a description built from seven primitives, which Home draws in the voice and refreshes.
+  // Widgets flow in order: a page holds lanes of 4 columns (1 lane in portrait, 2 in landscape) and when one doesn't fit
+  // it starts the next lane or page, so adding widgets adds pages instead of squeezing the others.
+  state = {};
+  componentDidMount() {
+    ['reading', 'sky', 'photo'].forEach((id, i) => setTimeout(() => this.setState(st => ({ imgs: { ...(st.imgs || {}), [id]: true } })), 900 + i * 500));
+    const m = this.props.mode;
+    if (m === 'edit' || m === 'add') this.setState({ edit: true, add: m === 'add' });
+    if (m === 'menu') this.setState({ menu: 'KOReader' }); if (m === 'settings') this.setState({ edit: true, cfg: 'cat1', pg: 1 });
+    if (m === 'loading' || m === 'page2') this.setState({ pg: 1 });
+  }
+  renderVals() {
+    const s = this.state, p = this.props, u = x => this.setState(x);
+    const T0 = { headRule: '1.5px solid var(--il-ink,#111)', headFont: "600 24px 'IBM Plex Sans'", headVar: 'normal', headLs: 'normal', dateFont: "400 14px 'IBM Plex Mono'", sub: 'var(--il-ink-soft,#4a4a4a)',
+      btnR: '10px', btnBg: 'var(--il-paper,#fff)', btnSh: 'inset 0 0 0 1.5px var(--il-ink,#111)', cardBg: 'var(--il-paper,#fff)', cardBorder: '1.5px solid var(--il-ink,#111)', cardR: '14px', cardSh: 'none',
+      lblFont: "500 12px 'IBM Plex Mono'", lblVar: 'normal', lblCase: 'uppercase', lblLs: '.06em', lblC: 'var(--il-ink-soft,#4a4a4a)', nameFont: "600 17px 'IBM Plex Sans'", numFont: "500 14px 'IBM Plex Mono'",
+      titleFont: "500 15px 'IBM Plex Sans'", pageFont: "500 14px 'IBM Plex Mono'", appNameFont: "500 13px 'IBM Plex Sans'", appNameVar: 'normal', appNameLs: 'normal', sep: '1.5px solid var(--il-ink,#111)', sepSoft: '1px solid var(--il-rule,#bbb)',
+      selBg: 'var(--il-ink,#111)', selFg: 'var(--il-paper,#fff)', ink: 'var(--il-ink,#111)' };
+    const t = { ...T0, ...(p.t || {}) }, INK = 'var(--il-ink,#111111)', FAINT = 'var(--il-rule,#bbbbbb)', LAND = (p.orient || 'portrait') === 'landscape';
+    const APPS = p.apps && p.apps.length ? p.apps : [['KOReader', 'menu_book'], ['Firefox ESR', 'public'], ['Notes', 'edit_note'], ['Terminal', 'terminal'], ['Calendar', 'calendar_month'], ['Files', 'folder'], ['Settings', 'settings'], ['Software', 'storefront']].map(([name, icon]) => ({ name, icon }));
+    const open = (name, where) => { if (p.onOpen) p.onOpen(name, where || 'new'); };
+    const key = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.currentTarget.click(); } if (e.key === 'Escape') { u(s.menu ? { menu: null } : s.add ? { add: false } : { edit: false }); } };
+    const editing = !!s.edit;
+
+    // ---- the grid: lanes of 4 columns; rows per lane depend on the screen
+    const LANES = LAND ? 2 : 1, R = LAND ? 3 : 5, C = 4 * LANES, GAP = 10;
+    const CELL_H = LAND ? 176 : 146; // what one row comes to on this panel; only used to decide how many app rows fit
+
+    // ---- widget catalogue (script widgets show the description their script last returned)
+    const CAT = {
+      favs: { name: 'Favourite apps', icon: 'star', builtin: true, sizes: ['rows2', 'rows1', 'rows3'], src: 'Built into Home', blurb: 'Your favourites, in your order' },
+      all: { name: 'All apps', icon: 'apps', builtin: true, sizes: ['rows3', 'rows5', 'rows2'], src: 'Built into Home', blurb: 'Every app A–Z, with its own pager' },
+      cat: { name: 'App category', icon: 'category', builtin: true, many: true, config: true, sizes: ['rows2', 'rows1', 'rows3'], src: 'Built into Home', blurb: 'The apps of one category, picked in its settings; add as many as you like' },
+      reading: { name: 'Continue reading', app: 'KOReader', icon: 'menu_book', sizes: ['wide', 'half'], src: 'Built in · koreader-progress', every: 'when KOReader saves its progress',
+        image: { src: 'cover:~/Books/invisible-cities.epub', w: 52, h: 78, side: 'left', alt: 'Cover of Invisible Cities', glyph: 'auto_stories' },
+        body: [{ k: 'title', text: 'Invisible Cities' }, { k: 'progress', value: .63, text: '63 % · ch. 5 of 9' }, { k: 'button', icon: 'play_arrow', text: 'Continue', act: () => open('KOReader') }], meta: '' },
+      notes: { name: 'Recent notes', app: 'Notes', icon: 'edit_note', sizes: ['half', 'wide'], src: 'Built in · notes-recent', every: 'when a note is saved',
+        body: [{ k: 'list', items: [['Reading group', '20:30'], ['Packing list', 'Tue'], ['Ideas for the garden', '2 Nov']] }], meta: '3 of 41 notes' },
+      calendar: { name: 'Next', app: 'Calendar', icon: 'calendar_month', sizes: ['half', 'wide'], src: 'Built in · calendar-next', every: 'every 15 minutes',
+        body: [{ k: 'title', text: 'Reading group' }, { k: 'text', text: 'Mon 28 Sep · 20:30' }, { k: 'text', text: 'Then: Dentist, Thu 09:00', soft: true }], meta: 'Updated 20:05' },
+      updates: { name: 'Updates', app: 'Packages', icon: 'system_update', sizes: ['half'], src: 'Built in · package-updates', every: 'after each check for updates',
+        body: [{ k: 'title', text: '3 updates' }, { k: 'text', text: 'Firefox ESR, KOReader, libwayland', soft: true }, { k: 'button', icon: 'arrow_forward', text: 'Review', act: () => open('Settings') }], meta: 'Checked today 07:12' },
+      sky: { name: 'Tonight’s sky', app: 'Your widget', icon: 'nights_stay', sizes: ['half'], src: 'Your widget · ~/.local/share/glassine/widgets/sky', every: 'every hour after sunset', mine: true,
+        image: { src: 'file:~/.cache/sky/moon.png', w: 56, h: 56, side: 'left', alt: 'Moon, 42 % lit', glyph: 'dark_mode' },
+        body: [{ k: 'title', text: 'Moon 42 %' }, { k: 'text', text: 'Sets 01:12 · Saturn high in the south', soft: true }], meta: 'Your widget · sky.lua' },
+      photo: { name: 'Photo of the day', app: 'Gallery', icon: 'photo', sizes: ['wide'], src: 'Built in · photo-frame', every: 'once a day',
+        image: { src: 'file:~/Pictures/Frame', w: 132, h: 78, side: 'left', alt: 'Today’s photo from Pictures/Frame', glyph: 'landscape' },
+        body: [{ k: 'title', text: 'Elbe meadows' }, { k: 'text', text: 'March · 1 of 48 in Pictures/Frame', soft: true }], meta: 'Changes at 06:00' },
+      clock: { name: 'Date and battery', app: 'System', icon: 'schedule', sizes: ['half'], src: 'Built in · system-status', every: 'every minute while Home is shown',
+        body: [{ k: 'title', text: 'Friday 6 November' }, { k: 'text', text: 'Battery 69 % · about 2 weeks', soft: true }], meta: '' }
+    };
+    // ---- pages: every widget belongs to a page. A page packs its widgets in order (each takes cs × rs cells, a half
+    // fills the first free half on the page, then the next lane); what doesn't fit spills to the front of the next page,
+    // and empty pages close up.
+    const span = (id, size) => size === 'half' ? [2, 1] : size === 'wide' ? [4, 1] : [4, Math.min(R, Number(String(size).replace('rows', '')) || 3)];
+    const packPage = items => { const out = [], over = []; let lane = 0, y = 0, holes = [];
+      items.forEach(w => { if (over.length) { over.push(w); return; } const [cs, rs] = span(w.id, w.size);
+        if (cs === 2 && holes.length) { const h = holes.shift(); out.push({ ...w, lane: h.lane, x: 2, y: h.y, cs, rs }); return; }
+        if (y + rs > R) { lane++; y = 0; }
+        if (lane >= LANES) { over.push(w); return; }
+        const it = { ...w, lane, x: 0, y, cs, rs }; out.push(it); if (cs === 2) holes.push(it); y += rs; });
+      return [out, over]; };
+    const strip = w => ({ id: w.id, size: w.size, key: w.key, props: w.props, page: w.page });
+    const normalize = L0 => { const groups = []; L0.forEach(w => { const p0 = w.page || 0; (groups[p0] = groups[p0] || []).push(w); });
+      const G0 = groups.filter(g => g && g.length), res = [], laid = []; let carry = [], k = 0;
+      while (k < G0.length || carry.length) { const [out, over] = packPage([...carry, ...(G0[k] || [])]); k++;
+        if (out.length) { const pn = laid.length, base = res.length; laid.push(out.map((w, j) => ({ ...w, page: pn, i: base + j }))); res.push(...out.map(w => strip({ ...w, page: pn }))); }
+        carry = over; }
+      return { list: res, pages: laid.length ? laid : [[]] }; };
+    const W0 = [{ id: 'reading', size: 'wide', page: 0 }, { id: 'notes', size: 'half', page: 0 }, { id: 'calendar', size: 'half', page: 0 }, { id: 'favs', size: 'rows2', page: 0 }, { id: 'updates', size: 'half', page: 0 }, { id: 'sky', size: 'half', page: 0 }, { id: 'all', size: 'rows3', page: 1 }, { id: 'cat', size: 'rows2', page: 1, key: 'cat1', props: { category: 'Games' } }];
+    const NW = normalize(s.widgets || W0), WL = NW.list, setW = f => u(st => ({ widgets: normalize(f(normalize(st.widgets || W0).list)).list }));
+    const pages = NW.pages.map(P => [...P]);
+    if (editing) { const lastP = pages.length - 1, [out, over] = packPage([...pages[lastP], { id: '+add', size: 'half' }]);
+      if (over.length && pages[lastP].length) pages.push([{ id: '+add', size: 'half', lane: 0, x: 0, y: 0, cs: 2, rs: 1 }]); else pages[lastP].push(out.find(w => w.id === '+add') || over[0]); }
+    const nP = pages.length, pg = Math.max(0, Math.min(s.pg || 0, nP - 1)), here = pages[pg];
+    const swapped = (a, b) => { const o = [...WL]; [o[a], o[b]] = [o[b], o[a]]; return o; };
+    const swapIdx = (a, b) => setW(() => swapped(a, b));
+    const fitsOn = (L1, p0) => !packPage(L1.filter(w => w.page === p0))[1].length;
+
+    // ---- images: the script only declares a slot; Home fills it later, off the render path
+    const imgReady = id => p.mode !== 'loading' && !!(s.imgs || {})[id];
+    const imgOf = (im, id, fullW) => { const ok = imgReady(id);
+      return { state: ok ? 'ready' : 'pending', ready: ok, waiting: !ok, w: fullW ? '100%' : im.w + 'px', h: im.h + 'px', alt: im.alt, aria: im.alt + (ok ? '' : ' (loading)'), glyph: im.glyph || 'image', glyphSz: Math.min(im.h, im.w || 999) > 80 ? '30px' : '20px',
+        border: ok ? '1.5px solid var(--il-ink,#111111)' : '1.5px dashed var(--il-ink-soft,#4a4a4a)',
+        bg: ok ? 'repeating-linear-gradient(45deg,var(--il-ink,#111111) 0 1.5px,transparent 1.5px 5px),repeating-linear-gradient(-45deg,var(--il-ink,#111111) 0 1px,transparent 1px 6px)' : 'transparent' }; };
+
+    // ---- app widgets (built in, drawn natively): Favourite apps, All apps (A–Z, always there) and App category (one
+    // category, set in its settings). Each shows as many rows of four as its height holds and pages the rest itself.
+    const FAV = ['KOReader', 'Firefox ESR', 'Notes', 'Terminal', 'Calendar', 'Files', 'Mail', 'Chess'];
+    const byName = n => APPS.find(a => a.name === n), az = L0 => [...L0].sort((a, b) => a.name.localeCompare(b.name));
+    const CATS = [...new Set(APPS.map(a => a.cat).filter(Boolean))].sort();
+    const instKey = w => w.key || w.id, nameOf = w => w.id === 'cat' ? ((w.props || {}).category || 'App category') : CAT[w.id].name;
+    const appsCard = (w, rs) => { const src = w.id === 'favs' ? FAV.map(byName).filter(Boolean) : w.id === 'cat' ? az(APPS.filter(a => a.cat === (w.props || {}).category)) : az(APPS);
+      const K = instKey(w), rows = Math.max(1, Math.floor((rs * CELL_H + (rs - 1) * GAP - 60) / 94)), per = rows * 4, n = Math.max(1, Math.ceil(src.length / per)), ap = Math.min((s.apg || {})[K] || 0, n - 1);
+      const setAp = v => u(st => ({ apg: { ...(st.apg || {}), [K]: v } }));
+      return { isApps: true, isScript: false, appRows: rows, appsOp: editing ? '0.35' : '1', apps: [],
+        pager: { show: !editing && n > 1, label: (ap + 1) + '/' + n, prev: () => setAp(Math.max(0, ap - 1)), next: () => setAp(Math.min(n - 1, ap + 1)), prevFg: ap === 0 ? FAINT : INK, nextFg: ap === n - 1 ? FAINT : INK },
+        list: src.slice(ap * per, ap * per + per) }; };
+    const tilesOf = L0 => L0.map(a => ({
+        ...a, aria: a.name + (FAV.includes(a.name) ? ', favourite' : '') + ': tap to open on a new screen, hold for more', ol: s.menu === a.name ? '2px solid ' + INK : 'none',
+          down: () => { if (editing) return; clearTimeout(this.ht); this.held = false; this.ht = setTimeout(() => { this.held = true; u({ menu: a.name }); }, 550); },
+          up: () => { clearTimeout(this.ht); if (this.held) { this.held = false; return; } if (!editing) open(a.name); }, cancel: () => clearTimeout(this.ht) }));
+
+    // ---- cards on this page
+    const cards = here.map(w => { const gc = (w.lane * 4 + w.x + 1) + ' / span ' + w.cs, gr = (w.y + 1) + ' / span ' + w.rs;
+      if (w.id === '+add') return { isAdd: true, isCard: false, gc, gr };
+      const c = CAT[w.id], k = c.sizes.indexOf(w.size), nextSize = c.sizes[(k + 1) % c.sizes.length], NM = nameOf(w);
+      const btn = (ok, icon, label, fn) => ({ icon, label, tab: ok ? '0' : '-1', fg: ok ? INK : FAINT, on: ok ? fn : null });
+      const sizeLbl = z => z === 'half' ? 'half width' : z === 'wide' ? 'full width' : z.replace('rows', '') + ' rows tall';
+      const ctl = (c.config ? [btn(true, 'tune', 'Settings for ' + NM, () => u({ cfg: instKey(w) }))] : [])
+        .concat([btn(c.sizes.length > 1, c.builtin ? 'height' : w.size === 'wide' ? 'close_fullscreen' : 'open_in_full', 'Make ' + NM + ' ' + sizeLbl(nextSize), () => setW(L => L.map((x, j) => j === w.i ? { ...x, size: nextSize } : x)))])
+        .concat(c.fixed ? [] : [btn(true, 'close', 'Remove ' + NM, () => setW(L => L.filter((x, j) => j !== w.i)))]);
+      const base = { isAdd: false, isCard: true, gc, gr, name: NM, icon: c.icon, editing, ctl, border: editing ? '2px dashed ' + INK : '1.5px solid ' + INK, pager: { show: false } };
+      if (c.builtin) { const A = appsCard(w, w.rs); return { ...base, ...A, apps: tilesOf(A.list) }; }
+      return { ...base, isApps: false, isScript: true, appRows: 1, apps: [], meta: editing ? c.src : c.meta, hasMeta: !!(editing ? c.src : c.meta),
+        hasSide: !!c.image, side: c.image ? imgOf(c.image, w.id) : imgOf({ w: 1, h: 1, alt: '' }, '-'),
+        body: c.body.map((n, ni) => ({ isImage: n.k === 'image', img: n.k === 'image' ? imgOf(n, w.id + ni, true) : null, isTitle: n.k === 'title', isText: n.k === 'text', isProgress: n.k === 'progress', isList: n.k === 'list', isButton: n.k === 'button', text: n.text || '', fg: n.soft ? t.sub : INK,
+          pct: n.value != null ? Math.round(n.value * 100) + '%' : '0%', items: (n.items || []).map(([label, meta]) => ({ label, meta })), icon: n.icon || '', on: editing ? null : n.act || null })) }; });
+
+    // ---- arranging: a swap button on every edge two widgets share (like the dividers), and on the page's side edges
+    // to swap with the neighbour on the previous or next page
+    // Arranging zooms out: the page sits in a frame with the neighbouring pages peeking in at the sides (tap one to turn
+    // to it); the round buttons in the gaps swap across the page break.
+    const swaps = [], cross = [], EX = editing ? 46 : 0, ET = editing ? 8 : 0;
+    const peek = (P, n, left) => ({ show: editing && !!P, left, aria: 'Turn to page ' + n, on: () => u({ pg: n - 1 }),
+      boxes: (P || []).map(w => ({ gc: (w.lane * 4 + w.x + 1) + ' / span ' + w.cs, gr: (w.y + 1) + ' / span ' + w.rs })) });
+    const peekPrev = peek(pages[pg - 1], pg, `calc(${3 * EX}px - 100% - 18px)`), peekNext = peek(pages[pg + 1], pg + 2, `calc(100% - ${EX}px + 18px)`);
+    const E = { x: EX + 'px', t: ET + 'px', w: `calc(100% - ${2 * EX}px)`, frame: editing ? '1.5px solid var(--il-ink,#111111)' : 'none' };
+    if (editing) {
+      const cw = u0 => `calc((100% - ${(C - 1) * GAP}px) * ${u0 / C} + ${u0 * GAP}px)`, rh = v0 => `calc((100% - ${(R - 1) * GAP}px) * ${v0 / R} + ${v0 * GAP}px)`;
+      const X = (u0, edge) => edge ? `calc(${cw(u0)} - ${GAP / 2}px)` : null, Y = (v0, edge) => edge ? `calc(${rh(v0)} - ${GAP / 2}px)` : null;
+      const midX = (a, b) => `calc((${cw(a)} + ${cw(b)} - ${GAP}px) / 2)`, midY = (a, b) => `calc((${rh(a)} + ${rh(b)} - ${GAP}px) / 2)`;
+      const real = here.filter(w => w.id !== '+add').map(w => ({ ...w, x0: w.lane * 4 + w.x, x1: w.lane * 4 + w.x + w.cs, y0: w.y, y1: w.y + w.rs }));
+      const nm = nameOf;
+      real.forEach(a => real.forEach(b => { if (a === b) return;
+        const oy0 = Math.max(a.y0, b.y0), oy1 = Math.min(a.y1, b.y1), ox0 = Math.max(a.x0, b.x0), ox1 = Math.min(a.x1, b.x1);
+        if (!fitsOn(swapped(a.i, b.i), pg)) return;
+        if (a.x1 === b.x0 && oy0 < oy1) swaps.push({ x: X(a.x1, true), y: midY(oy0, oy1), icon: 'swap_horiz', aria: 'Swap ' + nm(a) + ' and ' + nm(b), on: () => swapIdx(a.i, b.i) });
+        if (a.y1 === b.y0 && ox0 < ox1) swaps.push({ x: midX(ox0, ox1), y: Y(a.y1, true), icon: 'swap_vert', aria: 'Swap ' + nm(a) + ' and ' + nm(b), on: () => swapIdx(a.i, b.i) }); }));
+      // between pages: the round buttons in the gaps swap this whole page with the one beside it; the page you are
+      // arranging moves with it, so you stay on it
+      const nReal = NW.pages.length, swapPages = (a, b) => u(st => { const L = normalize(st.widgets || W0).list;
+        return { widgets: normalize(L.map(w => ({ ...w, page: w.page === a ? b : w.page === b ? a : w.page }))).list, pg: b }; });
+      if (pg > 0 && pg < nReal) cross.push({ x: (EX - 9) + 'px', icon: 'sync_alt', aria: 'Swap page ' + (pg + 1) + ' with page ' + pg, op: '1', tab: '0', on: () => swapPages(pg, pg - 1) });
+      if (pg < nReal - 1) cross.push({ x: 'calc(100% - ' + (EX - 9) + 'px)', icon: 'sync_alt', aria: 'Swap page ' + (pg + 1) + ' with page ' + (pg + 2), op: '1', tab: '0', on: () => swapPages(pg, pg + 1) });
+    }
+    const swapsOut = swaps.map(w => ({ ...w, tf: w.edgeL ? 'translate(-36%,-50%)' : w.edgeR ? 'translate(-64%,-50%)' : 'translate(-50%,-50%)' }));
+
+    // ---- sheets: add a widget, or an app's menu
+    let sheet = null;
+    const cfgW = s.cfg ? WL.find(w => instKey(w) === s.cfg) : null;
+    if (cfgW) { const cur = (cfgW.props || {}).category;
+      // what the category widget's widget.edit.lua returns: a title and a list whose rows set a prop with ui.set{}
+      sheet = { wid: 'widget-settings', icon: 'tune', title: 'Show apps from', sub: 'Settings for ' + nameOf(cfgW) + ' · drawn from its widget.edit.lua', rows: CATS.map(cn => { const on = cn === cur, n = APPS.filter(a => a.cat === cn).length;
+          return { icon: on ? 'radio_button_checked' : 'radio_button_unchecked', name: cn, sub: n + ' apps', hasBtn: false, btn: '', btnIcon: '', fg: INK, btnAria: '', rowOn: () => setW(L => L.map(x => instKey(x) === s.cfg ? { ...x, props: { ...(x.props || {}), category: cn } } : x)), rowAria: 'Show ' + cn + (on ? ' (chosen)' : '') }; }),
+        note: 'Home re-renders the widget as soon as a setting changes. Settings are this widget’s props, kept per widget, so two category widgets can show two categories.' };
+    } else if (s.add) { const used = WL.map(w => w.id);
+      sheet = { wid: 'widget-gallery', cols: 2, w: LAND ? '880px' : 'calc(100% - 24px)', icon: 'widgets', title: 'Add a widget', sub: 'Built in, from your apps, or your own', rows: Object.keys(CAT).map(id => { const c = CAT[id], inUse = used.includes(id);
+          if (c.builtin) { const has = inUse && !c.many; return { icon: c.icon, name: c.name, sub: 'Built into Home · ' + c.blurb + ' · ' + c.sizes.map(z => z.replace('rows', '')).sort().join(', ') + ' rows tall', hasBtn: !c.fixed, btn: '', btnIcon: has ? 'check' : 'add', fg: has ? t.sub : INK,
+            btnAria: has ? c.name + ' is on Home already' : 'Add ' + c.name, on: has ? null : () => u(st => { const key = c.many ? 'cat' + Date.now().toString(36) : undefined; const N0 = normalize(st.widgets || W0), nl = normalize([...N0.list, { id, size: c.sizes[0], key, props: c.many ? { category: CATS[0] } : undefined, page: N0.pages.length - 1 }]); return { widgets: nl.list, add: false, pg: nl.pages.length - 1, cfg: c.config ? key : null }; }) }; }
+          return { icon: c.icon, name: c.name, sub: c.src + ' · ' + (c.sizes.length > 1 ? 'half or full width' : c.sizes[0] === 'wide' ? 'full width' : 'half width') + ' · refreshes ' + c.every, hasBtn: true, btn: '', btnIcon: inUse ? 'check' : 'add', fg: inUse ? t.sub : INK,
+            btnAria: inUse ? c.name + ' is on Home already' : 'Add ' + c.name, on: inUse ? null : () => u(st => { const N0 = normalize(st.widgets || W0), nl = normalize([...N0.list, { id, size: c.sizes[0], page: N0.pages.length - 1 }]); return { widgets: nl.list, add: false, pg: nl.pages.length - 1 }; }) }; }),
+        note: '' };
+    } else if (s.menu) { const a = APPS.find(x => x.name === s.menu) || { name: s.menu, icon: 'apps' };
+      sheet = { wid: 'app-menu', icon: a.icon, title: a.name, sub: FAV.includes(a.name) ? 'Favourite' : 'App', rows: [
+          { icon: 'add_to_queue', name: 'Open on a new screen', sub: 'The same as a tap', hasBtn: true, btn: '', btnIcon: 'arrow_forward', fg: INK, btnAria: 'Open ' + a.name + ' on a new screen', on: () => { u({ menu: null }); open(a.name, 'new'); } },
+          { icon: 'splitscreen', name: 'Open on this screen', sub: 'Beside the apps already there; not when it has four', hasBtn: true, btn: '', btnIcon: 'arrow_forward', fg: INK, btnAria: 'Open ' + a.name + ' on this screen', on: () => { u({ menu: null }); open(a.name, 'here'); } },
+          { icon: FAV.includes(a.name) ? 'star' : 'star_outline', name: FAV.includes(a.name) ? 'Remove from favourites' : 'Add to favourites', sub: 'Favourites come first in Apps', hasBtn: true, btn: '', btnIcon: 'arrow_forward', fg: INK, btnAria: 'Toggle favourite', on: () => u({ menu: null }) },
+          { icon: 'tune', name: 'Configure', sub: 'Settings › Apps › ' + a.name, hasBtn: true, btn: '', btnIcon: 'arrow_forward', fg: INK, btnAria: 'Configure ' + a.name, on: () => { u({ menu: null }); open('Settings', 'new'); } }], note: '' };
+    }
+    const L = { sheetW: LAND ? '600px' : '560px' };
+    const hb = (icon, label, on, sel) => ({ icon, label, on, bg: sel ? t.selBg : t.btnBg, fg: sel ? t.selFg : INK });
+    return { t, L, key, noMenu: e => e.preventDefault(), mode: cfgW ? 'settings' : s.add ? 'add' : s.menu ? 'menu' : editing ? 'edit' : 'browse',
+      G: { C, R, gap: GAP + 'px' }, cards, swaps: swapsOut, cross, E, peekPrev, peekNext,
+      headTitle: editing ? 'Arrange Home' : 'Friday 6 November', headSub: editing ? 'Swap on any shared edge · tap a page at the side to turn to it' : '20:11 · battery 69 % · 3 updates waiting',
+      headBtns: editing ? [hb('check', 'Done arranging', () => u({ edit: false, add: false }), true)] : [hb('dashboard_customize', 'Arrange widgets', () => u({ edit: true }), false)],
+      paged: nP > 1, pgLabel: (pg + 1) + '/' + nP, pgPrev: () => u({ pg: Math.max(0, pg - 1) }), pgNext: () => u({ pg: Math.min(nP - 1, pg + 1) }), pgPrevFg: pg === 0 ? FAINT : INK, pgNextFg: pg === nP - 1 ? FAINT : INK,
+      openAdd: () => u({ add: true }),
+      hint: editing ? '⤢ changes size · × removes · round buttons swap whole pages' : 'Tap an app to open it on a new screen · hold for more',
+      showSheet: !!sheet, sheet: sheet ? { cols: 1, w: L.sheetW, ...sheet, hasNote: !!sheet.note, rowH: sheet.cols === 2 ? '84px' : '56px', clamp: sheet.cols === 2 ? 3 : 1, rows: sheet.rows.map(r => ({ rowOn: null, rowAria: r.name, ...r, cur: r.rowOn ? 'pointer' : 'default' })) } : { wid: '', cols: 1, w: L.sheetW, rowH: '56px', clamp: 1, icon: '', title: '', sub: '', rows: [], note: '' }, closeSheet: () => u({ add: false, menu: null, cfg: null }) };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Appearance in every window</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>body{margin:0}a{color:#1b1b1b}a:hover{color:#4a4a4a}</style>
+</helmet>
+<div data-spec-id="fit.appearance" style="width:1640px;height:1900px;box-sizing:border-box;padding:28px 32px;display:flex;flex-direction:column;gap:18px;background:#e6e6e6;color:#1b1b1b;font-family:'IBM Plex Sans',sans-serif">
+<div style="display:flex;flex-direction:column;gap:6px">
+<span style="font:500 13px/1.2 'IBM Plex Mono',monospace;color:#3d3d3d">fit.appearance</span>
+<h1 style="margin:0;font:600 26px/1.2 'IBM Plex Sans',sans-serif;text-wrap:balance">Appearance in every window</h1>
+<p style="margin:0;max-width:900px;font:400 15px/1.5 'IBM Plex Sans',sans-serif;color:#2b2b2b;text-wrap:pretty">The same page in five windows, each at real size. Under each label: what the fit policy did there (open, which sections collapsed into rows, how many pages) and whether the tabs page through More. Labels come from the page itself, so they stay true in every theme.</p>
+</div>
+<dc-import name="ThemeBar" voice="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" on-pick="{{ pick }}" hint-size="100%,112px"></dc-import>
+<div style="display:flex;flex-wrap:wrap;gap:32px 32px;align-items:flex-start">
+<figure style="margin:0;display:flex;flex-direction:column;gap:8px">
+<figcaption style="display:flex;flex-direction:column;gap:3px;max-width:702px">
+<span style="font:600 15px/1.3 'IBM Plex Sans',sans-serif">Full screen · portrait</span>
+<span style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#3d3d3d">702 × 884 px window · 451 px text width</span>
+<span data-fit-outcome="full" style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#1b1b1b;text-wrap:pretty">{{ out.full }}</span>
+</figcaption>
+<div style="width:702px;height:884px;position:relative;outline:1.5px solid #1b1b1b;overflow:hidden;background:#ffffff"><dc-import name="EinkSettingsCard" theme="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" page="appearance" win="full" orient="portrait" on-fit="{{ fit.full }}" style="width:100%;height:100%" hint-size="702px,884px"></dc-import></div>
+</figure><figure style="margin:0;display:flex;flex-direction:column;gap:8px">
+<figcaption style="display:flex;flex-direction:column;gap:3px;max-width:345px">
+<span style="font:600 15px/1.3 'IBM Plex Sans',sans-serif">Left half · portrait</span>
+<span style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#3d3d3d">345 × 884 px window · 235 px text width</span>
+<span data-fit-outcome="column" style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#1b1b1b;text-wrap:pretty">{{ out.column }}</span>
+</figcaption>
+<div style="width:345px;height:884px;position:relative;outline:1.5px solid #1b1b1b;overflow:hidden;background:#ffffff"><dc-import name="EinkSettingsCard" theme="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" page="appearance" win="column" orient="portrait" on-fit="{{ fit.column }}" style="width:100%;height:100%" hint-size="345px,884px"></dc-import></div>
+</figure><figure style="margin:0;display:flex;flex-direction:column;gap:8px">
+<figcaption style="display:flex;flex-direction:column;gap:3px;max-width:462px">
+<span style="font:600 15px/1.3 'IBM Plex Sans',sans-serif">Left half · landscape</span>
+<span style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#3d3d3d">462 × 650 px window · 352 px text width</span>
+<span data-fit-outcome="land" style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#1b1b1b;text-wrap:pretty">{{ out.land }}</span>
+</figcaption>
+<div style="width:462px;height:650px;position:relative;outline:1.5px solid #1b1b1b;overflow:hidden;background:#ffffff"><dc-import name="EinkSettingsCard" theme="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" page="appearance" win="column" orient="landscape" on-fit="{{ fit.land }}" style="width:100%;height:100%" hint-size="462px,650px"></dc-import></div>
+</figure><figure style="margin:0;display:flex;flex-direction:column;gap:8px">
+<figcaption style="display:flex;flex-direction:column;gap:3px;max-width:702px">
+<span style="font:600 15px/1.3 'IBM Plex Sans',sans-serif">Top half · portrait</span>
+<span style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#3d3d3d">702 × 436 px window · 451 px text width</span>
+<span data-fit-outcome="row" style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#1b1b1b;text-wrap:pretty">{{ out.row }}</span>
+</figcaption>
+<div style="width:702px;height:436px;position:relative;outline:1.5px solid #1b1b1b;overflow:hidden;background:#ffffff"><dc-import name="EinkSettingsCard" theme="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" page="appearance" win="row" orient="portrait" on-fit="{{ fit.row }}" style="width:100%;height:100%" hint-size="702px,436px"></dc-import></div>
+</figure><figure style="margin:0;display:flex;flex-direction:column;gap:8px">
+<figcaption style="display:flex;flex-direction:column;gap:3px;max-width:345px">
+<span style="font:600 15px/1.3 'IBM Plex Sans',sans-serif">Quarter · portrait</span>
+<span style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#3d3d3d">345 × 436 px window · 235 px text width</span>
+<span data-fit-outcome="quarter" style="font:500 12px/1.4 'IBM Plex Mono',monospace;color:#1b1b1b;text-wrap:pretty">{{ out.quarter }}</span>
+</figcaption>
+<div style="width:345px;height:436px;position:relative;outline:1.5px solid #1b1b1b;overflow:hidden;background:#ffffff"><dc-import name="EinkSettingsCard" theme="{{ voice }}" scheme="{{ scheme }}" pen="{{ pen }}" page="appearance" win="quarter" orient="portrait" on-fit="{{ fit.quarter }}" style="width:100%;height:100%" hint-size="345px,436px"></dc-import></div>
+</figure>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"voice": {"editor": "enum", "options": ["white", "editorial", "stationery"], "default": "white"}, "$preview": {"width": 1640, "height": 1900}}'>
+class Component extends DCLogic {
+  state = { fits: {} };
+  renderVals() {
+    const s = this.state, p = this.props;
+    const keep = k => f => this.setState(st => ({ fits: { ...st.fits, [k]: f } }));
+    const say = f => !f ? 'Measuring…' : (f.fit === 'open' ? 'Open' : f.fit === 'paged' ? 'Paged' : f.fit === 'collapsed' ? 'Collapsed' : 'Collapsed and paged')
+      + (f.collapsed.length ? ': ' + f.collapsed.join(', ') + ' as rows' : '') + (f.pages > 1 ? ' · ' + f.pages + ' pages' : '')
+      + (f.compact ? ' · compact header' : '') + (f.narrow ? ' · icon tabs' : '') + (f.tabsPaged ? ' · tabs page through More' : '');
+    const K = ['full', 'column', 'land', 'row', 'quarter'];
+    return { voice: s.voice ?? p.voice ?? 'white', scheme: 'eink', pen: '1',
+      pick: (k, v) => this.setState({ [k]: v }),
+      fit: { full: keep('full'), column: keep('column'), land: keep('land'), row: keep('row'), quarter: keep('quarter') },
+      out: { full: say(s.fits.full), column: say(s.fits.column), land: say(s.fits.land), row: say(s.fits.row), quarter: say(s.fits.quarter) } };
+  }
+}
+</script>
+</body>
+</html>
