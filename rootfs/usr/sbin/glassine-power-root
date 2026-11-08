@@ -8,7 +8,12 @@ case "$1" in
 	poweroff) : > /run/glassine-poweroff; user_shutdown; exec poweroff ;;   # glassine-splash shows the power-off screen
 	reboot)   user_shutdown; exec reboot ;;
 	sleep)    exec kill -USR1 $(pidof glassine-powerd) ;;               # glassine-powerd sleeps as on the power key
-	android)  exec /usr/sbin/glassine-slot android ;;
+	android)  # the device's second system: its package names the slot in slots.conf (ANDROID_SLOT=a|b);
+	          # made active and marked successful, so the boot loader keeps it (GlassineOS/boot glassine-slot)
+		s=$(sed -n 's/^ANDROID_SLOT=\([ab]\)$/\1/p' "${GLASSINE_SLOTS_CONF:-/etc/glassine/slots.conf}" 2>/dev/null | tail -n 1)
+		[ -n "$s" ] || { echo "$0: no second system on this device" >&2; exit 3; }
+		/usr/sbin/glassine-slot set-active "$s" --successful || exit
+		exec reboot ;;
 	recovery) exec /usr/sbin/glassine-reboot-clean recovery ;;   # p9 (TWRP or a mainline test image); its "Reboot" comes back here
 	*) echo "usage: $0 sleep|poweroff|reboot|android|recovery" >&2; exit 2 ;;
 esac

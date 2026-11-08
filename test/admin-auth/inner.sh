@@ -24,7 +24,13 @@ ok "kid: apk-del, apk-upgrade refused" "as kid $R apk-del foo; a=\$?; as kid $R 
 ok "kid: timezone, ntp, gpu, freeze, ddr, uninstall refused" "for v in 'timezone Europe/Berlin' 'ntp off' 'gpu panel on' 'freeze x off' 'ddr saver' 'uninstall a.b'; do as kid $R \$v; [ \$? = 77 ] || exit 1; done; true"
 ok "kid: nothing changed on disk" "[ ! -e /etc/timezone ] && [ ! -e /etc/glassine/ntp-off ]"
 ok "kid: rotation, apk-update, apk-ack work" "as kid $R rotation 90 && [ \"\$(cat /etc/glassine/rotation)\" = 'lock 90' ] && as kid $R apk-update && as kid $R apk-ack && ran update"
-ok "kid: android and recovery need no password" "as kid $P android && as kid $P recovery && ran android"
+ok "android without slots.conf: refused (3), no slot write" "as kid $P android; [ \$? = 3 ] && ! ran set-active"
+mkdir -p /etc/glassine; printf '# the second system\nANDROID_SLOT=a\n' > /etc/glassine/slots.conf; cp /usr/sbin/glassine /usr/sbin/reboot
+ok "kid: android and recovery need no password" "as kid $P android && as kid $P recovery && ran 'set-active a --successful' && ran recovery"
+echo 'ANDROID_SLOT=a;x' > /etc/glassine/slots.conf
+ok "android: a malformed slot is refused" "as kid $P android; [ \$? = 3 ]"
+printf '#!/bin/sh\nexit 1\n' > /usr/sbin/glassine-slot; echo ANDROID_SLOT=b > /etc/glassine/slots.conf; : > /tmp/ran
+ok "android: a failed slot write doesn't reboot" "as kid $P android; [ \$? = 1 ] && ! ran ."
 ok "the session verb is gone" "as anna $P session sway; [ \$? != 0 ] && ! ran sway"
 ok "admin: timezone without a password" "as anna $R timezone Europe/Berlin && [ \"\$(cat /etc/timezone)\" = Europe/Berlin ]"
 ok "admin: apk-add still needs the password" "as anna $R apk-add foo; [ \$? = 77 ] && ! ran 'add'"
