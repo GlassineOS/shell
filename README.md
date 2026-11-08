@@ -62,6 +62,21 @@ Other repositories use these, so renaming one means changing them in the same re
 - `~/.config/glassine/gestures` (Settings writes, sway reads): `FINGERS DIRECTION ACTION` and `2 tap ACTION`; actions `nothing refresh screen-next screen-prev move-next move-prev overview home minimize fullscreen unfullscreen swap close quick notices page-up page-down` (`right-click` for the tap); Settings reads the old `ws-next ws-prev launcher maximize` as `screen-next screen-prev home fullscreen` and never writes them
 - `~/.config/glassine/home.conf` (GlassineOS/home's layout file): Settings edits only its `favourites`, under `home.conf.lock`; the old `~/.config/glassine-shell/favourites` is only imported, when there is no `home.conf`
 
+## Design
+
+`design/` holds the design boards of this repository's programs: a canvas of screens, states and small prototypes, one file per board (`*.dc.html`, the design-component format of GlassineOS/ui), with the layout in `canvas.json` and the icon font in `design/fonts/`. GlassineOS/ui renders and checks them, at the version in `test/ui.ref` (the same pin as the tests); `make` clones it to `~/.cache/glassine/ui/<version>`, `BOARDS_UI=DIR` uses another checkout.
+
+```
+make boards-preview            # the canvas in a browser, with live reload and a voice, scheme and pen picker
+make boards-check              # render every board, report errors and unsupported features
+make boards-icons              # rebuild the icon font from its pinned source
+make boards-icons-check        # fail when a board names an icon the font lacks
+```
+
+The checks run in Alpine with GlassineOS/ui's pinned Chromium (`tools/in-alpine` there, Docker needed), no display. No reference images are stored here. CI runs `boards-check` without network, on pull requests that touch `design/`, `test/ui.ref` or the workflow.
+
+A new board: add `NAME.dc.html` under `design/` (design-component format, GlassineOS/ui README "Boards") and an entry in `canvas.json` to place it. If it uses a new icon, run `make boards-icons`; then run `make boards-check` and commit the board.
+
 ## Licence
 
 GPL-2.0-or-later (`LICENSE`). The icons in `rootfs/usr/share/icons/glassine-mono` are CC BY-SA 4.0 (their own `LICENSE`). The wayland protocols in `src/wayland/protocols` keep the licences in their headers.

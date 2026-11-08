@@ -27,3 +27,54 @@ jobs:
       - uses: actions/checkout@v7
       - name: the host tests
         run: make check
+  # The design boards: GlassineOS/ui's checks at the version in test/ui.ref, on Alpine with its
+  # pinned Chromium, without network. A pull request runs them only when test/boards-scope says
+  # they can be affected; main and manual runs always do.
+  boards:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
+      - name: scope
+        id: scope
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            scope=$(git diff --name-only HEAD^1 HEAD | sh test/boards-scope)
+          else
+            scope=boards
+          fi
+          echo "scope=$scope" >> "$GITHUB_OUTPUT"
+          echo "checks: $scope"
+      - name: GlassineOS/ui at the pinned version
+        if: steps.scope.outputs.scope == 'boards'
+        run: |
+          UI=$HOME/.cache/glassine/ui/$(cat test/ui.ref)
+          git clone -q https://github.com/GlassineOS/ui "$UI"
+          git -C "$UI" checkout -q "$(cat test/ui.ref)"
+          echo "UI=$UI" >> "$GITHUB_ENV"
+      - name: Alpine with the pinned Chromium
+        if: steps.scope.outputs.scope == 'boards'
+        run: |
+          docker build -t boards --build-arg CHROMIUM="$(cat "$UI/tools/chromium.pin")" - <<'EOF'
+          FROM alpine:3.24
+          ARG CHROMIUM
+          RUN apk add --no-cache "chromium=$CHROMIUM" nodejs npm font-dejavu make python3 py3-fonttools py3-brotli
+          EOF
+          docker run --rm -v "$UI":/ui -w /ui boards npm ci --ignore-scripts --no-audit --no-fund
+      - name: every icon the boards name is in the vendored font
+        if: steps.scope.outputs.scope == 'boards'
+        run: docker run --rm -v "$PWD":/src -w /src boards python3 fonts/subset-material-symbols.py --check
+      - name: design boards in headless Chromium, no network
+        if: steps.scope.outputs.scope == 'boards'
+        run: |
+          docker run --rm --network none -v "$PWD":/src -v "$UI":/ui:ro -w /src \
+            -e CHROMIUM=/usr/bin/chromium-browser -e BOARDS_NO_SANDBOX=1 boards \
+            /ui/tools/boards check design
+      - name: the report
+        if: failure() && steps.scope.outputs.scope == 'boards'
+        uses: actions/upload-artifact@v7
+        with:
+          name: boards-check
+          path: out/boards-check.json
+          if-no-files-found: ignore

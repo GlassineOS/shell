@@ -1,0 +1,6 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# boards-scope: does a change need the design board checks? Reads changed paths (one per line)
+# on stdin and prints "boards" when it can affect them, else "none".
+paths='^(design/|test/ui\.ref$|test/boards-scope$|fonts/subset-material-symbols\.py$|Makefile$|\.github/workflows/build\.yml$)'
+if grep -qE "$paths"; then echo boards; else echo none; fi

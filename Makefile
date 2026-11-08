@@ -40,3 +40,24 @@ clean:
 	rm -f $(OUT)/glassine-shell-wl $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark
 
 .PHONY: all check clean
+
+# The design boards (design/, README "Design"), checked with the GlassineOS/ui version pinned in
+# test/ui.ref (the one pin, also for the tests). Unlike test/ui.sh this never takes a ../ui
+# checkout: the checks are for the pinned version. BOARDS_UI=DIR overrides it.
+UI_REF := $(shell cat test/ui.ref)
+BOARDS_UI ?= $(HOME)/.cache/glassine/ui/$(UI_REF)
+$(HOME)/.cache/glassine/ui/$(UI_REF):
+	git clone -q https://github.com/GlassineOS/ui $@
+	git -C $@ checkout -q $(UI_REF)
+
+boards-preview: | $(BOARDS_UI)
+	$(BOARDS_UI)/tools/boards preview design
+boards-check: | $(BOARDS_UI)
+	$(BOARDS_UI)/tools/in-alpine $(BOARDS_UI)/tools/boards check design
+# the icon font: rebuild it from the pinned source / fail when a board names an icon it lacks
+boards-icons: | $(BOARDS_UI)
+	$(BOARDS_UI)/tools/in-alpine python3 fonts/subset-material-symbols.py
+boards-icons-check: | $(BOARDS_UI)
+	$(BOARDS_UI)/tools/in-alpine python3 fonts/subset-material-symbols.py --check
+
+.PHONY: boards-preview boards-check boards-icons boards-icons-check
