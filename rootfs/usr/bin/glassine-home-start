@@ -1,7 +1,7 @@
 #!/bin/sh
 # The home app (spec 001 FR-029), started by the sway config and restarted when it
 # dies; glassine-swayd keeps it in the scratchpad and shows it over the work area.
-# Its app_id as glassine-swayd and glassine-shell-wl find it: $GLASSINE_HOME_APP_ID,
+# Its app_id as glassine-swayd and glassine-shell find it: $GLASSINE_HOME_APP_ID,
 # else the first word of /etc/glassine/home-app, else glassine-home. Started from
 # its desktop entry (ID.desktop in the XDG data dirs, field codes dropped), else a
 # command of that name. Neither: exits quietly (no home app installed).

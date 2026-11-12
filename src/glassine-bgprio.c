@@ -689,14 +689,14 @@ static void release_all(void)
 /* never in glassine-fg: the desktop itself (never clamp or boost the
  * compositor; the panel daemon places its own threads) */
 static const char *const no_boost[] = {
-    "sway", "sway-glassine", "Xwayland", "glassine-epdd", "glassine-epdd-desktop", "glassine-shell-wl",
+    "sway", "sway-glassine", "Xwayland", "glassine-epdd", "glassine-epdd-desktop", "glassine-shell",
     "glassine-session", "glassine-session-sway", "glassine-bgprio", "glassine-swayd", "dbus-daemon", NULL
 };
 
 /* never frozen, whatever the conf says: the desktop blocks on these (a frozen
  * audio client can stall the PipeWire graph) */
 static const char *const never_freeze[] = {
-    "sway", "sway-glassine", "Xwayland", "glassine-epdd", "glassine-epdd-desktop", "glassine-shell-wl",
+    "sway", "sway-glassine", "Xwayland", "glassine-epdd", "glassine-epdd-desktop", "glassine-shell",
     "glassine-session", "glassine-session-sway", "glassine-bgprio", "glassine-swayd",
     "pipewire", "pipewire-pulse", "wireplumber", "dbus-daemon", NULL
 };

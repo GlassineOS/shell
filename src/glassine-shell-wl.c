@@ -538,7 +538,7 @@ static void o_mode(void *d, struct wl_output *o, uint32_t flags, int32_t w, int3
     if (flags & WL_OUTPUT_MODE_CURRENT) { out_w = w; out_h = h; }
 }
 /* the output turned (glassine-rotd: sway's output transform): the layout is made for
- * one size, so exit with RESIZE_EXIT; glassine-shell-wl-run starts it again at once,
+ * one size, so exit with RESIZE_EXIT; glassine-shell-run starts it again at once,
  * without counting a death */
 #define RESIZE_EXIT 75
 static int be_ready;

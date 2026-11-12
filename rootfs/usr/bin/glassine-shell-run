@@ -1,5 +1,5 @@
 #!/bin/sh
-# The sway session's bar (the sway config execs this): glassine-shell-wl, restarted
+# The sway session's bar (the sway config execs this): glassine-shell, restarted
 # when it dies (killing it = how a new build is taken up). Three deaths within
 # a minute: the session is given up -- $XDG_RUNTIME_DIR/glassine-shell-failed, then
 # sway exits; glassine-session-sway reports that to glassine-session, which marks the
@@ -10,16 +10,16 @@ LOG=${XDG_RUNTIME_DIR:-/tmp}/glassine-shell.log
 n=0 t0=$(date +%s)
 while :; do
     # a clean exit (SIGTERM) with sway gone ends this
-    /usr/bin/glassine-shell-wl >>"$LOG" 2>&1
+    /usr/bin/glassine-shell >>"$LOG" 2>&1
     rc=$?
     [ $rc -eq 75 ] && continue
     [ $rc -eq 0 ] && ! swaymsg -t get_version >/dev/null 2>&1 && exit 0
     now=$(date +%s)
     if [ $((now - t0)) -gt 60 ]; then n=0 t0=$now; fi
     n=$((n + 1))
-    echo "glassine-shell-wl-run: $(date) glassine-shell-wl died ($n)" >>"$LOG"
+    echo "glassine-shell-run: $(date) glassine-shell died ($n)" >>"$LOG"
     if [ $n -ge 3 ]; then
-        echo "glassine-shell-wl-run: giving the sway session up" >>"$LOG"
+        echo "glassine-shell-run: giving the sway session up" >>"$LOG"
         touch "${XDG_RUNTIME_DIR:-/tmp}/glassine-shell-failed"
         exec swaymsg exit
     fi

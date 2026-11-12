@@ -1,4 +1,4 @@
-# glassine-shell-wl: the bar, overview, divider mode, quick settings
+# glassine-shell: the bar, overview, divider mode, quick settings
 # glassine-swayd: the window model over sway's IPC
 # glassine-bgprio: hidden apps deprioritized, frozen and paged out
 # glassine-zpark: one parked app's zram slots to disk (glassine-zram park)
@@ -6,10 +6,10 @@ S = src
 OUT ?= .
 CFLAGS ?= -O2 -Wall
 
-all: $(OUT)/glassine-shell-wl $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark
+all: $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark
 
-$(OUT)/glassine-shell-wl: $(wildcard $(S)/glassine-shell*) $(S)/wayland/sway-ipc.c $(S)/wayland/build-shell-wl.sh
-	sh $(S)/wayland/build-shell-wl.sh $(S) $@
+$(OUT)/glassine-shell: $(wildcard $(S)/glassine-shell*) $(S)/wayland/sway-ipc.c $(S)/wayland/build-shell.sh
+	sh $(S)/wayland/build-shell.sh $(S) $@
 
 $(OUT)/glassine-swayd: $(S)/glassine-swayd.c $(S)/glassine-popupd.h $(S)/wayland/swayd-handles.c $(S)/wayland/sway-ipc.c $(S)/wayland/build-swayd.sh
 	sh $(S)/wayland/build-swayd.sh $(S) $@
@@ -37,6 +37,6 @@ check:
 	sh test/zram/test.sh
 
 clean:
-	rm -f $(OUT)/glassine-shell-wl $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark
+	rm -f $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark
 
 .PHONY: all check clean
