@@ -196,6 +196,14 @@ glassine_defaults
 # sed -i, a copy) leaves it root:root 0644 -> "Permission denied" in glassine-settings
 #
 [ -e /etc/glassine/eink.conf ] && chgrp video /etc/glassine/eink.conf && chmod 664 /etc/glassine/eink.conf
+# the same for the power settings (power.conf, also the light's), made here when missing:
+# the settings write it as the user, and a user can't make a file in /etc/glassine
+[ -e /etc/glassine/power.conf ] || : > /etc/glassine/power.conf
+chgrp video /etc/glassine/power.conf && chmod 664 /etc/glassine/power.conf
+# the light: the settings and the shell write the backlight's brightness as the user
+for b in /sys/class/backlight/*/brightness; do
+    [ -e "$b" ] && chgrp video "$b" && chmod 664 "$b"
+done
 # datable: what eink.conf holds at each session start (its globals
 # vanished between two starts, unnoticed)
 if [ -e /etc/glassine/eink.conf ]; then
