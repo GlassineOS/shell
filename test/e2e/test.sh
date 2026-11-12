@@ -8,9 +8,10 @@
 # and 4 windows (levels from swayd's list, the pair of 3 is level 2), Swap,
 # swap within a half, Direction and the crossing toggle reaching swayd and
 # changing the tree, Home shown and hidden by the bar's button (a foot window
-# with Home's app_id), the empty screen when the last app closes and an app
-# filling it, `launch ID new` on a new screen, and the launch argument
-# reaching the app's argv (stub apps that record it) or being refused.
+# with Home's app_id), the empty screen (the session starting with no apps, the
+# last app closing) and an app filling it, `launch ID new` on a new screen, and
+# the launch argument reaching the app's argv (stub apps that record it) or
+# being refused.
 # Logs: OUT/*.log. exit 1 on a failed check.
 #   test.sh [OUT]
 set -eu

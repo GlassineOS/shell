@@ -11,7 +11,7 @@ A screen holds one to four windows. Until now the top bar opened a screen menu w
 Overview had a separate button, and the four windows of a 2 × 2 screen shared one inner line. The design
 moves every app and screen action into Overview, opened from the bar's screen button, and keeps the layout
 on the dividers, each with its own position. Home becomes its own app (`GlassineOS/home` spec 001); this spec covers how the
-shell shows and hides it and what happens to a screen whose last app closes.
+shell shows and hides it and what happens to a screen with no apps.
 
 ## User scenarios
 
@@ -55,19 +55,23 @@ Escape, so several swaps take one tap each.
 **Then** only an outline moves while I drag, it snaps to ⅓, ½, ⅔ and to the bottom half's line, and the
 windows redraw once when I let go; the bottom half's line stays where it was.
 
-### Scenario 6 – Close the last app on a screen (Priority: P1)
+### Scenario 6 – A screen with no apps (Priority: P1)
 
 **Given** I am on screen 2 of 7 and it has one app,
 **When** I close that app,
 **Then** the screen stays, empty, with Home over it; the bar reads "2/7" with no app icons; tapping an app on
-Home fills this screen. Leaving Home any other way removes the empty screen. When it was the only screen,
+Home fills this screen. Leaving Home any other way removes the empty screen. When it is the only screen,
 Home stays until an app opens.
+
+**Given** the session starts and its only screen has no apps,
+**Then** Home is over it, as over any empty screen: the bar reads "1/1", Escape and the Home button do nothing,
+and the first app opened fills the screen.
 
 ### Scenario 7 – Go Home and back (Priority: P1)
 
 **When** I tap the bar's Home button (leftmost) or swipe four fingers up,
 **Then** Home appears full screen over the current screen with the bar above it; tapping Home again, Escape
-or opening an app hides it.
+or opening an app hides it. Over a screen with no apps Home is shown without asking (FR-040).
 
 ## Requirements
 
@@ -134,11 +138,13 @@ or opening an app hides it.
 - **FR-029**: The home app is a setting of the session: Home by default, any app may take its place. Everything below
   that says Home means the home app.
 - **FR-030**: Home is shown over the whole current screen, under the bar, when the Home button is tapped, the Home gesture
-  runs (four fingers up), or the last app on the current screen closes. The bar stays above it.
+  runs (four fingers up), or the current screen has no apps (the session starts on an empty screen, or its last
+  app closes). The bar stays above it.
 - **FR-031**: Home hides when an app opens, when the Home button is tapped again, or on Escape.
-- **FR-040**: When the last app on the current screen closes, that screen stays, empty, under Home. Opening an app
-  from Home fills it. Leaving Home any other way removes it. When it was the only screen, Home stays until an
-  app opens (Escape and the Home button do nothing then).
+- **FR-040**: Whenever the current screen has no apps (the session starts on an empty screen, its last app closes,
+  or the view lands on an empty screen), that screen stays, empty, under Home. Opening an app from Home fills it.
+  Leaving Home any other way removes it. When it is the only screen, Home stays until an app opens (Escape and
+  the Home button do nothing then).
 - **FR-041**: Previous screen and Next screen are the gestures' names for switching screens.
 
 **Launching apps**

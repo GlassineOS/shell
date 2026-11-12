@@ -140,9 +140,13 @@ mkfifo $XDG_RUNTIME_DIR/vptr
 $B/vptr $XDG_RUNTIME_DIR/vptr $LW $LH 2>/out/vptr.log &
 sleep 1.5
 sm -q "exec foot -a glassine-home sleep 600"; sleep 1.5
-expect "Home's stand-in waits in the scratchpad" "$(geo_of glassine-home | cut -d' ' -f1)" "__i3_scratch"
+expect "the session starts with no apps: Home over the only screen, the shell told" "$(cur) $(geo_of glassine-home) $(homest 'home 1 hole 1')" "1 focus 1 1 0 52 702 884 home 1 hole 1"
+tap bar home
+expect "... the Home button does nothing on the only screen" "$(geo_of glassine-home) $(homest 'home 1 hole 1') $(grep -c 'Home stays until an app opens' $SL)" "1 0 52 702 884 home 1 hole 1 1"
+term P
+expect "... the first app fills it, Home hides" "$(geo_of P) $(geo_of glassine-home | cut -d' ' -f1) $(homest 'home 0 hole 0')" "1 0 52 702 884 __i3_scratch home 0 hole 0"
 
-sm -q "workspace number 1"; term P; term Q
+sm -q "workspace number 1"; term Q
 sm -q "workspace number 2"; term R; term S; term U
 sm -q "workspace number 3"; term V; term W; term X; term Y
 expect "three screens with 2, 3 and 4 windows" "$(tree count)" "2 3 4"

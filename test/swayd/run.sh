@@ -412,6 +412,10 @@ cmd "home toggle"
 expect "home toggle: shown" "$(lasthome "home 1 0")" "home 1 0"
 cmd "home toggle"
 expect "home toggle: hidden" "$(lasthome "home 0 0") $(geo_of A) $(geo_of glassine-home | cut -d' ' -f1)" "home 0 0 1 0 0 702 936 __i3_scratch"
+swaymsg -q "workspace number 2"; sleep 1
+expect "the view goes to a screen with no apps: it stays, empty, under Home" "$(cur) $(geo_of glassine-home) $(lasthome "home 1 2")" "1 2 focus 2 2 0 0 702 936 home 1 2"
+swaymsg -q "workspace 1"; sleep 1
+expect "... the view leaves it: Home hides, the screen goes" "$(cur) $(geo_of glassine-home | cut -d' ' -f1) $(lasthome "home 0 0")" "1 focus 1 __i3_scratch home 0 0"
 swaymsg -q "workspace number 2"; term B
 kill_ B
 expect "the last window on the current screen closed: it stays, empty, under Home" "$(cur) $(geo_of glassine-home) $(lasthome "home 1 2")" "1 2 focus 2 2 0 0 702 936 home 1 2"
