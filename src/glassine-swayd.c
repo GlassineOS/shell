@@ -48,8 +48,8 @@
  * gets "dividers N,ORIENT0 x,y,w,h,vert,level,a,b,pos ...".
  * Home an app (app_id: home_app) kept in the scratchpad, shown
  * floating over the work area under the bar. Empty screen (spec
- * 001 FR-040): the last window on the focused screen closes -> the
- * screen stays under Home; Home hidden any other way than by an app
+ * 001 FR-040): the focused screen has no apps (the session starts
+ * on one, its last window closes) -> the screen stays under Home; Home hidden any other way than by an app
  * opening there -> that screen goes (not the only one). The shell
  * gets "home VISIBLE HOLE" on every change.
  * commands datagrams on $XDG_RUNTIME_DIR/glassine-swayd (glassine-shell's divider
@@ -1781,21 +1781,9 @@ static void next_set(const char *m)
     next_ms = mono_ms();
 }
 
-/* the views of the last pass: the focused workspace and its windows (for "the last
- * one closed"), and the highest tiled view id (a higher one is new) */
-static char pf_name[64];
-static long pf_ids[MAXV];
-static int pf_n, seen_init;
+/* the highest tiled view id of the last pass (a higher one is new) */
+static int seen_init;
 static long seen_view;
-
-static int view_exists(long id)
-{
-    for (int i = 0; i < nws; i++) {
-        for (int a = 0; a < ws[i].nv; a++) if (ws[i].v[a].id == id) return 1;
-        for (int a = 0; a < ws[i].nf; a++) if (ws[i].f[a].id == id) return 1;
-    }
-    return 0;
-}
 
 /* new tiled windows: `next` sends the first where it was asked to go; any hides
  * Home (filling the hole if it is there) and ends `full` on the screen it lands
@@ -1862,9 +1850,12 @@ static int fresh(void)
     return did;
 }
 
-/* the empty screen (FR-040): the last window on the focused screen closed -> it
- * stays, Home on it. Home left anywhere but on the focused screen hides (an empty
- * screen under it goes). Home mapped tiled goes to the scratchpad. 1: changed */
+/* the empty screen (FR-040): the focused screen has no apps (the session starts on
+ * one, its last app closed, the view went to an empty one) -> it stays, Home on it.
+ * Home left anywhere but on the focused screen hides (an empty screen under it
+ * goes). Home mapped tiled goes to the scratchpad. 1: changed. A launch never
+ * leaves the focused screen empty on the way (its placeholder is a tiled view
+ * there; `next` moves a window and the view in one command list) */
 static int empty_screen(void)
 {
     if (home_tiled && home_id) {
@@ -1881,24 +1872,12 @@ static int empty_screen(void)
     }
     if (hole[0] && !ws_named(hole)) hole[0] = 0;
     if (hole[0] && f && !strcmp(hole, f->name) && f->nv) hole[0] = 0;   /* (filled) */
-    if (!f || !home_id || hole[0] || f->nv || strcmp(f->name, pf_name) || !pf_n) return 0;
+    if (!f || !home_id || hole[0] || f->nv) return 0;
     for (int i = 0; i < f->nf; i++) if (f->f[i].id != home_id) return 0;
-    for (int j = 0; j < pf_n; j++) if (view_exists(pf_ids[j])) return 0;   /* moved away, not closed */
-    LOG("workspace %s: its last window closed: empty, under Home", f->name);
+    LOG("workspace %s: no apps: empty, under Home", f->name);
     snprintf(hole, sizeof hole, "%s", f->name);
     if (!home_on[0]) home_show();
     return 1;
-}
-
-static void pf_note(void)
-{
-    Ws *f = ws_focused();
-    pf_n = 0;
-    pf_name[0] = 0;
-    if (!f) return;
-    snprintf(pf_name, sizeof pf_name, "%s", f->name);
-    for (int a = 0; a < f->nv && pf_n < MAXV; a++) pf_ids[pf_n++] = f->v[a].id;
-    for (int a = 0; a < f->nf && pf_n < MAXV; a++) if (f->f[a].id != home_id) pf_ids[pf_n++] = f->f[a].id;
 }
 
 /* scrclose: every app on screen n closes, the screen goes (the view first leaves it) */
@@ -2031,7 +2010,7 @@ static void settle_state(void)
         if (covers()) continue;
         break;
     }
-    if (read_tree()) { hints(); handles_update(0); pf_note(); home_send(0); }
+    if (read_tree()) { hints(); handles_update(0); home_send(0); }
 }
 
 /* Home's app_id (see home_app) and the rule that keeps it in the scratchpad from its map */
