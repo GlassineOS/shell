@@ -1,0 +1,13 @@
+#!/sbin/openrc-run
+# Screen autorotate from the accelerometer (see glassine-rotd's header): turns the sway
+# output; the device's sensor, output and axes in /etc/glassine/rotd.conf, the setting
+# (auto or a fixed turn) in /etc/glassine/rotation. It waits for sway by itself.
+description="Screen autorotate"
+command=/usr/sbin/glassine-rotd
+supervisor=supervise-daemon
+output_log=/var/log/glassine-rotd.log
+error_log=/var/log/glassine-rotd.log
+
+depend() {
+	after glassine-powerd
+}
