@@ -30,7 +30,7 @@ if [ -e /run/glassine-setup.active ]; then
     # the first-run setup runs (glassine-session): its window instead of the shell
     desk="sway-glassine" shell=glassine-setup
 else
-    desk="sway-glassine glassine-swayd" shell=glassine-shell-wl
+    desk="sway-glassine glassine-swayd" shell=glassine-shell
     # the session gave the bar up after repeated deaths (glassine-session-sway)
     for f in /run/user/*/glassine-shell-failed; do [ -e "$f" ] && bad="$bad shell-gave-up"; done
 fi

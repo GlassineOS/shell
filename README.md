@@ -2,7 +2,7 @@
 
 The desktop around the apps on an e-ink device running sway:
 
-- **`glassine-shell-wl`:** the bar (Home button, screen button), Overview, divider mode, quick settings, power view and notifications, drawn natively. Its requests and the verbs it sends to `glassine-swayd` are listed at the top of `src/glassine-shell.c`.
+- **`glassine-shell`:** the bar (Home button, screen button), Overview, divider mode, quick settings, power view and notifications, drawn natively. Its requests and the verbs it sends to `glassine-swayd` are listed at the top of `src/glassine-shell.c`.
 - **`glassine-swayd`:** the window model over sway's IPC: tiles, drag handles, dividers and when the on-screen keyboard shows.
 - **`glassine-settings`:** the touch settings app (Python, GTK3, cairo), with its root helper.
 - **`glassine-setup`:** the first-run setup, with its root helper.
@@ -18,7 +18,7 @@ The desktop around the apps on an e-ink device running sway:
 ## Build and test
 
 ```
-make            # glassine-shell-wl, glassine-swayd, glassine-bgprio and glassine-zpark, on Alpine
+make            # glassine-shell, glassine-swayd, glassine-bgprio and glassine-zpark, on Alpine
 make check      # compiles, then the host tests in Docker
 ```
 
@@ -26,7 +26,7 @@ make check      # compiles, then the host tests in Docker
 
 ## Installing
 
-The programs from `make` go to `/usr/bin` (`glassine-shell-wl`, `glassine-swayd`) and `/usr/sbin` (`glassine-bgprio`, `glassine-zpark`); everything under `rootfs/` goes to the same path on the target. A package adds `glassine-zram` to a runlevel (`rc-update add glassine-zram default`); `glassine-bgprio` needs no service, the session starts it. Their kernel needs: cgroup v2 with the cpu controller (the freezer and `uclamp` are used when present), `process_madvise`, zram with writeback (`CONFIG_ZRAM_WRITEBACK`; `writeback_after` and `glassine-zram writeback` also need `CONFIG_ZRAM_TRACK_ENTRY_ACTIME` for the idle age), a second compression algorithm (`CONFIG_ZRAM_MULTI_COMP`) and, for the per-app recompression of a park without a spill, a zram `recompress` that takes `page_index=` / `page_indexes=` (without it such a park reports the failed step); the spill needs `btrfs-progs` and loop devices, else it falls back to a plain file.
+The programs from `make` go to `/usr/bin` (`glassine-shell`, `glassine-swayd`) and `/usr/sbin` (`glassine-bgprio`, `glassine-zpark`); everything under `rootfs/` goes to the same path on the target. A package adds `glassine-zram` to a runlevel (`rc-update add glassine-zram default`); `glassine-bgprio` needs no service, the session starts it. Their kernel needs: cgroup v2 with the cpu controller (the freezer and `uclamp` are used when present), `process_madvise`, zram with writeback (`CONFIG_ZRAM_WRITEBACK`; `writeback_after` and `glassine-zram writeback` also need `CONFIG_ZRAM_TRACK_ENTRY_ACTIME` for the idle age), a second compression algorithm (`CONFIG_ZRAM_MULTI_COMP`) and, for the per-app recompression of a park without a spill, a zram `recompress` that takes `page_index=` / `page_indexes=` (without it such a park reports the failed step); the spill needs `btrfs-progs` and loop devices, else it falls back to a plain file.
 
 `/etc/glassine/zram` (shell `KEY=value`, all optional; a device ships its own values):
 
@@ -52,13 +52,13 @@ To turn the spill off on a device: `rc-service glassine-zram stop`, then `WB_SIZ
 Other repositories use these, so renaming one means changing them in the same release:
 
 - `/run/glassine-epdd-desktop.ctl`, `/run/glassine-epdd-desktop.classes`, `/run/glassine-rotation`, `/run/glassine-light`, `/run/glassine-bgprio.sock`
-- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram`, `home-app` (the home app's app_id, default `glassine-home`; or `$GLASSINE_HOME_APP_ID`; glassine-swayd, glassine-shell-wl and `glassine-home-start` read it the same way, and the session starts it from `ID.desktop`, else a command of that name) and the session's renderer flags
+- `/etc/glassine/*`: `eink.conf`, `rotation`, `power.conf`, `launch-boost`, `grid-hidden`, `bgprio.conf`, `fg-boost`, `zram`, `home-app` (the home app's app_id, default `glassine-home`; or `$GLASSINE_HOME_APP_ID`; glassine-swayd, glassine-shell and `glassine-home-start` read it the same way, and the session starts it from `ID.desktop`, else a command of that name) and the session's renderer flags
 - the OpenRC service `glassine-zram`, its spill directory `<USERDATA_PREFIX>/zram/` on userdata, and `glassine-zram park|writeback|status`
 - `$XDG_RUNTIME_DIR/glassine-swayd`, `~/.config/glassine-shell/theme`
 - `glassine-swayd VERB ARGS` (one datagram on `$XDG_RUNTIME_DIR/glassine-swayd`; window ids in hex): `place M T up|down|left|right` (also on M's own screen), `newscreen M FOLLOW`, `swaphalves W`, `swapin W`, `swap A B`, `cross W`, `direction W`, `orient L S`, `turn W`, `full [W]` (no W: the focused window), `swapdir D`, `scrmove N -1|1`, `scrclose N`, `home show|hide|toggle`, `next new|here|hole`, `apps?`
 - glassine-swayd to glassine-shell (`$XDG_RUNTIME_DIR/glassine-shell`): `dividers N,ORIENT0 D...` and `divider-tap ...`, each divider `x,y,w,h,vert,level,a,b,pos` (level 0 the main line, 1 and 2 the inner line of half 0 and 1; pos its position as a fraction); `home VISIBLE HOLE` (HOLE: the empty screen's number under Home, 0 none)
-- `glassine-shell-wl`, started by the sway config through `glassine-shell-wl-run`
-- `glassine-shell-wl launch ID new|here [ARG]` (Home's taps; spec 001 FR-045 to FR-048): ARG an absolute path of an existing regular file, given to the app where its Exec line has `%f %F %u %U` (else appended, never through a shell), or for `glassine-settings` the name of a page Settings opens on (its page argument, e.g. `updates`, `power#2`); anything else is refused and logged. `home` (Home shown or hidden), `toggle overview|quick|notices|power` (`toggle launcher` and `toggle workspaces` still work, as `home` and `toggle overview`)
+- `glassine-shell`, started by the sway config through `glassine-shell-run`
+- `glassine-shell launch ID new|here [ARG]` (Home's taps; spec 001 FR-045 to FR-048): ARG an absolute path of an existing regular file, given to the app where its Exec line has `%f %F %u %U` (else appended, never through a shell), or for `glassine-settings` the name of a page Settings opens on (its page argument, e.g. `updates`, `power#2`); anything else is refused and logged. `home` (Home shown or hidden), `toggle overview|quick|notices|power` (`toggle launcher` and `toggle workspaces` still work, as `home` and `toggle overview`)
 - `~/.config/glassine/gestures` (Settings writes, sway reads): `FINGERS DIRECTION ACTION` and `2 tap ACTION`; actions `nothing refresh screen-next screen-prev move-next move-prev overview home minimize fullscreen unfullscreen swap close quick notices page-up page-down` (`right-click` for the tap); Settings reads the old `ws-next ws-prev launcher maximize` as `screen-next screen-prev home fullscreen` and never writes them
 - `~/.config/glassine/home.conf` (GlassineOS/home's layout file): Settings edits only its `favourites`, under `home.conf.lock`; the old `~/.config/glassine-shell/favourites` is only imported, when there is no `home.conf`
 

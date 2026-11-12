@@ -1,4 +1,4 @@
-/* sway-ipc.h — sway's IPC (i3-ipc framing) for glassine-shell-wl and glassine-swayd:
+/* sway-ipc.h — sway's IPC (i3-ipc framing) for glassine-shell and glassine-swayd:
  * a connection to $SWAYSOCK, messages, JSON replies (json-c), field helpers. */
 #ifndef GLASSINE_SWAY_IPC_H
 #define GLASSINE_SWAY_IPC_H

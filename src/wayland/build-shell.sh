@@ -1,11 +1,11 @@
 #!/bin/sh
-# Builds glassine-shell-wl (glassine-shell with the Wayland backend, glassine-shell-wl.c) into
+# Builds glassine-shell (glassine-shell with the Wayland backend, glassine-shell-wl.c) into
 # OUT: generates the layer-shell (protocols/, from sway 1.10.1), screencopy
 # (protocols/, from Alpine's wlr-protocols) and xdg-shell
 # (wayland-protocols) and cursor-shape (+ tablet-v2, which it names; wayland-protocols)
 # client code first. One place for every build: the mainline
 # kit, build-in-container.sh, sway/build-arm64.sh, test/shell-sway.
-# build-shell-wl.sh SRC OUT SRC = src
+# build-shell.sh SRC OUT SRC = src
 # Needs gcc, pkgconf, wayland-dev, wayland-protocols, json-c-dev, libxkbcommon-dev,
 # pango-dev, librsvg-dev, glib-dev, linux-headers, and GlassineOS/ui installed (pkg-config
 # glassine-ui: the voices and the drawing).

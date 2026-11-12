@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host test of glassine-shell-wl (spec 001 shell side: the bar's Home and screen
+# Host test of glassine-shell (spec 001 shell side: the bar's Home and screen
 # buttons, Overview browse and move, divider mode, Home's launches) under stock
 # sway headless (Alpine 3.24, pixman), in portrait and landscape and the three
 # voices. glassine-swayd runs as in the session (this tree's; the last commit's

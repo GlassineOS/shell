@@ -82,7 +82,7 @@ exec /usr/bin/mpris-proxy
 # re-generate the wrapped .desktop/D-Bus copies from the current app files
 exec /usr/bin/glassine-app-render refresh
 # the bar + popups (glassine-shell's Wayland backend; restarted when it dies)
-exec /usr/bin/glassine-shell-wl-run
+exec /usr/bin/glassine-shell-run
 # tiling (newest on top, 3 apps per workspace, no empty
 # workspaces, drag handles), window hints for glassine-epdd-desktop; restarted if it fails
 exec sh -c 'until /usr/bin/glassine-swayd; do sleep 2; done'

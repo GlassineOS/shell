@@ -117,7 +117,7 @@ n0=$(grep -c "^apps " /tmp/hints.log)
 python3 -c 'import socket,os; s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM); s.sendto(b"apps?", os.environ["XDG_RUNTIME_DIR"]+"/glassine-swayd")'
 sleep 0.8
 expect "apps?: the list sent again (glassine-epdd-desktop restarted)" "$(grep -c '^apps ' /tmp/hints.log)" "$((n0 + 1))"
-# launch placeholders (glassine-shell-wl at a tap; here foot with its app id and title)
+# launch placeholders (glassine-shell at a tap; here foot with its app id and title)
 ph() { swaymsg -q "exec foot -a glassine-placeholder -T 'glassine-ph 0 $1' sleep 600"; sleep 1.2; }
 geo_of() { geo | tr '|' '\n' | sed 's/^ *//; s/ *$//' | grep "^$1 " | cut -d' ' -f2-; }
 swaymsg -q "workspace 2"; sleep 0.5
@@ -177,7 +177,7 @@ sed 's|/usr/share/glassine/sway/keys.conf|/o/usr/share/glassine/sway/keys.conf|'
 WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/sway -d -C -c /tmp/devcfg > /tmp/devcfg.log 2>&1
 expect "sway -C: keys.conf read" "$(grep -c 'Loading config from /o/usr/share/glassine/sway/keys.conf' /tmp/devcfg.log)" "1"
 expect "sway -C: no errors, no binding bound twice" "$(grep -E '\[ERROR\]|Overwriting' /tmp/devcfg.log | head -3)" ""
-expect "keys.conf: its glassine scripts are in the overlay" "$(grep -o '/usr/s\?bin/glassine-[a-z0-9-]*' /o/usr/share/glassine/sway/keys.conf | sort -u | while read -r f; do [ -e /o$f ] || [ $f = /usr/bin/glassine-shell-wl ] || [ $f = /usr/bin/glassine-swayd ] || echo $f; done)" ""
+expect "keys.conf: its glassine scripts are in the overlay" "$(grep -o '/usr/s\?bin/glassine-[a-z0-9-]*' /o/usr/share/glassine/sway/keys.conf | sort -u | while read -r f; do [ -e /o$f ] || [ $f = /usr/bin/glassine-shell ] || [ $f = /usr/bin/glassine-swayd ] || echo $f; done)" ""
 expect "keys.conf: no sway fullscreen (full screen is glassine-swayd's full: the bar stays)" "$(grep -E '^bindsym .* fullscreen' /o/usr/share/glassine/sway/keys.conf)" ""
 expect "shellcheck: glassine-screenshot, glassine-kbd-layout, glassine-home-start" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout /o/usr/bin/glassine-home-start 2>&1)" ""
 # the home app the session starts (glassine-home-start -n: the command): the app_id as

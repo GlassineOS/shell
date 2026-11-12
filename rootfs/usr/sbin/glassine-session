@@ -3,7 +3,7 @@
 # missing, then the sway session (glassine-session-sway), run and watched here, not by
 # supervise-daemon (which gives up after respawn_max restarts, leaving no GUI at
 # all). 3 quick deaths in a row (each alive < 60 s), or the session giving itself
-# up (exit 3: its bar kept dying, glassine-shell-wl-run), mark this boot failed
+# up (exit 3: its bar kept dying, glassine-shell-run), mark this boot failed
 # (/run/glassine-session-failed, for the health check) and the session is tried again
 # after a pause: 30 s, doubled after each failed round up to 5 min
 # (glassine-session-sway itself already falls back to pixman when a GLES sway dies).

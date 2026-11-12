@@ -11,12 +11,12 @@ stop() { pkill -f "^$1 " 2>/dev/null; sleep 0.3; }
 check() { GLASSINE_HEALTH_MIN_AGE=${MIN:-0} sh $H > /tmp/out 2>&1; }
 says() { grep -q -- "$1" /tmp/out; }
 
-for p in /usr/sbin/glassine-epdd-desktop /usr/bin/sway-glassine /usr/bin/glassine-swayd /usr/bin/glassine-shell-wl; do start $p; done
+for p in /usr/sbin/glassine-epdd-desktop /usr/bin/sway-glassine /usr/bin/glassine-swayd /usr/bin/glassine-shell; do start $p; done
 ok "sway session, all running by absolute path: healthy" "check"
 ok "fresh processes fail the minimum age" "MIN=60 check; [ \$? = 1 ] && says 'glassine-epdd-desktop(restarted'"
-stop /usr/bin/glassine-shell-wl
-ok "the shell missing: unhealthy, named" "! check && says glassine-shell-wl"
-start /usr/bin/glassine-shell-wl
+stop /usr/bin/glassine-shell
+ok "the shell missing: unhealthy, named" "! check && says glassine-shell"
+start /usr/bin/glassine-shell
 stop /usr/sbin/glassine-epdd-desktop; start /usr/sbin/glassine-epdd-desktop-wl
 ok "glassine-epdd-desktop-wl instead of glassine-epdd-desktop: healthy" "check"
 stop /usr/sbin/glassine-epdd-desktop-wl; start /usr/sbin/glassine-epdd-desktop
@@ -32,7 +32,7 @@ echo 'epd: DEAD LINK (x): link + rails down, hv_on 1, failure 5/5: GIVING UP, th
 ok "GIVING UP: unhealthy" "! check && says panel-link"
 : > /var/log/glassine-epdd-desktop.log
 printf '#!/usr/bin/python3\nimport time\ntime.sleep(600)\n' > /usr/bin/glassine-setup; chmod +x /usr/bin/glassine-setup
-stop /usr/bin/glassine-shell-wl; stop /usr/bin/glassine-swayd
+stop /usr/bin/glassine-shell; stop /usr/bin/glassine-swayd
 /usr/bin/glassine-setup & sleep 0.3; : > /run/glassine-setup.active
 ok "first-run setup (a Python script) instead of the shell: healthy" "check"
 rm /run/glassine-setup.active

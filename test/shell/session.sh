@@ -72,7 +72,7 @@ WL=$XDG_RUNTIME_DIR/wayland-1
 export GLASSINE_HOME_APP_ID=test-home
 XDG_RUNTIME_DIR=$RT2 WAYLAND_DISPLAY=$WL $B/glassine-swayd -v 2>/out/swayd-$O.log &
 SWAYDPID=$!
-GLASSINE_SHELL_HITS=$HITS $B/glassine-shell-wl -v >$L 2>&1 &
+GLASSINE_SHELL_HITS=$HITS $B/glassine-shell -v >$L 2>&1 &
 SHELLPID=$!
 mkfifo $XDG_RUNTIME_DIR/vptr
 $B/vptr $XDG_RUNTIME_DIR/vptr $LW $LH 2>/out/vptr-$O.log &
@@ -91,7 +91,7 @@ TERM_=$(tree id terminal) NOTES=$(tree id notes) READER=$(tree id reader)
 # ---- shots, per voice ----------------------------------------------------------
 for th in $THEMES; do
     P=$th-$O
-    $B/glassine-shell-wl theme $th; sleep 1
+    $B/glassine-shell theme $th; sleep 1
     sm -q "workspace number 1"; shot $P-bar-1app
     sm -q "workspace number 3"; shot $P-bar-3apps
     send home 1 5; shot $P-bar-hole
@@ -110,15 +110,15 @@ for th in $THEMES; do
     done
     sm -q "workspace number 2"; sleep 0.5
 done
-$B/glassine-shell-wl theme white; sleep 1
+$B/glassine-shell theme white; sleep 1
 
 # ---- checks that change nothing --------------------------------------------------
 sm -q "workspace number 2"; sleep 0.8
 expect "the bar: Home leftmost, then the screen button" "$(python3 $T/hit.py --all $HITS/bar home | wc -l) $(python3 $T/hit.py $HITS/bar home | cut -d' ' -f1) $(nh bar screen)" "1 31 1"
 mark; tap bar home; sent "Home button: home toggle" "home toggle"
-mark; $B/glassine-shell-wl home; sleep 0.8; sent "glassine-shell home: home toggle" "home toggle"
-mark; $B/glassine-shell-wl toggle launcher; sleep 0.8; sent "toggle launcher (the sway gesture action) = Home" "home toggle"
-$B/glassine-shell-wl toggle window; sleep 0.8
+mark; $B/glassine-shell home; sleep 0.8; sent "glassine-shell home: home toggle" "home toggle"
+mark; $B/glassine-shell toggle launcher; sleep 0.8; sent "toggle launcher (the sway gesture action) = Home" "home toggle"
+$B/glassine-shell toggle window; sleep 0.8
 expect "toggle window (the screen menu) is gone: nothing opens" "$(view)" "0"
 tap bar screen
 expect "the screen button opens Overview" "$(view)" "2"
@@ -255,9 +255,9 @@ tap bar screen
 tap pop ov-pick - $TERM_
 mark; tap pop ov-put; sent "move: an arrow: place (the moving app beside another)" "place $TERM_ "
 key Escape; sleep 0.5
-mark; $B/glassine-shell-wl launch quiet new; sleep 1; sent "launch ID new: next new before the app" "next new"
-mark; $B/glassine-shell-wl launch quiet here; sleep 1; sent "launch ID here: next here" "next here"
-mark; $B/glassine-shell-wl launch extra new; sleep 3
+mark; $B/glassine-shell launch quiet new; sleep 1; sent "launch ID new: next new before the app" "next new"
+mark; $B/glassine-shell launch quiet here; sleep 1; sent "launch ID here: next here" "next here"
+mark; $B/glassine-shell launch extra new; sleep 3
 sent "launch ID new: next new reaches glassine-swayd" "next new"
 expect "launch ID new: next new is sent before the placeholder is made" "$(grep -o 'tile: next new\|placeholder for Extra' $L | tail -2 | cut -c1-4 | tr '\n' ' ')" "tile plac "
 expect "launch ID new: the new window gets a screen of its own" "$(swaymsg -t get_tree -r | python3 -c '
@@ -272,7 +272,7 @@ def views(n):
 walk(json.load(sys.stdin))')" "1"
 sm -q "[app_id=extra] kill"; sleep 1
 send home 1 3
-mark; $B/glassine-shell-wl launch quiet new; sleep 1; sent "launch with an empty screen under Home: next hole" "next hole"
+mark; $B/glassine-shell launch quiet new; sleep 1; sent "launch with an empty screen under Home: next hole" "next hole"
 send home 0 0
 tap bar screen
 C=$(nh pop scr-close)

@@ -1,5 +1,5 @@
 #!/bin/sh
-# End-to-end host test of glassine-shell-wl and glassine-swayd together (spec 001):
+# End-to-end host test of glassine-shell and glassine-swayd together (spec 001):
 # both from this tree, on stock sway headless (Alpine 3.24, pixman, the shell
 # test's container). Unlike test/shell, nothing stands in for glassine-swayd's
 # side: the divider lists and Home's state the shell acts on are the ones

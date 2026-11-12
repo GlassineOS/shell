@@ -4,7 +4,7 @@
 # glassine-epdd-desktop (root, frames from sway: GLASSINE_EPDD_SRC=wl) + seatd (root; gives the
 # desktop user's sway the input devices) + sway-glassine (the patched sway with
 # the glassine-epd output backend) as $GLASSINE_USER. Exits when any of the three dies:
-# with 3 if the session gave itself up (glassine-shell-wl-run: the bar keeps dying),
+# with 3 if the session gave itself up (glassine-shell-run: the bar keeps dying),
 # which glassine-session takes as failed at once. glassine-bgprio -sway rides along.
 # /etc/glassine/sway-dry: glassine-epdd-desktop without the panel's high voltage (dry run: the
 # whole pipeline runs, the panel doesn't change) -- for first tests

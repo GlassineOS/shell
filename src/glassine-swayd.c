@@ -30,7 +30,7 @@
  * frame and applies a retile atomically, so the settle wait is
  * off by default). Also the app list for its app profiles
  * ("apps"/"app"/"active", see app_list).
- * launch a placeholder (app_id glassine-placeholder, from glassine-shell-wl at the
+ * launch a placeholder (app_id glassine-placeholder, from glassine-shell at the
  * tap; title "glassine-ph PID ID...") holds a tile for an app that
  * is starting: tiled and counted like any window, so the layout
  * is final at the tap. The first new tiled window on its
