@@ -17,7 +17,7 @@ $B -x 2>/dev/null; expect "an unknown argument: usage (exit 2)" "$?" 2
 
 mkdir -p /etc/glassine && printf 'freeze_after 2\nreclaim always\nwriteback_after 5\npark_after 5\nfreeze footc\n' > /etc/glassine/bgprio.conf
 cp /usr/bin/foot /tmp/footc                 # its own process name for the "freeze" rule
-cp /usr/bin/foot /tmp/glassine-shell-wl     # a desktop name longer than comm keeps (15)
+cp /usr/bin/foot /tmp/glassine-epdd-desktop # a desktop name longer than comm keeps (15)
 # glassine-zram stub: records the calls; a park takes 61 s (to be stopped by a thaw)
 mkdir -p /usr/sbin && printf '#!/bin/sh\necho "$*" >> /tmp/zram.calls\n[ "$1" = park ] && exec sleep 61\nexit 0\n' > /usr/sbin/glassine-zram && chmod 755 /usr/sbin/glassine-zram
 # sway and its apps run as a desktop user, as in the session (bgprio only touches that user's processes)
@@ -41,7 +41,7 @@ def w(n):
 w(json.load(sys.stdin))' $1; }
 where() { for g in glassine-bg/frozen glassine-bg glassine-fg init; do grep -qx "$1" $C/$g/cgroup.procs 2>/dev/null && { echo $g; return; }; done; echo "?"; }
 swaymsg -q "workspace number 1; exec foot -a A sleep 600"; sleep 1.2
-swaymsg -q "workspace number 4; exec /tmp/glassine-shell-wl -a D sleep 600"; sleep 1.2
+swaymsg -q "workspace number 4; exec /tmp/glassine-epdd-desktop -a D sleep 600"; sleep 1.2
 printf 'import os, time\nx = os.urandom(64 << 20)    # 64 MiB of anon memory, not zero pages\ntime.sleep(600)\n' > /tmp/hog.py
 swaymsg -q "workspace number 2; exec foot -a B python3 /tmp/hog.py"; sleep 1.2
 set -- $(pid_of A); PA=$1
@@ -49,7 +49,7 @@ set -- $(pid_of D); PD=$1
 set -- $(pid_of B); PB=$1 IB=$2
 expect "A runs as the desktop user" "$(awk '/^Uid:/ { print $2 }' /proc/$PA/status)" "1000"
 SL0=$(cat /proc/$PA/timerslack_ns)  # this kernel's default for A
-expect "D's comm is cut to 15 characters" "$(cat /proc/$PD/comm)" "glassine-shell-"
+expect "D's comm is cut to 15 characters" "$(cat /proc/$PD/comm)" "glassine-epdd-d"
 unset SWAYSOCK                      # bgprio finds the socket itself, as in the session
 $B 2>/tmp/bgprio.log &
 BG=$!
@@ -70,7 +70,7 @@ sleep 36
 expect "B hidden 30 s+: frozen" "$(where $PB)" "glassine-bg/frozen"
 expect "frozen: oom_score_adj 1000" "$(cat /proc/$PB/oom_score_adj)" "1000"
 grep -q "^1$" $C/glassine-bg/frozen/cgroup.freeze && echo "ok   frozen group: cgroup.freeze 1" || { echo "FAIL frozen group not frozen"; fail=1; }
-expect "D (comm glassine-shell-, a desktop name) hidden 30 s+: background, never frozen" "$(where $PD)" "glassine-bg"
+expect "D (comm glassine-epdd-d, a desktop name) hidden 30 s+: background, never frozen" "$(where $PD)" "glassine-bg"
 sleep 1
 if [ "$(wc -l < /proc/swaps)" -gt 1 ]; then
     po=$(grep -o 'paged out [0-9]* frozen process(es): anon [0-9]* -> [0-9]*' /tmp/bgprio.log | head -1)
@@ -114,7 +114,7 @@ swaymsg -q "workspace number 2"; sleep 5
 expect "freeze footc: C frozen once demoted (no freeze_after wait)" "$(where $PC)" "glassine-bg/frozen"
 swaymsg -q "workspace number 3"; sleep 0.5
 expect "C back in front: thawed" "$(where $PC)" "init"
-grep -q "frozen glassine-shell-" /tmp/bgprio.log && { echo "FAIL a desktop name was frozen"; fail=1; } || echo "ok   log: the desktop name never frozen"
+grep -q "frozen glassine-epdd-d" /tmp/bgprio.log && { echo "FAIL a desktop name was frozen"; fail=1; } || echo "ok   log: the desktop name never frozen"
 # E: a terminal with a root child (doas apk from the settings app), and one more
 # started once E is demoted (it inherits E's group: it records where it started)
 printf '%s\n' '/tmp/asroot sleep 601 &' 'while [ ! -e /tmp/go ]; do sleep 0.2; done' \

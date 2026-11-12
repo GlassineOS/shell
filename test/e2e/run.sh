@@ -7,7 +7,7 @@ mkdir -p $B
 rm -f /out/*.log /out/argv-*
 cp -a /r/rootfs/usr/share/icons/glassine-mono /usr/share/icons/
 make -s -C /ui install O=/tmp/ui-out PREFIX=/usr >/dev/null || exit 1
-sh /r/src/wayland/build-shell-wl.sh /r/src $B/glassine-shell-wl || exit 1
+sh /r/src/wayland/build-shell.sh /r/src $B/glassine-shell || exit 1
 sh /r/src/wayland/build-swayd.sh /r/src $B/glassine-swayd || exit 1
 X=/usr/share/wlr-protocols/unstable/wlr-virtual-pointer-unstable-v1.xml G=/tmp/g
 mkdir -p $G
@@ -135,7 +135,7 @@ python3 $T/proxy.py $XDG_RUNTIME_DIR/glassine-swayd $RT2/glassine-swayd $VERBS &
 ln -sf $XDG_RUNTIME_DIR/glassine-shell $RT2/glassine-shell
 ln -sf $XDG_RUNTIME_DIR/glassine-shell.theme $RT2/glassine-shell.theme
 WAYLAND_DISPLAY=/tmp/rt/wayland-1 XDG_RUNTIME_DIR=$RT2 $B/glassine-swayd -v 2>$SL &
-GLASSINE_SHELL_HITS=$HITS $B/glassine-shell-wl -v >$L 2>&1 &
+GLASSINE_SHELL_HITS=$HITS $B/glassine-shell -v >$L 2>&1 &
 mkfifo $XDG_RUNTIME_DIR/vptr
 $B/vptr $XDG_RUNTIME_DIR/vptr $LW $LH 2>/out/vptr.log &
 sleep 1.5
@@ -198,22 +198,22 @@ expect "... the button looks pressed (one Home target on the bar)" "$(nh bar hom
 tap bar home
 expect "the Home button again: hidden" "$(geo_of glassine-home | cut -d' ' -f1) $(homest 'home 0 hole 0')" "__i3_scratch home 0 hole 0"
 # the sway session's gesture requests (sway runs these): Home, Overview and the old names
-$B/glassine-shell-wl home; sleep 1
+$B/glassine-shell home; sleep 1
 expect "gesture request home: Home shown" "$(homest 'home 1 hole 0')" "home 1 hole 0"
-$B/glassine-shell-wl toggle launcher; sleep 1
+$B/glassine-shell toggle launcher; sleep 1
 expect "the old toggle launcher: Home hidden" "$(homest 'home 0 hole 0')" "home 0 hole 0"
-$B/glassine-shell-wl toggle overview; sleep 1
+$B/glassine-shell toggle overview; sleep 1
 expect "gesture request toggle overview: Overview" "$(view)" "2"
 key Escape
-$B/glassine-shell-wl toggle workspaces; sleep 1
+$B/glassine-shell toggle workspaces; sleep 1
 expect "the old toggle workspaces: Overview" "$(view)" "2"
 key Escape
-mark; $B/glassine-shell-wl launch extra new; waitapp extra
+mark; $B/glassine-shell launch extra new; waitapp extra
 expect "launch ID new: next new reaches swayd before the app" "$(since | grep -o 'next new')" "next new"
 expect "launch ID new: a new screen after the current one, the app alone there" "$(cur) $(geo_of extra)" "1 2 3 4 focus 2 2 0 52 702 884"
 kill_ extra
 expect "the last app on the screen closes: the screen stays, empty, under Home" "$(cur) $(geo_of glassine-home) $(homest 'home 1 hole 2')" "1 2 3 4 focus 2 2 0 52 702 884 home 1 hole 2"
-mark; $B/glassine-shell-wl launch extra new; waitapp extra
+mark; $B/glassine-shell launch extra new; waitapp extra
 expect "launch from Home with an empty screen: next hole, the app fills it, Home hides" \
     "$(since | grep -o 'next hole') $(cur) $(geo_of extra) $(homest 'home 0 hole 0')" "next hole 1 2 3 4 focus 2 2 0 52 702 884 home 0 hole 0"
 kill_ extra
@@ -228,7 +228,7 @@ mkdir -p '/tmp/data/a dir'
 F="/tmp/data/a dir/b \$(id) \`id\`; \"q\" 'it''s' & * ~.epub"
 : > "$F"
 argv() { for i in $(seq 1 50); do [ -s /out/argv-$1 ] && break; sleep 0.1; done; tr '\n' '|' < /out/argv-$1 2>/dev/null; }
-launch_arg() { rm -f /out/argv-$1; mark; $B/glassine-shell-wl launch "$@"; waitapp $1; }
+launch_arg() { rm -f /out/argv-$1; mark; $B/glassine-shell launch "$@"; waitapp $1; }
 launch_arg recf here "$F"
 expect "%f: the file in its place, one word" "$(argv recf)" "--open|$F|--end|"
 expect "... next here before the app" "$(since | grep -o 'next here')" "next here"
@@ -265,7 +265,7 @@ for bad_ in "recn here book.epub:relative" "recn here /tmp/data/none.epub:nonexi
     a=${bad_%%:*} why=${bad_#*:}
     rm -f /out/argv-*; mark
     # shellcheck disable=SC2086
-    $B/glassine-shell-wl launch $a; sleep 1.5
+    $B/glassine-shell launch $a; sleep 1.5
     expect "refused ($why): nothing started, no next, logged" \
         "$(ls /out/argv-* 2>/dev/null | wc -l) $(since | grep -c next) $(logsince | grep -c 'refused')" "0 0 1"
 done
@@ -284,31 +284,31 @@ launch_arg glassine-settings here
 expect "Settings started beside the two on screen 1" "$(tree count)" "3 3 4"
 sm -q "workspace number 3"; sleep 0.8
 rm -f /out/handover-*; mark
-$B/glassine-shell-wl launch glassine-settings new updates; sleep 2
+$B/glassine-shell launch glassine-settings new updates; sleep 2
 expect "Settings open, launch new updates: no next, no placeholder, no new screen" \
     "$(since | grep -c next) $(logsince | grep -c 'placeholder for') $(tree count)" "0 0 3 3 4"
 expect "... its screen shown, its window focused" "$(cur) $(focused)" "1 2 3 focus 1 glassine-settings"
 expect "... the running Settings got the page" "$(handover glassine-settings)" "updates|"
 sm -q "workspace number 2"; sleep 0.8
 rm -f /out/handover-*; mark
-$B/glassine-shell-wl launch glassine-settings here power; sleep 2
+$B/glassine-shell launch glassine-settings here power; sleep 2
 expect "Settings open, launch here power: focused the same way" \
     "$(since | grep -c next) $(tree count) $(cur) $(focused) $(handover glassine-settings)" "0 3 3 4 1 2 3 focus 1 glassine-settings power|"
 sm -q "workspace number 1"; sleep 0.5
 # Home shown over an empty screen, Settings open on another one: the launch hides Home (swayd drops the empty
 # screen) and the shell goes to Settings' screen; the two requests go to different sockets
-mark; $B/glassine-shell-wl launch extra new; waitapp extra
+mark; $B/glassine-shell launch extra new; waitapp extra
 kill_ extra
 expect "an empty screen under Home, Settings open on screen 1" "$(cur) $(homest 'home 1 hole 2')" "1 2 3 4 focus 2 home 1 hole 2"
 rm -f /out/handover-*; mark
-$B/glassine-shell-wl launch glassine-settings new updates; sleep 2.5
+$B/glassine-shell launch glassine-settings new updates; sleep 2.5
 expect "Home over an empty screen, launch new updates: Settings' screen shown, its window focused, no new screen" \
     "$(cur) $(focused) $(since | grep -c next)" "1 2 3 focus 1 glassine-settings 0"
 expect "... Home hidden, the empty screen gone" "$(homest 'home 0 hole 0') $(tree count)" "home 0 hole 0 3 3 4"
 expect "... the running Settings got the page" "$(handover glassine-settings)" "updates|"
 sm -q "workspace number 1"; sleep 0.5
-mark; $B/glassine-shell-wl launch extra new; waitapp extra
-mark; $B/glassine-shell-wl launch extra new; sleep 3
+mark; $B/glassine-shell launch extra new; waitapp extra
+mark; $B/glassine-shell launch extra new; sleep 3
 expect "an app that doesn't run once, open already: a second window on a new screen" \
     "$(since | grep -o 'next new') $(cur) $(geo | tr '|' '\n' | grep -c '^ *extra ')" "next new 1 2 3 4 5 focus 3 2"
 sm -q "workspace number 1"; sleep 0.8
@@ -320,7 +320,7 @@ expect "the extra screens went with their apps" "$(cur) $(tree count)" "1 2 3 fo
 for bad_ in "badx:/tmp/no-such-program" "badv:FOO=1"; do
     a=${bad_%%:*} w=${bad_#*:}
     rm -f /out/argv-*; mark
-    $B/glassine-shell-wl launch $a here; sleep 1.5
+    $B/glassine-shell launch $a here; sleep 1.5
     expect "an Exec that can't run ($w): logged with the reason, nothing started" \
         "$(logsince | grep -c "can't run \"$w\": No such file or directory") $(ls /out/argv-* 2>/dev/null | wc -l)" "1 0"
     sleep 6                            # the placeholder of a process that is gone leaves by itself (PH_GONE_S)
