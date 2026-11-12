@@ -1,4 +1,4 @@
-/* glassine-rotd — screen autorotate from the accelerometer (sway session; spec 003).
+/* glassine-rotd — screen autorotate from the accelerometer (sway session; spec 005).
  *
  * Reads gravity in the screen plane from an IIO accelerometer and turns the sway
  * output with the device. Lying flat (less than FLAT_G of g in the screen plane)

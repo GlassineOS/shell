@@ -1,5 +1,5 @@
 #!/bin/sh
-# Host test of glassine-rotd (spec 003): the decision logic by replay, then the daemon
+# Host test of glassine-rotd (spec 005): the decision logic by replay, then the daemon
 # against a stand-in IIO accelerometer (sysfs files and a FIFO as its character device,
 # under GLASSINE_ROTD_SYSROOT) and stock sway 1.10.1 headless: auto turns, a paused
 # stream (the power daemon's suspend), fixed turns with the stream off and its rate put
