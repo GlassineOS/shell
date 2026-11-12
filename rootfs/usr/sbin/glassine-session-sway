@@ -317,9 +317,8 @@ start_sway() {
     echo "glassine-session-sway: $(date) sway ($REN)"
     if [ "$REN" = gles2 ]; then mkdir -p /var/lib/glassine; date > /var/lib/glassine/gles-running; sync; fi
     [ -s /var/log/sway.log ] && mv -f /var/log/sway.log /var/log/sway.log.1
-    # GLES: GTK4 draws on the A509 (glassine-gtk.sh, read by su -l first, sets cairo
-    # for pixman) -- GNOME Software 146 -> 70 ms per scroll step, 30 ms to
-    # the first paint. Texture sub-uploads into a busy texture
+    # GLES: GTK4 draws on the A509 (below; cairo under pixman) -- GNOME Software
+    # 146 -> 70 ms per scroll step, 30 ms to the first paint. Texture sub-uploads into a busy texture
     # (GTK4's glyph atlas: letters missing after a scroll) went through the
     # A509's 2D blitter, which writes nothing: FD_MESA_DEBUG=noblit until our
     # system Mesa's glassine-0003 took the 3D path there by itself
@@ -336,7 +335,9 @@ start_sway() {
     # A509's 2D blitter is off in our Mesa). FLATPAK_GL_DRIVERS: Flatpak apps load our Mesa
     # too (the GL extension, r103's A509 fixes; no fps cost vs the runtime's): it goes into
     # the session's env (sway's and the bus's), only under GLES
-    GL=; [ "$REN" = gles2 ] && GL="GDK_DISABLE=vulkan GSK_RENDERER=ngl FLATPAK_GL_DRIVERS=glassine:default"
+    # without GLES (pixman) GTK4 draws with cairo: probing EGL/GLES there aborts some apps
+    GL="GDK_DISABLE=gl,vulkan GSK_RENDERER=cairo"
+    [ "$REN" = gles2 ] && GL="GDK_DISABLE=vulkan GSK_RENDERER=ngl FLATPAK_GL_DRIVERS=glassine:default"
     if [ "$REN" = gles2 ] && [ ! -e /etc/glassine/gpu-app-l3 ]; then
         if [ -e /etc/glassine/gpu-app-split ]; then GL="$GL GLASSINE_APP_FD_MESA_DEBUG=sysmem,flush"
         else GL="$GL GLASSINE_APP_FD_MESA_DEBUG=sysmem"; fi
@@ -383,9 +384,11 @@ start_sway() {
     fi
     # the pointer's theme and size (sway/config xcursor_theme; sway exports it only to
     # what it starts, not to D-Bus-activated apps): 24 at scale 2 = 48 px on the panel
+    # GTK_OVERLAY_SCROLLING=0: overlay scrollbars fade in and out on every pointer
+    # move, an animation and so a stream of panel updates; classic ones stay still
     su -l "$U" -c "export XDG_RUNTIME_DIR=/run/user/$UID_ XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=sway \
         XDG_SESSION_DESKTOP=sway LIBSEAT_BACKEND=seatd GLASSINE_EPD=1 WLR_BACKENDS=libinput WLR_RENDERER=$REN \
-        MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1 GTK_MODULES=glassine-ink XCURSOR_THEME=Adwaita XCURSOR_SIZE=24 $GL; \
+        MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1 GTK_MODULES=glassine-ink GTK_OVERLAY_SCROLLING=0 XCURSOR_THEME=Adwaita XCURSOR_SIZE=24 $GL; \
         exec dbus-run-session -- $SWAY -c $CONF" >/var/log/sway.log 2>&1 &
     SPID=$!
     SSTART=$(date +%s)
