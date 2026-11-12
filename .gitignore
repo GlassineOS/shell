@@ -6,3 +6,5 @@
 __pycache__/
 /specs/*/*
 !/specs/*/spec.md
+/glassine-sleep-pill
+/libglassine-ink.so
