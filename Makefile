@@ -2,11 +2,12 @@
 # glassine-swayd: the window model over sway's IPC
 # glassine-bgprio: hidden apps deprioritized, frozen and paged out
 # glassine-zpark: one parked app's zram slots to disk (glassine-zram park)
+# glassine-rotd: screen autorotate from the accelerometer
 S = src
 OUT ?= .
 CFLAGS ?= -O2 -Wall
 
-all: $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark
+all: $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark $(OUT)/glassine-rotd
 
 $(OUT)/glassine-shell: $(wildcard $(S)/glassine-shell*) $(S)/wayland/sway-ipc.c $(S)/wayland/build-shell.sh
 	sh $(S)/wayland/build-shell.sh $(S) $@
@@ -20,6 +21,9 @@ $(OUT)/glassine-bgprio: $(S)/glassine-bgprio.c $(S)/wayland/sway-ipc.c $(S)/wayl
 
 $(OUT)/glassine-zpark: $(S)/glassine-zpark.c
 	$(CC) $(CFLAGS) -o $@ $(S)/glassine-zpark.c
+
+$(OUT)/glassine-rotd: $(S)/glassine-rotd.c
+	$(CC) $(CFLAGS) -o $@ $(S)/glassine-rotd.c -lm
 
 # The tests build what they need in their own containers. First: the GTK themes and the
 # keyboard looks in rootfs/ are GlassineOS/ui's (tools/gen-apps; test/ui.sh finds ui).
@@ -35,8 +39,9 @@ check:
 	sh test/session-dispatch/run.sh
 	sh test/bgprio/test.sh
 	sh test/zram/test.sh
+	sh test/rotd/test.sh
 
 clean:
-	rm -f $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark
+	rm -f $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark $(OUT)/glassine-rotd
 
 .PHONY: all check clean
