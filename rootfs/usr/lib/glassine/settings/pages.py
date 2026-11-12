@@ -340,8 +340,6 @@ def build(ui, be):
                 v = be.off[k]
                 add(B.Offset(label, "Schedule %d %%" % sv + (" · " + sgn(v) if v else ""), "%d %%" % cur, v,
                              (lambda v, k=k: be.set_light_off(k, v))))
-            add(B.Toggle("Keep a night glow", "At least 5 %" if nar else "Never below 5 %, so the light stays on",
-                         be.glow, lambda: be.set_glow(not be.glow)))
             add(B.Head("Schedule", "Follows the sun in " + city_name(be.zone[1]) if be.located else "No location for this time zone"))
             add(B.Item("Range & schedule", "Brightness %d–%d %% · warmth %d–%d %%" % (lim["b_min"], lim["b_max"], lim["w_min"], lim["w_max"]),
                        chev=True, fn=lambda: ui.go("light-range")))

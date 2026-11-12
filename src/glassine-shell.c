@@ -662,6 +662,9 @@ static int conf_get(const char *path, const char *key, int dflt)
 #define EPDD_CTL "/run/glassine-epdd-desktop.ctl"
 #define BL "/sys/class/backlight/onyx_bl_%s/%s"
 #define FL "/sys/class/backlight/frontlight-%s/brightness"
+/* a managed light never goes below this (%): in the dark the screen must stay
+ * readable (glassine-powerd and glassine-settings keep the same floor) */
+#define LIGHT_FLOOR 5
 #define LIGHT_RUN "/run/glassine-light"      /* glassine-powerd: the managed light's schedule (b=, w= in %) */
 
 static struct {
@@ -669,7 +672,6 @@ static struct {
     int wifi, bt, bt_ok, mute, vol, vol_ok, wifi_busy, bt_busy;
     int light, warm, br_max, ct_max;    /* light/warm: 0..100 as shown */
     int managed, sched[2], off[2];      /* managed light: glassine-powerd's schedule now (%), the user's offsets */
-    int glow;                           /* managed light: brightness >= 5 % ("Keep a night glow") */
     int rlo, rhi;                       /* e-ink fluidity: glassine-epdd-desktop's mmin/mmax (LV_* indices) */
     int rot_auto, rot_lock, rot_cur;    /* rotation: auto?, the locked turn, the turn now (glassine-rotd) */
     int opening; double opening_t;      /* a held toggle: "Opening ... settings" */
@@ -725,7 +727,7 @@ static void light_managed_now(void)
     for (int i = 0; i < 2; i++) {
         int v = st.sched[i] + st.off[i];
         *dst[i] = v < 0 ? 0 : v > 100 ? 100 : v;
-        if (i == 0 && st.glow && *dst[i] < 5) *dst[i] = 5;
+        if (i == 0 && *dst[i] < LIGHT_FLOOR) *dst[i] = LIGHT_FLOOR;
     }
 }
 
@@ -2368,7 +2370,6 @@ static void light_read(void)
     st.managed = conf_get(POWER_CONF, "light_managed", 0) && st.sched[0] >= 0 && st.sched[1] >= 0;
     st.off[0] = conf_get(POWER_CONF, "light_b_off", 0);
     st.off[1] = conf_get(POWER_CONF, "light_w_off", 0);
-    st.glow = conf_get(POWER_CONF, "light_glow", 1);
     if (st.managed) light_managed_now();
 }
 
