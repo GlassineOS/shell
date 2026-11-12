@@ -50,6 +50,9 @@ APP_OWN_WS_OLD = HOME + "/.config/glassine/app-own-workspace"      # the old opt
 CLOCK12 = HOME + "/.config/glassine-shell/clock12"
 ROOT = "/usr/sbin/glassine-settings-root"
 AUTH_REFUSED = 77                                # the helpers' "needs an administrator's password"
+# a managed light never goes below this (%): in the dark the screen must stay readable
+# (glassine-powerd and glassine-shell keep the same floor)
+LIGHT_FLOOR = 5
 LIGHT_RUN = "/run/glassine-light"                      # glassine-powerd: the zone's sunrise/sunset today
 DDR_LEVEL = "/etc/glassine/ddr"                        # glassine-ddr's saved power mode
 DDR_PARAMS = "/sys/module/qcom_cpufreq_hw/parameters"
@@ -373,7 +376,6 @@ class Base:
         self.desk_armed, self.desk_closes = 0, []         # desk_closes: app ids a restart closes
         # managed light: limits (%), the user's offsets, today's sun (local hours)
         self.managed = False
-        self.glow = True                # "Keep a night glow": managed brightness >= 5 % (power.conf light_glow)
         self.lim = {"b_min": 20, "b_max": 80, "w_min": 10, "w_max": 90}
         self.off = {"b": 0, "w": 0}
         self.sun, self.located = (7.0, 19.0), False
@@ -481,7 +483,7 @@ class Base:
             return self.light, self.warm
         b, w = self.sched(self.now_hour())
         b = clamp100(b + self.off["b"])
-        return max(b, 5) if self.glow else b, clamp100(w + self.off["w"])
+        return max(b, LIGHT_FLOOR), clamp100(w + self.off["w"])
 
     def changed(self):
         GLib.idle_add(lambda: (self.on_change(), False)[1])
@@ -690,7 +692,6 @@ class Demo(Base):
         self.managed = on
         self.changed()
     def set_light_off(self, k, v): self.off[k] = v; self.changed()
-    def set_glow(self, on): self.glow = on; self.changed()
     def set_light_lim(self, k, v): self.lim[k] = v; self.changed()
     def set_prof(self, v): self.prof = v; self.changed()
     def set_mode(self, m): self.mode = m; self.changed()
@@ -1042,7 +1043,6 @@ class Real(Base):
         self.light = round(br * 100 / self.br_max / 10) * 10 if self.br_max else 0
         self.warm = round(ct * 100 / self.ct_max / 10) * 10 if self.ct_max else 0
         self.managed = (pw.get("light_managed", "0") or "0") not in ("0", "")
-        self.glow = (pw.get("light_glow", "1") or "1") not in ("0", "")
         for k in self.lim:
             self.lim[k] = clamp100(_int(pw.get("light_" + k), self.lim[k]))
         for k in self.off:
@@ -1536,11 +1536,6 @@ class Real(Base):
         self.off[k] = v
         self._light_now()
         self._try(lambda: self.power.set("light_%s_off" % k, v))
-
-    def set_glow(self, on):
-        self.glow = on
-        self._light_now()
-        self._try(lambda: self.power.set("light_glow", 1 if on else 0))
 
     def set_light_lim(self, k, v):
         self.lim[k] = v
