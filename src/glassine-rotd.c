@@ -280,10 +280,9 @@ static int sway_sock(char *p, size_t len)
     return 0;
 }
 
-/* one i3-ipc RUN_COMMAND; 0 = sway said success */
-static int sway_cmd(const char *cmd)
+/* a connection to sway's IPC socket, -1: none (no sway, a stale socket) */
+static int sway_connect(void)
 {
-    int ok = -1;
     struct sockaddr_un sa = { .sun_family = AF_UNIX };
     if (sway_sock(sa.sun_path, sizeof sa.sun_path)) return -1;
     int fd = socket(AF_UNIX, SOCK_STREAM | SOCK_CLOEXEC, 0);
@@ -291,7 +290,17 @@ static int sway_cmd(const char *cmd)
     struct timeval tv = { 2, 0 };
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
     setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
-    if (!connect(fd, (struct sockaddr *)&sa, sizeof sa)) {
+    if (connect(fd, (struct sockaddr *)&sa, sizeof sa)) { close(fd); return -1; }
+    return fd;
+}
+
+/* one i3-ipc RUN_COMMAND; 0 = sway said success */
+static int sway_cmd(const char *cmd)
+{
+    int ok = -1;
+    int fd = sway_connect();
+    if (fd < 0) return -1;
+    {
         uint32_t len = strlen(cmd), type = 0;
         char hdr[14], rep[512];
         memcpy(hdr, "i3-ipc", 6);
@@ -413,8 +422,7 @@ int main(int argc, char **argv)
 
     struct accel a = { .fd = -1 };
     struct rot s = { state_read(), -1, 0 };
-    char sock[108] = "";
-    ino_t sock_ino = 0;
+    int swatch = -1;            /* an idle connection to sway: it closes when that sway ends */
     int64_t mt = -1;
     int lock, autorot = mode_auto(&mt, &lock), said_none = 0;
     int64_t conf_check = 0, retry_at = 0, quiet_until = 0, vlog = 0, turn_at = 0;
@@ -433,15 +441,8 @@ int main(int argc, char **argv)
                 s.cand = -1;
                 if (!autorot && lock >= 0 && lock != s.cur) { s.cur = lock; pending = lock; }
             }
-            /* a new sway starts at transform 0 (a new socket: by name, or the same
-             * name made again, as with SWAYSOCK set for the new sway) */
-            char sk[108];
-            struct stat st;
-            if (!sway_sock(sk, sizeof sk) && !stat(sk, &st) && (strcmp(sk, sock) || st.st_ino != sock_ino)) {
-                if (s.cur > 0) pending = s.cur;
-                snprintf(sock, sizeof sock, "%s", sk);
-                sock_ino = st.st_ino;
-            }
+            /* a new sway starts at transform 0: a sway newly connected gets the turn */
+            if (swatch < 0 && (swatch = sway_connect()) >= 0 && s.cur > 0) pending = s.cur;
             conf_check = t + 1000;
         }
         if (autorot && a.fd < 0 && t >= retry_at) {
@@ -457,10 +458,16 @@ int main(int argc, char **argv)
         if (!autorot && a.fd >= 0) { accel_stop(&a); stamp(); fprintf(stderr, "stream off\n"); }
 
         int use = a.fd >= 0 && t >= quiet_until;
-        struct pollfd pf = { use ? a.fd : -1, POLLIN, 0 };
-        int n = poll(&pf, 1, use ? 1000 : (int)(quiet_until > t && quiet_until - t < 1000 ? quiet_until - t : 1000));
+        struct pollfd pfs[2] = { { use ? a.fd : -1, POLLIN, 0 }, { swatch, POLLIN, 0 } }, pf = pfs[0];
+        int n = poll(pfs, 2, use ? 1000 : (int)(quiet_until > t && quiet_until - t < 1000 ? quiet_until - t : 1000));
         if (n < 0 && errno != EINTR) break;
         t = now_ms();
+        pf = pfs[0];
+        if (n > 0 && pfs[1].revents) {
+            char b[256];
+            if (read(swatch, b, sizeof b) <= 0) { close(swatch); swatch = -1; }   /* that sway ended */
+            n -= !pf.revents;
+        }
 
         if (n > 0 && pf.revents & POLLIN) {
             int32_t v[3 * 16];
