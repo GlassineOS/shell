@@ -1,6 +1,8 @@
 #!/bin/sh
-# glassine-pipewire — PipeWire for the sway session (pipewire-launcher), with the
-# speaker's volume kept across restarts (it came back at 100 % on every boot).
+# glassine-pipewire — PipeWire for the sway session (pipewire, WirePlumber and
+# pipewire-pulse), with the speaker's volume kept across restarts (it came back at
+# 100 % on every boot). It starts the daemons itself, as Alpine's pipewire-launcher
+# did (that script is deprecated and says so on every start).
 # The speaker workaround is device-specific (a plain ALSA sink without ACP): it
 # moves to the device's configuration (GlassineOS/shell#1).
 #
@@ -23,7 +25,24 @@ vol=$(sed -n "s/^Audio\/Sink:node.name:$SINK=.*\"channelVolumes\":\[\([0-9.]*\).
 [ -n "$vol" ] || vol=$DEFAULT
 mute=$(sed -n "s/^Audio\/Sink:node.name:$SINK=.*\"mute\":\(true\|false\).*/\1/p" "$S" 2>/dev/null)
 
-/usr/libexec/pipewire-launcher
+# a session restart: the old daemons go first, or the new ones find their sockets taken
+# (by the whole command line, as they are started below)
+for d in pipewire-pulse wireplumber pipewire; do
+    pkill -u "$(id -u)" -fx "/usr/bin/$d" 2>/dev/null
+done
+# and are gone (up to 3 s): a PipeWire still exiting holds the socket's lock
+i=0
+while pgrep -u "$(id -u)" -fx '/usr/bin/(pipewire|wireplumber|pipewire-pulse)' >/dev/null && [ $i -lt 30 ]; do
+    sleep 0.1; i=$((i + 1))
+done
+/usr/bin/pipewire &
+# PipeWire's socket before its clients (up to 10 s)
+i=0
+while [ ! -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/pipewire-0" ] && [ $i -lt 100 ]; do
+    sleep 0.1; i=$((i + 1))
+done
+/usr/bin/wireplumber &
+/usr/bin/pipewire-pulse &
 
 # the sink, by name (up to 20 s: the ADSP and the card come late after boot)
 id=
