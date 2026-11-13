@@ -3,9 +3,9 @@
 # whenever it exits while the session runs (a clean exit too: SIGTERM, or sway
 # closing it); glassine-swayd keeps it in the scratchpad and shows it over the work area.
 # A quick exit doubles the pause before the next start (1 s up to 60 s); a run of
-# 60 s or more resets it. The session is over when sway no longer answers on
-# $SWAYSOCK or the Wayland display's compositor is gone: then it stops. Neither
-# known: started once.
+# 60 s or more resets it. The session is over when the Wayland display's
+# compositor is gone (or, with no display known, sway no longer answers on
+# $SWAYSOCK): then it stops. Neither known: started once.
 # Its app_id as glassine-swayd and glassine-shell find it: $GLASSINE_HOME_APP_ID,
 # else the first word of /etc/glassine/home-app, else glassine-home. Started from
 # its desktop entry (ID.desktop in the XDG data dirs, field codes dropped), else a
@@ -33,8 +33,9 @@ if [ -z "$cmd" ]; then
     cmd=$id
 fi
 [ "${1:-}" = -n ] && { echo "$cmd"; exit 0; }
-# the session: sway answers on its IPC socket ($SWAYSOCK), the Wayland display's lock
-# is held (its compositor holds it: a crash leaves both socket files behind)
+# the session: the Wayland display's lock is held (its compositor holds it; a crash
+# leaves the socket files behind); without a display, sway answers on $SWAYSOCK.
+# The lock test never blocks: a stalled sway is not taken for a gone one
 wl=
 case ${WAYLAND_DISPLAY:-} in
     '') ;;
@@ -42,18 +43,16 @@ case ${WAYLAND_DISPLAY:-} in
     *) [ -n "${XDG_RUNTIME_DIR:-}" ] && wl=$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY ;;
 esac
 running() {
-    [ -n "${SWAYSOCK:-}$wl" ] || return 1
-    if [ -n "${SWAYSOCK:-}" ]; then
-        [ -S "$SWAYSOCK" ] || return 1
-        if command -v swaymsg >/dev/null 2>&1; then
-            swaymsg -s "$SWAYSOCK" -t get_version >/dev/null 2>&1 || return 1
-        fi
-    fi
     if [ -n "$wl" ]; then
         [ -S "$wl" ] || return 1
-        if [ -e "$wl.lock" ] && command -v flock >/dev/null 2>&1; then
-            ! flock -n "$wl.lock" true 2>/dev/null || return 1
-        fi
+        [ -e "$wl.lock" ] && command -v flock >/dev/null 2>&1 || return 0
+        ! flock -n "$wl.lock" true 2>/dev/null
+    elif [ -n "${SWAYSOCK:-}" ]; then
+        [ -S "$SWAYSOCK" ] || return 1
+        command -v swaymsg >/dev/null 2>&1 || return 0
+        swaymsg -s "$SWAYSOCK" -t get_version >/dev/null 2>&1
+    else
+        return 1
     fi
 }
 pause=1

@@ -447,8 +447,8 @@ expect "home toggle: hidden" "$(lasthome "home 0 0") $(geo_of A) $(geo_of glassi
 wvkbd-mobintl --hidden >/tmp/wvkbd.log 2>&1 &
 sleep 1
 osk() { sh /o/usr/bin/glassine-osk "$1"; sleep 2.5; }
-# "ok" when geometry $1 is $2, the height to one text row (foot, the stand-in, rounds its height to its cells)
-fits() { [ -n "$1" ] && echo "$1 $2" | awk '$1 == $6 && $2 == $7 && $3 == $8 && $4 == $9 && $5 - $10 < 20 && $10 - $5 < 20 { print "ok" }'; }
+# "ok" when geometry $1 is $2, the size to one text cell (foot, the stand-in, rounds its size to its cells)
+fits() { [ -n "$1" ] && echo "$1 $2" | awk '$1 == $6 && $2 == $7 && $3 == $8 && $4 - $9 < 20 && $9 - $4 < 20 && $5 - $10 < 20 && $10 - $5 < 20 { print "ok" }'; }
 osk show
 KA=$(geo_of A)
 expect "the keyboard up: the work area shrinks" "$(echo "$KA" | awk '$4 == 702 && $5 < 936 && $5 > 0 { print "smaller" }')" "smaller"
@@ -466,6 +466,14 @@ expect "a full window fits the area above the keyboard" "$(fits "$(geo_of A)" "$
 osk hide
 expect "... and the whole work area once it goes" "$(fits "$(geo_of A)" "1 0 0 702 936")" "ok"
 cmd "full"
+# a turn: the layer surfaces lay themselves out after sway's output event; here the keyboard
+# (raised and dropped by signal, its state file untouched) goes right after the turn
+cmd "home show"
+pkill -USR2 -x wvkbd-mobintl; sleep 1.5
+swaymsg -q "output HEADLESS-1 transform 90"; pkill -USR1 -x wvkbd-mobintl; sleep 3
+expect "a turn, the keyboard going right after: Home fits the turned work area" "$(fits "$(geo_of glassine-home)" "1 0 0 936 702")" "ok"
+swaymsg -q "output HEADLESS-1 transform normal"; sleep 1.5
+cmd "home hide"
 pkill -x wvkbd-mobintl
 swaymsg -q "workspace number 2"; sleep 1
 expect "the view goes to a screen with no apps: it stays, empty, under Home" "$(cur) $(geo_of glassine-home) $(lasthome "home 1 2")" "1 2 focus 2 2 0 0 702 936 home 1 2"

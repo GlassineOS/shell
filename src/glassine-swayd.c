@@ -1369,8 +1369,9 @@ static int tap_wait(void)
  * (layer surfaces have none), so a `full` window or Home covered while it was up would
  * keep the smaller area once it goes, the part below it bare. Its state file
  * ($XDG_RUNTIME_DIR/glassine-osk.shown, glassine-osk) comes or goes a little before
- * wvkbd's surface does: the rules run again a few times after (covers() then fits
- * them to the area as it is). */
+ * wvkbd's surface does, and after an output change (a turn) the bar and the keyboard
+ * lay themselves out again after sway's event: the rules run again a few times after
+ * either (covers() then fits them to the area as it is). */
 static const int area_after_ms[] = { 150, 400, 1000, 2000 };
 #define AREA_CHECKS ((int)(sizeof area_after_ms / sizeof *area_after_ms))
 static long area_t0;
@@ -2157,6 +2158,7 @@ int main(int argc, char **argv)
                 if (t == SIPC_EV_INPUT) {      /* a device came or went: no layout change */
                     if (ch && (!strcmp(ch, "added") || !strcmp(ch, "removed"))) kbd_update();
                 } else if (ch && strcmp(ch, "title") && strcmp(ch, "mark") && strcmp(ch, "urgent")) dirty = 1;
+                if (t == SIPC_EV_OUTPUT) area_arm();   /* turned: the layer surfaces lay themselves out after */
                 json_object_put(j);
                 pf[0].revents = 0;
             } while (poll(pf, 1, 0) > 0 && (pf[0].revents & POLLIN));
