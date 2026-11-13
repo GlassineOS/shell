@@ -194,20 +194,32 @@ printf '#!/bin/sh\n' > $HS/bin/mine; chmod +x $HS/bin/mine
 expect "home app: \$GLASSINE_HOME_APP_ID first, a command of that name" "$(hs GLASSINE_HOME_APP_ID=mine | tr '\n' ' ')" "mine rc 0 "
 rm -f /etc/glassine/home-app
 # started again on every exit while the session runs (a clean one too), the pause doubling;
-# stops once the session's socket is gone; no session socket known: started once
-FS=$HS/sway.sock; python3 -c 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' $FS
+# stops once sway no longer answers (a crash leaves its socket file) or the Wayland display's
+# lock is free; no session known: started once. A stand-in sway answers every IPC message.
+FS=$HS/sway.sock
+python3 -c '
+import socket,struct,sys
+s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.listen(8)
+while True:
+    c,_=s.accept(); h=c.recv(14)
+    if len(h)==14:
+        n,t=struct.unpack("=II",h[6:]); c.recv(n) if n else None
+        p=b"{\"major\": 1, \"minor\": 0, \"patch\": 0, \"human_readable\": \"1\"}"
+        c.sendall(b"i3-ipc"+struct.pack("=II",len(p),t)+p)
+    c.close()' $FS & fsp=$!
 printf '#!/bin/sh\necho run >> %s/runs\nexit $(($(wc -l < %s/runs) %% 2))\n' $HS $HS > $HS/bin/fakehome; chmod +x $HS/bin/fakehome
 hr() { env -u WAYLAND_DISPLAY -u SWAYSOCK GLASSINE_HOME_APP_ID=fakehome HOME=$HS XDG_DATA_HOME=$HS/data XDG_DATA_DIRS=/nonexistent PATH=$HS/bin:/usr/bin:/bin "$@" sh /o/usr/bin/glassine-home-start; }
-rm -f $HS/runs; hr SWAYSOCK=$FS & hp=$!
+sleep 0.3; rm -f $HS/runs; hr SWAYSOCK=$FS & hp=$!
 sleep 2     # starts at 0 s (exit 1) and 1 s (exit 0); the next waits until 3 s
 expect "home app: started again after a failure and after a clean exit" "$(wc -l < $HS/runs)" "2"
-rm -f $FS; sleep 2.5
-expect "home app: sway's socket gone: not started again, the script ends" "$(wc -l < $HS/runs) $(kill -0 $hp 2>/dev/null && echo running || echo ended)" "2 ended"
+kill $fsp; sleep 2.5
+expect "home app: sway gone (its socket file left behind): not started again, the script ends" "$([ -S $FS ] && echo file) $(wc -l < $HS/runs) $(kill -0 $hp 2>/dev/null && echo running || echo ended)" "file 2 ended"
 kill $hp 2>/dev/null; wait $hp 2>/dev/null
 mkdir -p $HS/rt; python3 -c 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' $HS/rt/wl-test
-rm -f $HS/runs; hr XDG_RUNTIME_DIR=$HS/rt WAYLAND_DISPLAY=wl-test & hp=$!
-sleep 2; rm -f $HS/rt/wl-test; sleep 2.5
-expect "home app: the Wayland socket alone (a name in \$XDG_RUNTIME_DIR) counts as the session" "$(wc -l < $HS/runs) $(kill -0 $hp 2>/dev/null && echo running || echo ended)" "2 ended"
+python3 -c 'import fcntl,sys,time; f=open(sys.argv[1],"w"); fcntl.flock(f,fcntl.LOCK_EX); time.sleep(600)' $HS/rt/wl-test.lock & lp=$!
+sleep 0.3; rm -f $HS/runs; hr XDG_RUNTIME_DIR=$HS/rt WAYLAND_DISPLAY=wl-test & hp=$!
+sleep 2; kill $lp; sleep 2.5
+expect "home app: the Wayland display alone counts: its lock freed, the script ends" "$(wc -l < $HS/runs) $(kill -0 $hp 2>/dev/null && echo running || echo ended)" "2 ended"
 kill $hp 2>/dev/null; wait $hp 2>/dev/null
 rm -f $HS/runs
 expect "home app: no session socket known: started once" "$(hr; echo "rc $? $(wc -l < $HS/runs)")" "rc 0 1"
@@ -430,6 +442,31 @@ cmd "home toggle"
 expect "home toggle: shown" "$(lasthome "home 1 0")" "home 1 0"
 cmd "home toggle"
 expect "home toggle: hidden" "$(lasthome "home 0 0") $(geo_of A) $(geo_of glassine-home | cut -d' ' -f1)" "home 0 0 1 0 0 702 936 __i3_scratch"
+# the on-screen keyboard's zone (no sway event when it changes): Home shown while it is up
+# covers the area above it, and the whole work area again once it goes; the same for `full`
+wvkbd-mobintl --hidden >/tmp/wvkbd.log 2>&1 &
+sleep 1
+osk() { sh /o/usr/bin/glassine-osk "$1"; sleep 2.5; }
+# "ok" when geometry $1 is $2, the height to one text row (foot, the stand-in, rounds its height to its cells)
+fits() { [ -n "$1" ] && echo "$1 $2" | awk '$1 == $6 && $2 == $7 && $3 == $8 && $4 == $9 && $5 - $10 < 20 && $10 - $5 < 20 { print "ok" }'; }
+osk show
+KA=$(geo_of A)
+expect "the keyboard up: the work area shrinks" "$(echo "$KA" | awk '$4 == 702 && $5 < 936 && $5 > 0 { print "smaller" }')" "smaller"
+cmd "home show"
+expect "home shown while the keyboard is up: the area above it" "$(fits "$(geo_of glassine-home)" "$KA")" "ok"
+osk hide
+expect "... the keyboard goes: Home covers the whole work area again" "$(fits "$(geo_of glassine-home)" "1 0 0 702 936")" "ok"
+osk show
+expect "... it comes back: Home fits the area above it" "$(fits "$(geo_of glassine-home)" "$KA")" "ok"
+osk hide
+cmd "home hide"
+cmd "full"
+osk show
+expect "a full window fits the area above the keyboard" "$(fits "$(geo_of A)" "$KA")" "ok"
+osk hide
+expect "... and the whole work area once it goes" "$(fits "$(geo_of A)" "1 0 0 702 936")" "ok"
+cmd "full"
+pkill -x wvkbd-mobintl
 swaymsg -q "workspace number 2"; sleep 1
 expect "the view goes to a screen with no apps: it stays, empty, under Home" "$(cur) $(geo_of glassine-home) $(lasthome "home 1 2")" "1 2 focus 2 2 0 0 702 936 home 1 2"
 swaymsg -q "workspace 1"; sleep 1

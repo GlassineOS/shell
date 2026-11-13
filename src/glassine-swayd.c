@@ -1365,6 +1365,35 @@ static int tap_wait(void)
     return -1;
 }
 
+/* The on-screen keyboard's exclusive zone changes the work area with no sway event
+ * (layer surfaces have none), so a `full` window or Home covered while it was up would
+ * keep the smaller area once it goes, the part below it bare. Its state file
+ * ($XDG_RUNTIME_DIR/glassine-osk.shown, glassine-osk) comes or goes a little before
+ * wvkbd's surface does: the rules run again a few times after (covers() then fits
+ * them to the area as it is). */
+static const int area_after_ms[] = { 150, 400, 1000, 2000 };
+#define AREA_CHECKS ((int)(sizeof area_after_ms / sizeof *area_after_ms))
+static long area_t0;
+static int area_next = AREA_CHECKS;     /* the next check (AREA_CHECKS: none due) */
+
+static void area_arm(void)
+{
+    area_t0 = mono_ms();
+    area_next = 0;
+}
+
+/* ms until the next check (-1: none); *due: one is due now */
+static int area_wait(int *due)
+{
+    *due = 0;
+    if (area_next >= AREA_CHECKS) return -1;
+    long left = area_t0 + area_after_ms[area_next] - mono_ms();
+    if (left > 0) return (int)left;
+    *due = 1;
+    while (area_next < AREA_CHECKS && area_t0 + area_after_ms[area_next] <= mono_ms()) area_next++;
+    return 0;
+}
+
 void hd_text_focus(int on)
 {
     if (on && (!osk_auto() || kbd_attached)) return;
@@ -2081,8 +2110,9 @@ int main(int argc, char **argv)
     read_tree();                        /* the output scale first */
     home_init();
     hd_fd = hd_init(scale);
-    int ino = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);  /* the shell's theme: the handles' look */
-    if (ino >= 0 && rt && *rt) inotify_add_watch(ino, rt, IN_MOVED_TO | IN_CLOSE_WRITE);
+    int ino = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    /* the shell's theme, and the on-screen keyboard's state (area_arm) */
+    if (ino >= 0 && rt && *rt) inotify_add_watch(ino, rt, IN_MOVED_TO | IN_CLOSE_WRITE | IN_CREATE | IN_DELETE);
     settle_state();
     home_send(1);
     kbd_update();
@@ -2092,7 +2122,10 @@ int main(int argc, char **argv)
         struct pollfd pf[4 + OSK_TAP_DEVS] = { { ev_fd, POLLIN, 0 }, { sfd, POLLIN, 0 }, { hd_fd, POLLIN, 0 }, { ino, POLLIN, 0 } };
         int nt = ntap;
         for (int i = 0; i < nt; i++) pf[4 + i] = (struct pollfd){ tap_fd[i], POLLIN, 0 };
-        if (poll(pf, 4 + nt, tap_wait()) < 0) { if (errno == EINTR) continue; break; }
+        int area_due, tw = tap_wait(), aw = area_wait(&area_due);
+        int wait = tw < 0 ? aw : aw < 0 || tw < aw ? tw : aw;
+        if (area_due) wait = 0;
+        if (poll(pf, 4 + nt, wait) < 0) { if (errno == EINTR) continue; break; }
         for (int i = 0; i < nt; i++) if (pf[4 + i].revents & POLLIN) tap_read(i);
         tap_wait();
         if (pf[2].revents & (POLLIN | POLLHUP | POLLERR)) {
@@ -2107,11 +2140,12 @@ int main(int argc, char **argv)
                 for (char *q = b; q < b + l;) {
                     struct inotify_event *ie = (struct inotify_event *)q;
                     if (ie->len && !strcmp(ie->name, "glassine-shell.theme")) theme = 1;
+                    if (ie->len && !strcmp(ie->name, "glassine-osk.shown")) area_arm();
                     q += sizeof *ie + ie->len;
                 }
             if (theme) hd_theme_changed();
         }
-        int dirty = 0;
+        int dirty = area_due;
         if (pf[0].revents & (POLLIN | POLLHUP | POLLERR)) {
             /* this event and whatever else is queued: one pass for all */
             do {
