@@ -169,6 +169,16 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
   all the same (so the running app gets the argument, e.g. the Settings page) and goes to that window's screen with
   the window focused, for `new` and `here` alike. Other apps open a further window as in FR-045.
 
+**Dialogs**
+- **FR-055**: An app's dialogs (its floating windows; they belong to the app by its process, whatever their app id) are
+  always on the screen of one of its windows. When a window moves to another screen (opened onto a full screen or
+  onto a new screen, New screen, Overview's arrows), the app's dialogs on the screen it leaves go
+  with it. A dialog on a screen with none of its app's windows (it opened after its window moved away) goes to the
+  screen of the window that moved last, else the focused one, else the newest. The view does not change for a dialog.
+- **FR-056**: A dialog that opens partly outside the work area (under the bar or the on-screen keyboard) is placed in
+  the middle of the work area, made no larger than it. Only when it opens: a dialog moved afterwards stays where it is
+  put. Home and a full screen app are not dialogs.
+
 **General**
 - **FR-050**: Every control here is reachable with Tab and pressed with Enter or Space; Escape closes the top
   panel or cancels the move; focus ring 2 px with a 2 px offset.
@@ -193,6 +203,10 @@ Device-neutral. No device risk: nothing flashes or touches boot, recovery or use
 
 - Host: the window-model tests (headless sway) cover every command above with 1–4 windows, both directions,
   the own-screen move, the crossing toggle, per-line positions and screen reorder/close.
+- Host: an app with one process maps a window and a dialog with another app id; the window goes to another screen
+  (a new screen for a new window, New screen, the arrows) with the dialog opened before or after it moves: the
+  dialog is on the window's screen; a dialog opened taller than the work area under a top bar is inside it, one that
+  fits is left where it opened, one moved under the bar stays there.
 - Host: Home and a full screen app follow the work area when the on-screen keyboard (wvkbd) comes and goes.
 - Host: the home app is started again after any exit while the session runs, and not once sway or the Wayland display
   is gone.

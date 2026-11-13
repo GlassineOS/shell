@@ -22,6 +22,13 @@
  * view follows it. Sway drops an empty workspace it is not on;
  * the ones behind are renumbered down (numbered ones only): no
  * gaps.
+ * dialogs an app's floating windows (the same pid; the app_id may differ) stay
+ * on the screen of its tiled ones: when swayd moves a tiled window to
+ * another workspace, the app's floating windows there go along; one
+ * left on a workspace without its app's tiled windows goes to the
+ * one swayd moved last, else the focused one, else the newest. On
+ * its map one reaching out of the work area (under the bar) is
+ * placed inside it, centred (spec 001 FR-055/FR-056).
  * glassine-epdd-desktop window hints on its FIFO: "win X Y W H" for each area where a window on the
  * visible workspace appeared, went or moved, in portrait px
  * (turned back by glassine-rotd's /run/glassine-rotation);
@@ -833,6 +840,100 @@ static void ph_substitute(void)
     }
 }
 
+/* ---- dialogs (spec 001 FR-055): an app's floating windows stay with its tiled ones ---------- */
+static long moved_view;                 /* the tiled window swayd last moved to another workspace */
+
+/* tiled window id, on workspace from, to workspace `to` (a `move container to workspace`
+ * argument: a quoted name or "number N"): its app's floating windows on from (dialogs: the
+ * same pid; the app_id may differ) go along, in the same command list. Every move of a
+ * tiled window to another workspace goes through here */
+static void move_to_ws(long id, const Ws *from, const char *to)
+{
+    cadd("[con_id=%ld] move container to workspace %s", id, to);
+    moved_view = id;
+    long pid = 0;
+    for (int a = 0; from && a < from->nv; a++) if (from->v[a].id == id) pid = from->v[a].pid;
+    for (int a = 0; pid > 0 && a < from->nf; a++)
+        if (from->f[a].pid == pid && from->f[a].id != home_id) {
+            LOG("window %ld leaves %s: its dialog %ld goes along", id, from->name, from->f[a].id);
+            cadd("[con_id=%ld] move container to workspace %s", from->f[a].id, to);
+        }
+}
+
+static int seen_all_init;
+static long seen_all;                   /* the highest view id (tiled or floating) handled */
+
+/* 0: r lies inside the work area a (device px); 1: o = where it goes, centred in a, no larger */
+static int fit_area(const int r[4], const int a[4], int o[4])
+{
+    if (r[0] >= a[0] && r[1] >= a[1] && r[0] + r[2] <= a[0] + a[2] && r[1] + r[3] <= a[1] + a[3]) return 0;
+    o[2] = r[2] < a[2] ? r[2] : a[2];
+    o[3] = r[3] < a[3] ? r[3] : a[3];
+    o[0] = a[0] + (a[2] - o[2]) / 2;
+    o[1] = a[1] + (a[3] - o[3]) / 2;
+    return 1;
+}
+
+/* the rank of a candidate main window for a dialog: the one swayd moved last, the focused one */
+static int main_rank(const View *v) { return v->id == moved_view ? 2 : v->focused ? 1 : 0; }
+
+/* every pass: a floating window (not Home, not `full`) whose app (pid) has tiled windows,
+ * none of them on its workspace, goes to the workspace of the one swayd moved last, else
+ * the focused one, else the newest (it mapped after its app's window moved, or sway moved
+ * that window). A floating window just mapped that reaches out of its workspace's work
+ * area (under the bar or the keyboard) is placed inside it, centred, no larger than it;
+ * only on its map, so one the user moves stays where it is. No view change. 1: changed */
+static int dialogs(void)
+{
+    long top = seen_all, redo = 0;      /* redo: a new one not laid out yet (look again) */
+    int did = 0;
+    for (int i = 0; i < nws; i++) {
+        for (int a = 0; a < ws[i].nv; a++) if (ws[i].v[a].id > top) top = ws[i].v[a].id;
+        for (int a = 0; a < ws[i].nf; a++) {
+            const View *f = &ws[i].f[a];
+            if (f->id > top) top = f->id;
+            if (f->id == home_id) continue;
+            const Ws *to = &ws[i];
+            const View *best = NULL;
+            int here = 0;
+            for (int j = 0; f->pid > 0 && j < nws && !here; j++)
+                for (int b = 0; b < ws[j].nv; b++) {
+                    const View *v = &ws[j].v[b];
+                    if (v->pid != f->pid || v->ph_pid) continue;
+                    if (j == i) { here = 1; break; }
+                    if (!best || main_rank(v) > main_rank(best) || (main_rank(v) == main_rank(best) && v->id > best->id)) {
+                        best = v;
+                        to = &ws[j];
+                    }
+                }
+            if (here) to = &ws[i];
+            else if (best) {
+                LOG("dialog %ld (%s) on %s: to its app's window %ld on %s", f->id, f->cls, ws[i].name, best->id, to->name);
+                cadd("[con_id=%ld] move container to workspace \"%s\"", f->id, to->name);
+                did = 1;
+            }
+            if (!seen_all_init || f->id <= seen_all) continue;
+            if (f->r[2] <= 0 || f->r[3] <= 0 || to->r[2] <= 0 || to->r[3] <= 0) {
+                if (!redo || f->id < redo) redo = f->id;
+                continue;
+            }
+            int o[4];
+            if (fit_area(f->r, to->r, o)) {
+                LOG("dialog %ld (%s) mapped out of %s's work area: placed inside", f->id, f->cls, to->name);
+                if (o[2] != f->r[2] || o[3] != f->r[3])
+                    cadd("[con_id=%ld] resize set width %d px height %d px", f->id, o[2] / scale, o[3] / scale);
+                cadd("[con_id=%ld] move absolute position %d px %d px", f->id, o[0] / scale, o[1] / scale);
+                did = 1;
+            }
+        }
+    }
+    if (redo && redo - 1 < top) top = redo - 1 > seen_all ? redo - 1 : seen_all;
+    seen_all = top;
+    seen_all_init = 1;
+    if (did) crun();
+    return did;
+}
+
 /* a workspace with more than APPS_PER_WS: its newest (not yet kept) windows go on */
 static int overflow(void)
 {
@@ -853,7 +954,7 @@ static int overflow(void)
             if (j != i && ws[j].num >= 1 && ws[j].nv < APPS_PER_WS && !ws[j].fullscreen) snprintf(target, sizeof target, "\"%s\"", ws[j].name);
         if (!target[0]) snprintf(target, sizeof target, "number %ld", max_num() + 1);
         LOG("workspace %s full: window %ld to %s", w->name, mv, target);
-        cadd("[con_id=%ld] move container to workspace %s", mv, target);
+        move_to_ws(mv, w, target);
         cadd("workspace %s", target);
         cadd("[con_id=%ld] focus", mv);
         crun();
@@ -1657,7 +1758,9 @@ static void place(long m, long t, const char *dir)
     if (wt->full) unfull(wt->full);
     if (!same) {
         unfull(m);
-        cadd("[con_id=%ld] move container to workspace \"%s\"", m, wt->name);
+        char to[80];
+        snprintf(to, sizeof to, "\"%s\"", wt->name);
+        move_to_ws(m, wm, to);
     }
     if (follow) cadd("workspace \"%s\"", wt->name);
     crun();
@@ -1697,7 +1800,9 @@ static void new_screen(long m, int follow)
     Keep *km = keep_of(name);
     if (km) keep_remove(km, m);
     unfull(m);
-    cadd("[con_id=%ld] move container to workspace \"%ld\"", m, at);
+    char to[32];
+    snprintf(to, sizeof to, "\"%ld\"", at);
+    move_to_ws(m, wm, to);
     if (follow) { cadd("workspace \"%ld\"", at); cadd("[con_id=%ld] focus", m); }
     crun();
     if (km && read_tree()) { build(km); crun(); }
@@ -1842,7 +1947,9 @@ static int fresh(void)
         else if (mode == 'n') {
             Ws *from = ws_named(next_ws);
             long at = insert_after(from ? from->num : nw->num);
-            cadd("[con_id=%ld] move container to workspace \"%ld\"", nid, at);
+            char to[32];
+            snprintf(to, sizeof to, "\"%ld\"", at);
+            move_to_ws(nid, nw, to);
             cadd("workspace \"%ld\"", at);
             cadd("[con_id=%ld] focus", nid);
             snprintf(where, sizeof where, "%ld", at);
@@ -1852,7 +1959,9 @@ static int fresh(void)
             const char *to = mode == 'o' ? hole : next_ws;
             Ws *t = to[0] ? ws_named(to) : NULL;
             if (t && t != nw && t->nv < APPS_PER_WS) {
-                cadd("[con_id=%ld] move container to workspace \"%s\"", nid, t->name);
+                char tq[80];
+                snprintf(tq, sizeof tq, "\"%s\"", t->name);
+                move_to_ws(nid, nw, tq);
                 cadd("workspace \"%s\"", t->name);
                 cadd("[con_id=%ld] focus", nid);
                 snprintf(where, sizeof where, "%s", t->name);
@@ -2033,6 +2142,7 @@ static void settle_state(void)
         ph_arm();
         ph_substitute();
         if (fresh()) continue;
+        if (dialogs()) continue;
         if (empty_screen()) continue;
         if (overflow()) continue;
         if (renumber()) continue;

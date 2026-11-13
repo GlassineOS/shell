@@ -5,6 +5,8 @@ make -s -C /ui install O=/tmp/ui-out PREFIX=/usr >/dev/null || exit 1   # (its o
 sh /src/wayland/build-swayd.sh /src /tmp/glassine-swayd || exit 1
 export XDG_RUNTIME_DIR=/tmp/rt; mkdir -p -m 700 $XDG_RUNTIME_DIR
 printf 'output HEADLESS-1 resolution 1404x1872 scale 2\ndefault_border none\ndefault_floating_border none\ngaps inner 20\ngaps outer -20\nsmart_gaps on\nfor_window [app_id="dlg"] floating enable\n' > /tmp/c
+# a top bar (swaybar) for the dialog cases: invisible (no exclusive zone) until they dock it
+printf 'bar {\n id top\n position top\n mode invisible\n}\n' >> /tmp/c
 # keys.conf's bare-Super binding vs a Super chord (sway's release bindings, below)
 printf 'bindsym --release Super_L exec touch /tmp/rel\nbindsym Mod4+Tab exec touch /tmp/tab\n' >> /tmp/c
 cp /usr/bin/sway /tmp/sway          # the package has cap_sys_nice: no exec in a container
@@ -510,6 +512,66 @@ term F
 expect "... an app opens: it fills the screen, Home hides" "$(geo_of F) $(lasthome "home 0 0")" "1 0 0 702 936 home 0 0"
 cmd "home show"; term G
 expect "a new window while Home is shown hides it" "$(lasthome "home 0 0") $(geo_of G | cut -d' ' -f1)" "home 0 0 1"
+# dialogs (FR-055/FR-056): a stand-in app, a foot server (every window of it has its pid),
+# maps a tiled main window and a floating dialog with another app_id
+swaymsg -q '[shell=".*"] kill'; sleep 1.5
+swaymsg -q 'workspace 1'; term X
+swaymsg -q 'bar top mode dock'; sleep 1.5
+# the work area of the focused workspace, logical px: "x y w h"
+wa() { swaymsg -t get_workspaces -r | python3 -c 'import json,sys; r=[w["rect"] for w in json.load(sys.stdin) if w["focused"]][0]; print(r["x"], r["y"], r["width"], r["height"])'; }
+WA=$(wa)
+expect "dialogs: the bar docked, the work area starts below it" "$(echo "$WA" | awk '$2 > 0 && $4 == 936 - $2 { print "below" }')" "below"
+# "ok" when geometry "ws x y w h" ($1) lies inside the work area $2 ("x y w h")
+inside() { [ -n "$1" ] && echo "$1 $2" | awk '$2 >= $6 && $3 >= $7 && $2 + $4 <= $6 + $8 && $3 + $5 <= $7 + $9 { print "ok" }'; }
+swaymsg -q 'for_window [app_id="^dlg-"] floating enable'
+fsrv() { swaymsg -q "exec foot --server=$XDG_RUNTIME_DIR/$1.sock"; sleep 1; }
+# footclient window $2 of server $1 (waits for it like term)
+fc() { swaymsg -q "exec footclient -s $XDG_RUNTIME_DIR/$1.sock -a $2 sleep 600"; sleep 0.4; for i in $(seq 1 46); do swaymsg -t get_tree | grep -q "\"app_id\": \"$2\"" && break; sleep 0.1; done; sleep 0.8; }
+pids() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+p={}
+def w(n):
+    if n.get("shell"): p[n["app_id"]]=n["pid"]
+    for c in n.get("nodes",[])+n.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin)); print(len(set(p[a] for a in sys.argv[1:])))' "$@"; }
+wsof() { geo_of "$1" | cut -d' ' -f1; }
+# the dialog maps first, then the main window, which `next new` sends to a new screen
+fsrv a; fc a dlg-a
+cmd "next new"; fc a main-a
+expect "dialogs: the stand-in's two windows have one pid" "$(pids dlg-a main-a)" "1"
+expect "dialog mapped first, its main window sent to a new screen: the dialog goes along" "$(cur) $(wsof main-a) $(wsof dlg-a)" "1 2 focus 2 2 2"
+expect "... inside the work area" "$(inside "$(geo_of dlg-a)" "$WA")" "ok"
+# the main window moved first, then the dialog maps on another screen (where the view is)
+fsrv b
+cmd "next new"; fc b main-b
+swaymsg -q 'workspace 1'; sleep 0.8
+fc b dlg-b
+expect "dialog mapped after its main window moved away: to the main window's screen, the view stays" "$(cur) $(wsof main-b) $(wsof dlg-b)" "1 2 3 focus 1 3 3"
+expect "... inside the work area" "$(inside "$(geo_of dlg-b)" "$WA")" "ok"
+# the overview's New screen and its arrows (place) move a main window with a dialog beside it
+fsrv c; fc c main-c; fc c dlg-c
+expect "dialog and its main window beside X" "$(wsof main-c) $(wsof dlg-c) $(wsof X)" "1 1 1"
+cmd "newscreen $(id main-c) 0"; sleep 1
+expect "newscreen: the dialog goes along" "$(wsof main-c) $(wsof dlg-c)" "2 2"
+cmd "place $(id main-c) $(id X) right"; sleep 1
+expect "place back: the dialog goes along" "$(wsof main-c) $(wsof dlg-c) $(wsof X)" "1 1 1"
+fsrv d; cmd "next new"; fc d main-d; fc d dlg-d
+expect "a main window with its dialog on a screen of its own" "$(cur) $(wsof main-d) $(wsof dlg-d)" "1 2 3 4 focus 2 2 2"
+cmd "place $(id main-d) $(id X) down"; sleep 1
+expect "place: the dialog goes along, the emptied screen goes" "$(cur) $(wsof main-d) $(wsof dlg-d) $(wsof X)" "1 2 3 focus 1 1 1 1"
+# on its map: sway centres a floating window taller than the work area on the whole output
+# (partly under the bar); one that fits it, in the work area
+swaymsg -q 'for_window [app_id="^tall-|^small-"] floating enable'
+termw() { swaymsg -q "exec foot -a $1 -w $2 sleep 600"; sleep 0.4; for i in $(seq 1 46); do swaymsg -t get_tree | grep -q "\"app_id\": \"$1\"" && break; sleep 0.1; done; sleep 0.8; }
+termw tall-1 400x925
+G=$(geo_of tall-1)
+expect "a dialog mapped taller than the work area: inside it, as tall as it, centred" "$(inside "$G" "$WA") $(echo "$G $WA" | awk '{ dx = $2 + $4 / 2 - ($6 + $8 / 2) } $9 - $5 < 20 && dx * dx <= 4 { print "tall centred" }')" "ok tall centred"
+termw small-1 300x300
+G=$(geo_of small-1)
+expect "a dialog that fits: where sway put it, centred in the work area, its size" "$(echo "$G $WA" | awk '{ dx = $2 + $4 / 2 - ($6 + $8 / 2); dy = $3 + $5 / 2 - ($7 + $9 / 2) } dx * dx <= 4 && dy * dy <= 4 && $4 > 280 && $4 <= 300 && $5 > 280 && $5 <= 300 { print "ok" }')" "ok"
+swaymsg -q '[app_id=small-1] move absolute position 100 0'; sleep 1.2
+expect "a dialog the user moves under the bar stays there" "$(geo_of small-1 | cut -d' ' -f2-3)" "100 0"
+swaymsg -q 'bar top mode invisible'
 echo "--- handle history"; grep -n "handle [0-9]: level\|no handles\|placeholder\|closed" /tmp/swayd.log | tail -40
 grep -iE "error|fail" /tmp/swayd.log | grep -v "FIFO write failed" | head -5
 [ $fail = 0 ] || { echo "--- swayd.log"; grep -n "placeholder\|kill" /tmp/swayd.log | head -20; tail -30 /tmp/swayd.log; }
