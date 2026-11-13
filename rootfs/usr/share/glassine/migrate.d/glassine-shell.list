@@ -1,0 +1,30 @@
+# The person's settings that a switch (an update, a reset) carries into the next
+# deployment: what glassine-settings, the quick settings and the first-run setup write.
+# Image configuration (epd.conf, rotd.conf, slots.conf, deploy.conf) is not listed: an
+# update brings its own. A setting turned off by removing its file is not carried.
+/etc/glassine/eink.conf
+/etc/glassine/power.conf
+/etc/glassine/rotation
+/etc/glassine/bgprio.conf
+/etc/glassine/zram
+/etc/glassine/ddr
+/etc/glassine/ntp-off
+/etc/glassine/osk-layers
+/etc/glassine/home-app
+/etc/glassine/grid-hidden
+/etc/glassine/launch-boost
+/etc/glassine/epd-gpu
+/etc/glassine/sway-gpu
+/etc/glassine/setup.conf
+/etc/glassine/setup-done
+# the fast defaults were set once (glassine-session-sway): carried, so an update does
+# not set them again over the person's choices
+/etc/glassine/defaults-14
+/etc/glassine/defaults-15
+/etc/glassine/defaults-16
+/etc/glassine/defaults-17
+/etc/glassine/defaults-18
+/etc/glassine/defaults-19
+/etc/glassine/defaults-20
+# the per-app render seed was applied
+/var/lib/glassine/render-seeded/
