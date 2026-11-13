@@ -11,6 +11,8 @@
 # Layers (the ⌨ key cycles them): ~/.config/glassine/osk-layers (glassine-settings →
 # Keyboard), else /etc/glassine/osk-layers, default german,special (German QWERTZ
 # with umlauts, the fork's "german" layer); full = US. A change restarts it too.
+# Landscape (a screen wider than tall) uses the same layers, so it follows the keymap;
+# only full and special become their wide forms (landscape, landscapespecial).
 EXTRA=$*                                # e.g. -o (the harness logs the keys); no spaces
 R=${XDG_RUNTIME_DIR:-/tmp}
 TF=$R/glassine-shell.theme
@@ -39,7 +41,12 @@ while swaymsg -t get_version >/dev/null 2>&1; do
         esac
         # shellcheck disable=SC2086
         L=$(cat "$LF" 2>/dev/null || cat /etc/glassine/osk-layers 2>/dev/null); L=${L:-german,special}
-        wvkbd-glassine --hidden -H 300 --no-popup -l "$L" "$@" $EXTRA &
+        LL=
+        for l in $(echo "$L" | tr , ' '); do
+            case $l in full) l=landscape ;; special) l=landscapespecial ;; esac
+            LL=${LL:+$LL,}$l
+        done
+        wvkbd-glassine --hidden -H 300 -L 240 --no-popup -l "$L" --landscape-layers "$LL" "$@" $EXTRA &
     else
         wvkbd-mobintl --hidden -H 300 -R 0 --fn "Sans 18" --bg 111111 --fg ffffff --fg-sp eeeeee \
             --press cccccc --press-sp cccccc --swipe eeeeeeff --swipe-sp eeeeeeff --text 111111 --text-sp 111111 $EXTRA &
