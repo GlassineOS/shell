@@ -193,6 +193,24 @@ expect "home app: /etc/glassine/home-app's first word, from its desktop entry (f
 printf '#!/bin/sh\n' > $HS/bin/mine; chmod +x $HS/bin/mine
 expect "home app: \$GLASSINE_HOME_APP_ID first, a command of that name" "$(hs GLASSINE_HOME_APP_ID=mine | tr '\n' ' ')" "mine rc 0 "
 rm -f /etc/glassine/home-app
+# started again on every exit while the session runs (a clean one too), the pause doubling;
+# stops once the session's socket is gone; no session socket known: started once
+FS=$HS/sway.sock; python3 -c 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' $FS
+printf '#!/bin/sh\necho run >> %s/runs\nexit $(($(wc -l < %s/runs) %% 2))\n' $HS $HS > $HS/bin/fakehome; chmod +x $HS/bin/fakehome
+hr() { env -u WAYLAND_DISPLAY -u SWAYSOCK GLASSINE_HOME_APP_ID=fakehome HOME=$HS XDG_DATA_HOME=$HS/data XDG_DATA_DIRS=/nonexistent PATH=$HS/bin:/usr/bin:/bin "$@" sh /o/usr/bin/glassine-home-start; }
+rm -f $HS/runs; hr SWAYSOCK=$FS & hp=$!
+sleep 2     # starts at 0 s (exit 1) and 1 s (exit 0); the next waits until 3 s
+expect "home app: started again after a failure and after a clean exit" "$(wc -l < $HS/runs)" "2"
+rm -f $FS; sleep 2.5
+expect "home app: sway's socket gone: not started again, the script ends" "$(wc -l < $HS/runs) $(kill -0 $hp 2>/dev/null && echo running || echo ended)" "2 ended"
+kill $hp 2>/dev/null; wait $hp 2>/dev/null
+mkdir -p $HS/rt; python3 -c 'import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])' $HS/rt/wl-test
+rm -f $HS/runs; hr XDG_RUNTIME_DIR=$HS/rt WAYLAND_DISPLAY=wl-test & hp=$!
+sleep 2; rm -f $HS/rt/wl-test; sleep 2.5
+expect "home app: the Wayland socket alone (a name in \$XDG_RUNTIME_DIR) counts as the session" "$(wc -l < $HS/runs) $(kill -0 $hp 2>/dev/null && echo running || echo ended)" "2 ended"
+kill $hp 2>/dev/null; wait $hp 2>/dev/null
+rm -f $HS/runs
+expect "home app: no session socket known: started once" "$(hr; echo "rc $? $(wc -l < $HS/runs)")" "rc 0 1"
 expect "sway config: starts the home app with glassine-home-start" "$(grep -c '^exec /usr/bin/glassine-home-start$' /o/usr/share/glassine/sway/config)" "1"
 # the hardware keyboard layout (glassine-kbd-layout): as the OSK's first language, or the
 # user's choice; the include sway loads, and set live (a libinput keyboard: none here,

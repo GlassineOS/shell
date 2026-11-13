@@ -9,7 +9,8 @@
 # GLASSINE_SWAYD_TEST), swapin/cross/direction/full, place on the own screen,
 # scrmove/scrclose, next, Home (a foot stand-in) and the empty screen, with the
 # dividers and home requests a stand-in glassine-shell socket gets;
-# the device's sway config + keys.conf pass `sway -C`, the key scripts shellcheck.
+# the device's sway config + keys.conf pass `sway -C`, the key scripts shellcheck;
+# glassine-home-start: the home app's command, and its restarts while the session runs.
 # test.sh exit 1 on a failed check
 set -eu
 D=$(cd "$(dirname "$0")" && pwd)
