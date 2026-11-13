@@ -394,6 +394,11 @@ start_sway() {
     # what it starts, not to D-Bus-activated apps): 24 at scale 2 = 48 px on the panel
     # GTK_OVERLAY_SCROLLING=0: overlay scrollbars fade in and out on every pointer
     # move, an animation and so a stream of panel updates; classic ones stay still
+    # audio: PipeWire's data threads (module-rt in pipewire, pipewire-pulse and
+    # wireplumber) raise their own priority within these limits, no RTKit: realtime up
+    # to 20 (the kernel's RT throttling keeps 5 % for the rest) and nice down to -11
+    # (RLIMIT_NICE 31 = 20 - -11). They hold for everything the session starts; su keeps them
+    ulimit -r 20; ulimit -e 31
     su -l "$U" -c "export XDG_RUNTIME_DIR=/run/user/$UID_ XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=sway \
         XDG_SESSION_DESKTOP=sway LIBSEAT_BACKEND=seatd GLASSINE_EPD=1 WLR_BACKENDS=libinput WLR_RENDERER=$REN \
         MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1 GTK_MODULES=glassine-ink GTK_OVERLAY_SCROLLING=0 XCURSOR_THEME=Adwaita XCURSOR_SIZE=24 $GL; \
