@@ -15,10 +15,20 @@
 /etc/glassine/launch-boost
 /etc/glassine/epd-gpu
 /etc/glassine/sway-gpu
+/etc/glassine/sway-grey
+/etc/glassine/sway-latch
+/etc/glassine/sway-heap
+/etc/glassine/gpu-prio
+/etc/glassine/gpu-prio-ingest
+/etc/glassine/fg-boost
+/etc/glassine/gpu-app-l3
+/etc/glassine/gpu-app-split
+/etc/glassine/gpu-app-nol4
 /etc/glassine/setup.conf
 /etc/glassine/setup-done
 # the fast defaults were set once (glassine-session-sway): carried, so an update does
-# not set them again over the person's choices
+# not set them again over the person's choices; every flag the defaults write is listed
+# above, or the marker would keep them from coming back
 /etc/glassine/defaults-14
 /etc/glassine/defaults-15
 /etc/glassine/defaults-16
