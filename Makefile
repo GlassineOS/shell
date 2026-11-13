@@ -48,6 +48,7 @@ check:
 	sh test/settings/test.sh
 	sh test/setup/test.sh
 	sh test/admin-auth/test.sh
+	sh test/migrate/test.sh
 	sh test/health/test.sh
 	sh test/session-dispatch/run.sh
 	sh test/bgprio/test.sh
