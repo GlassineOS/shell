@@ -139,7 +139,8 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
   that says Home means the home app.
 - **FR-030**: Home is shown over the whole current screen, under the bar, when the Home button is tapped, the Home gesture
   runs (four fingers up), or the current screen has no apps (the session starts on an empty screen, or its last
-  app closes). The bar stays above it.
+  app closes). The bar stays above it. Home, like a full screen app (FR-019), covers the work area as it is: when that
+  changes (the screen turns, the on-screen keyboard comes or goes), it follows.
 - **FR-031**: Home hides when an app opens, when the Home button is tapped again, or on Escape.
 - **FR-040**: Whenever the current screen has no apps (the session starts on an empty screen, its last app closes,
   or the view lands on an empty screen), that screen stays, empty, under Home. Opening an app from Home fills it.
@@ -192,6 +193,9 @@ Device-neutral. No device risk: nothing flashes or touches boot, recovery or use
 
 - Host: the window-model tests (headless sway) cover every command above with 1–4 windows, both directions,
   the own-screen move, the crossing toggle, per-line positions and screen reorder/close.
+- Host: Home and a full screen app follow the work area when the on-screen keyboard (wvkbd) comes and goes.
+- Host: the home app is started again after any exit while the session runs, and not once sway or the Wayland display
+  is gone.
 - Host: the shell and the window model together on headless sway: divider mode from the window model's own divider
   list, swaps reaching the window model, Home shown and hidden from the bar, the empty screen, a launch landing on a new
   screen and its argument reaching the app.
