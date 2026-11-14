@@ -58,6 +58,13 @@ that asks for no automatic capitals gets none.
 picked it a few times outside private fields, **Then** it is suggested like a known
 word. The settings show that learning is on, turn it off, and erase what was learned.
 
+**Given** a suggested word the person doesn't want (a typo that was learned, a word they
+never use), **When** they hold it in the strip, **Then** the strip asks in place whether
+to remove it; removing it stops it being suggested at once, and it isn't learned again
+from later typing. **When** they open the learned words in the settings, **Then** they
+see the words with how often each was used, can remove any of them, and can put back a
+word they removed.
+
 ### Scenario 7 – Writing above the field (Priority: P2)
 
 **Given** an empty text field, **When** the person taps it with the pen, **Then** a
@@ -129,8 +136,16 @@ suggestions and no handwriting popup, and nothing is learned there.
 - **FR-008**: Learned words live in the person's data directory, readable only by them,
   never leave the device, and are erased by one action in the settings. The settings
   app's keyboard page has: suggestions on or off, learning on or off (on by default),
-  handwriting on or off, and one action that erases what was learned (words and
-  handwriting samples).
+  handwriting on or off, the learned words (FR-008a), and one action that erases what
+  was learned (words and handwriting samples).
+- **FR-008a**: Removing words. Holding a word in the strip turns the strip into a
+  question in the same row (remove the word, or keep it); no popup. A removed word is
+  never suggested again and isn't learned again, whether it was learned or comes from
+  the base dictionary; typing it stays possible. The settings' learned words page lists
+  the learned words, most used first, with a search, a remove action per word and a list
+  of removed words that can be put back; erasing everything also clears the removed
+  list. The designs are the `shell.keyboard.remove` and `settings.keyboard.words` boards
+  in GlassineOS/ui.
 - **FR-009**: Field purpose selects the opening layer per Scenario 5: number and phone
   open a keypad (3 × 3 digits, 0 below, the purpose's extra keys in a fourth column, a key
   back to the letters), PIN a keypad of digits, Backspace and Enter only; email and URL
@@ -191,7 +206,7 @@ suggestions and no handwriting popup, and nothing is learned there.
 | AT-SPI field extents (optional, FR-010) | consumed (the accessibility bus) | — | — |
 | Predictor line contract (FR-005) | owned (shell) | 1 | defined with the plan |
 | Handwriting recognizer interface (FR-011, FR-013a) | consumed (`GlassineOS/handwriting`) | 1 | handwriting spec 001 |
-| Learned words store and the erase action | owned (shell); the settings app uses it | 1 | FR-008 |
+| Learned words store: list, remove, put back, erase | owned (shell); the settings app and the keyboard use it | 1 | FR-008, FR-008a |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
 
 ## Device scope and risk
