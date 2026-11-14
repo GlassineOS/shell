@@ -91,14 +91,34 @@ open(CONF, "w").write("# keep me\nlearning = off\naddresses = off\nsuggestions =
 be.osk = "german"
 be.read_typing()
 check("read: the switches, the address choice", (be.kb_sugg, be.kb_hw, be.kb_learn, be.kb_addr), (False, False, False, "off"))
-check("languages unset: the layout's language", be.kb_active(), ["de"])
+# the reported state: only English installed, `languages` unset, the layout German
+check("unset, the layout's language not installed: the installed ones are active", (be.kb_active(), be.kb_dicts()), (["en"], ["en"]))
+check("... its rows: only installed languages, never one without a dictionary shown as on",
+      be.kb_lang_rows(), [("en", "English", 40000, True)])
+MP = PR.MODEL_PKG
+check("... the layout's language offered first, with why",
+      be.kb_to_add([MP + "fr", MP + "en", MP + "de", MP + "es"]),
+      [("de", "Deutsch", MP + "de", "layout"), ("es", "Español", MP + "es", None), ("fr", "Français", MP + "fr", None)])
+check("... also when the indexes don't have it (nothing to install from)", be.kb_to_add([])[0], ("de", "Deutsch", None, "layout"))
+check("... the Keyboard page's note: the package when the indexes have it",
+      [PR.missing_layout(be.kb_models, "de", [MP + "en", MP + "de"]), PR.missing_layout(be.kb_models, "de", [MP + "en"]),
+       PR.missing_layout(be.kb_models, "en", [MP + "en"])], [MP + "de", None, None])
+check("active: the rule as glassine-predict's (set list, layout installed, installed by code, at most 4, none)",
+      [PR.active(["fr", "en"], "de", {"en": 1}), PR.active(None, "de", {"en": 1, "de": 1}),
+       PR.active(None, "sv", dict.fromkeys(("nl", "fr", "en", "es", "de"), 1)), PR.active(None, "de", {})],
+      [["fr", "en"], ["de"], ["de", "en", "es", "fr"], ["de"]])
+GPM = lambda c, n: b"GLPM" + struct.pack("<I", 1) + c.encode().ljust(8, b"\0") + struct.pack("<I", n) + b"\0" * 64  # noqa: E731
+open(T + "/models/de.gpm", "wb").write(GPM("de", 30000))
+be.kb_installed("de")
+check("the layout's language installed: it alone is active, first in the rows",
+      (be.kb_active(), be.kb_lang_rows()), (["de"], [("de", "Deutsch", 30000, True), ("en", "English", 40000, False)]))
 for c in ("es", "it", "nl", "sv"):
-    open(T + "/models/%s.gpm" % c, "wb").write(b"GLPM" + struct.pack("<I", 1) + c.encode().ljust(8, b"\0") + struct.pack("<I", 1000) + b"\0" * 64)
+    open(T + "/models/%s.gpm" % c, "wb").write(GPM(c, 1000))
 be.read_typing()
 rows = be.kb_lang_rows()
-check("the language rows: installed and active ones, the layout's first, then by name",
+check("the language rows: the installed ones, the layout's first, then by name",
       [(c, n, w, on) for c, n, w, on in rows],
-      [("de", "Deutsch", None, True), ("en", "English", 40000, False), ("es", "Español", 1000, False),
+      [("de", "Deutsch", 30000, True), ("en", "English", 40000, False), ("es", "Español", 1000, False),
        ("it", "Italiano", 1000, False), ("nl", "Nederlands", 1000, False), ("sv", "Svenska", 1000, False)])
 be.toggle_kb_lang("en")
 check("a language on: languages = written in the rows' order", PR.read_conf().get("languages"), "de,en")
@@ -109,7 +129,21 @@ be.toggle_kb_lang("es")
 be.toggle_kb_lang("en")
 check("the last one can't go off (an empty list would be unset)", (PR.read_conf().get("languages"), errors[-1:]),
       ("en", ["At least one language"]))
-check("an active language without a model, once off, is no longer listed", "de" in [r[0] for r in be.kb_lang_rows()], False)
+# a set list naming a language without a dictionary (installed, then removed)
+PR.write_conf({"languages": "fr,en"})
+be.read_typing()
+check("a set list with one not installed: kept as set, only the installed one gives words", (be.kb_active(), be.kb_dicts()),
+      (["fr", "en"], ["en"]))
+check("... not a row; offered to install, with why", ("fr" in [r[0] for r in be.kb_lang_rows()], be.kb_to_add([MP + "fr"])),
+      (False, [("fr", "Français", MP + "fr", "on")]))
+PR.write_conf({"languages": "fr"})
+be.read_typing()
+check("a set list with none installed: no dictionary active", be.kb_dicts(), [])
+be.toggle_kb_lang("en")
+check("... turning an installed one on writes only the rows that are on", PR.read_conf().get("languages"), "en")
+os.unlink(T + "/models/de.gpm")
+open(T + "/models/de.gpm", "wb").write(b"junk")
+be.read_typing()
 for c in ("nl", "es", "it"):
     be.toggle_kb_lang(c)
 check("four on, in the rows' order", PR.read_conf().get("languages"), "en,es,it,nl")
@@ -133,11 +167,11 @@ check("model packages: the language from the name, not the parent or a -doc",
       [PR.model_lang(n) for n in ("glassine-predict-model-en", "glassine-predict-model-pt-BR", "glassine-predict-model",
                                   "glassine-predict-model-en-doc", "glassine-predict-modelx-en", "vim")],
       ["en", "pt-BR", None, None, None, None])
-check("to add: in the indexes, without a model, not active; layout's first then by name",
+check("to add: in the indexes, without a model; layout's first then by name",
       PR.to_add(["glassine-predict-model", "glassine-predict-model-fr", "glassine-predict-model-en", "glassine-predict-model-es",
                  "glassine-predict-model-de", "glassine-predict-model-de-doc"], {"en": 1}, ["en"], "fr"),
-      [("fr", "Français", "glassine-predict-model-fr"), ("de", "Deutsch", "glassine-predict-model-de"),
-       ("es", "Español", "glassine-predict-model-es")])
+      [("fr", "Français", "glassine-predict-model-fr", "layout"), ("de", "Deutsch", "glassine-predict-model-de", None),
+       ("es", "Español", "glassine-predict-model-es", None)])
 check("a model package's name in the change sheets", A.packages.pretty("glassine-predict-model-fr"), "Français for the keyboard")
 
 dm = B.Demo()
@@ -198,6 +232,55 @@ pd.db = {k: v for k, v in pd.db.items() if not k.startswith(PR.MODEL_PKG) or k i
 ui.go("kb-langs")
 check("no languages in the indexes: a note, no Install rows",
       [type(b).__name__ for b in blocks()][-3:], ["Head", "Note", "Item"])
+
+# the reported state on the pages (demo): only English installed, `languages` unset, the layout German
+os.environ["GLASSINE_DEMO_KB"] = "layout-missing"
+dm = B.Demo()
+dm.error = lambda t, x: errors.append(t)
+ui = A.UI(dm, lambda: None)
+ui.L = A.Layout(702, 884)
+del os.environ["GLASSINE_DEMO_KB"]
+ui.go("kb-langs")
+labels = [getattr(b, "label", None) for b in blocks()]
+check("layout German, no German dictionary: English on, German offered first",
+      labels[labels.index("On the keyboard"):], ["On the keyboard", "English", "Add a language", "Deutsch", "Español", "Français",
+                                                 "All keyboard languages"])
+check("... English is on", row("English").on, True)
+check("... German's line: the keyboard layout, Install", (row("Deutsch").sub, row("Deutsch").act, row("Deutsch").act_off),
+      ("Your keyboard layout · Download 3.0 MB", "Install", False))
+check("... no learned-words-only note (English has a dictionary)",
+      any(type(b).__name__ == "Note" and "learned words" in b.label for b in blocks()), False)
+ui.go("keyboard")
+note = row("No dictionary for Deutsch")
+check("Keyboard: the note under the layout, with Install", (note.sub, note.act, note.act_off),
+      ("Suggestions in English for now · Download 3.0 MB", "Install", False))
+check("... the Typing summary names the language that gives words", row("Suggestion languages").sub, "English")
+note.act_fn()
+ui.sheet.ok()                                   # (the first-change note)
+check("Install from the note: the Languages page's flow", (ui.sheet.title, ui.sheet.ok_label),
+      ("Install Deutsch for the keyboard?", "Install"))
+plan = ui.sheet.plan
+ui.sheet.ok()
+ui.pk.d.run = None
+ui.pk.d._apply(plan)
+ui.pk.d.result = {"kind": "ok", "plan": plan, "files": [], "restart": ""}
+ui.pk.show_result()
+ui.sheet = None
+labels = [getattr(b, "label", None) for b in blocks()]
+check("... installed: the note is gone, German suggests", ("No dictionary for Deutsch" in labels,
+                                                           dm.kb_active(), row("Suggestion languages").sub), (False, ["de"], "Deutsch"))
+dm.osk = "us"
+check("a layout whose language is installed: no note", any("No dictionary for" in (l or "") for l in
+                                                            [getattr(b, "label", None) for b in blocks()]), False)
+dm.kb_langs, dm.kb_models = ["fr"], {"en": 40000}
+ui.go("kb-langs")
+check("a set list with none installed: the page says learned words only",
+      next((b.label for b in blocks() if type(b).__name__ == "Note" and "learned words" in b.label), None),
+      "No language that is on has a dictionary, so suggestions come only from learned words. "
+      "Install one below or turn on an installed one.")
+check("... the chosen one offered with why", row("Français").sub, "Turned on, not installed · Download 2.8 MB")
+ui.go("keyboard")
+check("... the Keyboard summary says so", row("Suggestion languages").sub, "No dictionary · learned words only")
 
 # -- the Words page: counts, the folder, Forget ---------------------------------------------
 check("stats: the active languages first (their order), then installed and learned-only ones by name",
