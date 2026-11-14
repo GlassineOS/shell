@@ -386,7 +386,7 @@ class Base:
         self.batt_at = ""
         self.pkey, self.cover, self.sleep, self.wifi_off = "suspend", True, 10, 0
         # keyboard, appearance, time
-        self.osk, self.osk_auto, self.theme = "german", True, "white"
+        self.osk, self.osk_auto, self.theme = "us", True, "white"
         self.kbd = ""                           # hardware keyboard layout: "" (as the OSK) | a KBD_LAYOUTS code
         self.shortcuts = sway_shortcuts()       # the sway session's (keys.conf)
         # Keyboard > Typing (predict.py): the switches, the email/web choice, the languages
@@ -1187,7 +1187,7 @@ class Real(Base):
         self.gpu_desk = os.path.exists(SWAY_GPU)
         fb = read(GPU_FALLBACK)
         self.gpu_fallback = fb.split(" ", 1)[0] if fb else ""
-        lay = read(OSK_LAYERS_USER) or read("/etc/glassine/osk-layers") or OSK_LAYERS["german"]
+        lay = read(OSK_LAYERS_USER) or read("/etc/glassine/osk-layers") or OSK_LAYERS["us"]
         self.osk = "us" if lay.split(",")[0] == "full" else "german"
         self.osk_auto = not os.path.exists(OSK_NO_AUTO)
         self.kbd = read(KBD_LAYOUT) if read(KBD_LAYOUT) in [c for c, _, _ in KBD_LAYOUTS] else ""
