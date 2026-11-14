@@ -276,7 +276,7 @@ check("remove a base word", [p.ask("remove\tr4\ten\ttomorrow"), words_of(p.ask(p
 check("typing a removed word stays possible: other words still come",
       words_of(p.ask(predict("r6", "See you ")))[0], "soon")
 rc, out, err = h.words("removed")
-check("words removed: the list", sorted(out.splitlines()), ["en\tglassine", "en\ttomorrow"])
+check("words removed: the list", sorted(out.splitlines()), ["glassine", "tomorrow"])
 check("words list: the removed word is gone", "Glassine" in h.words("list")[1], False)
 check("restore through the contract", [p.ask("restore\tr7\ten\ttomorrow"), words_of(p.ask(predict("r8", "See you ", "tom")))],
       ["restore\tr7\tok", ["tomorrow"]])
@@ -351,6 +351,69 @@ check("an unwritable store: no busy loop (CPU ticks)", cpu < 30, True)
 check("... and it still answers", p.ask("hello\tu2\t1"), "hello\tu2\t1")
 code, rest, err = p.close()
 check("... exits 0", code, 0)
+
+# ---- contract version 2: several languages
+def pairs(reply):
+    f = reply.split("\t")[2:] if reply else []
+    return list(zip(f[0::2], f[1::2]))
+
+
+h = Home()
+p = Predictor(h)
+check("v2: hello 2", p.ask("hello\th\t2"), "hello\th\t2")
+check("v2: a newer version asked gets 2", p.ask("hello\th\t7"), "hello\th\t2")
+check("v2: English context, English words", pairs(p.ask(predict("m1", "I would like to ", lang="en,de")))[:2],
+      [("read", "en"), ("go", "en")])
+check("v2: German context, German words", pairs(p.ask(predict("m2", "Ich möchte ein ", lang="en,de")))[0], ("Buch", "de"))
+check("v2: a German context with an English word first in the list", pairs(p.ask(predict("m3", "Danke für ", lang="en,de")))[0][1], "de")
+check("v2: a completion only German has", pairs(p.ask(predict("m4", "", "Hau", lang="en,de")))[0], ("Haus", "de"))
+check("v2: both languages at a sentence start", sorted(set(l for _, l in pairs(p.ask(predict("m5", "", "", lang="en,de"))))),
+      ["de", "en"])
+for bad in ["en,en", "en,de,fr,it,es", "en,EN!", "", "en,"]:
+    check("v2: bad language list %r" % bad, p.ask(predict("m6", "x ", lang=bad)), "error\tm6\tbad-lang")
+check("v2: a language without a model adds nothing", pairs(p.ask(predict("m7", "Ich möchte ein ", lang="xx,de")))[0], ("Buch", "de"))
+# which language learns
+check("learn: a picked suggestion learns in its language",
+      p.ask("learn\tq1\ten,de\tnormal\tI would like to \tBuch\tde"), "learn\tq1\tok\tde")
+check("learn: a typed word only German knows", p.ask("learn\tq2\ten,de\tnormal\t\tZeitung\t"), "learn\tq2\tok\tde")
+check("learn: a typed word only English knows", p.ask("learn\tq3\ten,de\tnormal\tIch \tweather\t"), "learn\tq3\tok\ten")
+check("learn: an unknown word after German", p.ask("learn\tq4\ten,de\tnormal\tIch möchte ein \tFlugzeugträger\t"),
+      "learn\tq4\tok\tde")
+check("learn: an unknown word after English", p.ask("learn\tq5\ten,de\tnormal\tI would like to \tsnorkel\t"),
+      "learn\tq5\tok\ten")
+check("learn: an unknown word without context: the first language",
+      p.ask("learn\tq6\tde,en\tnormal\t\tquokka\t"), "learn\tq6\tok\tde")
+check("learn: a word both know follows the context",
+      [p.ask("learn\tq7\ten,de\tnormal\tWir fahren \tin\t"), p.ask("learn\tq8\ten,de\tnormal\tWe went \tin\t")],
+      ["learn\tq7\tok\tde", "learn\tq8\tok\ten"])
+check("learn: a picked language not active is ignored", p.ask("learn\tq9\ten,de\tnormal\t\tquokkas\tfr"), "learn\tq9\tok\ten")
+check("learn: the v1 form still works (no context: first language)", p.ask("learn\tq10\ten,de\tnormal\tbilby"), "learn\tq10\tok\ten")
+# removing a word removes it in every language
+check("remove: the German word is gone in German too",
+      [p.ask("remove\tr1\ten\tHaus"), "Haus" in [w for w, _ in pairs(p.ask(predict("r2", "", "Hau", lang="en,de")))]],
+      ["remove\tr1\tok", False])
+check("restore: back everywhere", [p.ask("restore\tr3\tde\thaus"), pairs(p.ask(predict("r4", "", "Hau", lang="en,de")))[0]],
+      ["restore\tr3\tok", ("Haus", "de")])
+p.close()
+check("words list -l: the language per word", sorted(l.split("\t")[1] for l in h.words("list", "-l", "de")[1].splitlines()),
+      ["Buch", "Flugzeugträger", "Zeitung", "in", "quokka"])
+check("words remove -l is gone (removal is for every language)", h.words("remove", "-l", "de", "Buch")[0], 2)
+
+# the languages setting wins over the request's list
+h = Home()
+os.makedirs(os.path.join(h.conf, "glassine"))
+conf = os.path.join(h.conf, "glassine", "predict.conf")
+open(conf, "w").write("languages = de\n")
+p = Predictor(h)
+p.ask("hello\th\t2")
+check("languages in predict.conf win over the request", pairs(p.ask(predict("s1", "I would like to ", lang="en")))[0][1], "de")
+check("... and an empty request list uses them", pairs(p.ask(predict("s2", "Ich möchte ein ", lang="")))[0], ("Buch", "de"))
+open(conf, "w").write("languages = en, de\n")
+check("... read at the next request, spaces allowed", pairs(p.ask(predict("s3", "", "Hau", lang="")))[0], ("Haus", "de"))
+open(conf, "w").write("languages = en,!!\n")
+check("an invalid setting falls back to the request", pairs(p.ask(predict("s4", "I would like to ", lang="en")))[0][1], "en")
+check("... and with no request list it's an error", p.ask(predict("s5", "x ", lang="")), "error\ts5\tbad-lang")
+p.close()
 
 # a store this version can't read is left alone
 h = Home()
