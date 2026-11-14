@@ -48,11 +48,18 @@ while swaymsg -t get_version >/dev/null 2>&1; do
             LL=${LL:+$LL,}$l
         done
         # the input method (spec 006): text committed to the field, the suggestion strip,
-        # glassine-predict; swayd keeps deciding when it shows ("osk focus" reports)
-        if wvkbd-glassine --help 2>&1 | grep -q -- --predictor; then
+        # glassine-predict; swayd keeps deciding when it shows ("osk focus" reports).
+        # Handwriting (FR-010): the writing paper with glassine-handwriting; a pen tap into
+        # an empty field opens it (glassine-osk show pen leaves the flag file)
+        help=$(wvkbd-glassine --help 2>&1)
+        case $help in *--predictor*)
             set -- "$@" --im --strip --notify "$R/glassine-swayd" --hide-cmd "glassine-osk hide"
             command -v glassine-predict >/dev/null && set -- "$@" --predictor glassine-predict
-        fi
+            case $help in *--handwriting*)
+                command -v glassine-handwriting >/dev/null &&
+                    set -- "$@" --handwriting glassine-handwriting --pen-flag "$R/glassine-osk.pen" ;;
+            esac ;;
+        esac
         wvkbd-glassine --hidden -H 300 -L 240 --no-popup -l "$L" --landscape-layers "$LL" "$@" $EXTRA &
     else
         wvkbd-mobintl --hidden -H 300 -R 0 --fn "Sans 18" --bg 111111 --fg ffffff --fg-sp eeeeee \
