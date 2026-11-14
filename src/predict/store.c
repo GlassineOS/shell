@@ -105,12 +105,11 @@ size_t store_prefix(const struct store *s, const char *lang, const char *prefix)
 	return lower(s->w, s->nw, lang, prefix);
 }
 
-int store_removed(const struct store *s, const char *lang, const char *key)
+int store_removed(const struct store *s, const char *key)
 {
-	size_t i = lower(s->x, s->nx, "*", key);
-	if (i < s->nx && !cmp(s->x[i].lang, s->x[i].key, "*", key)) return 1;
-	i = lower(s->x, s->nx, lang, key);
-	return i < s->nx && !cmp(s->x[i].lang, s->x[i].key, lang, key);
+	/* a removed word is out in every language, whatever language its line names */
+	for (size_t i = 0; i < s->nx; i++) if (!strcmp(s->x[i].key, key)) return 1;
+	return 0;
 }
 
 static void add_word(struct store *s, const char *lang, const char *word, const char *key, uint32_t n, uint32_t day)
@@ -145,36 +144,33 @@ void store_learn(struct store *s, const char *lang, const char *word, uint32_t n
 {
 	char *key = fold_dup(word);
 	if (!key) return;
-	if (!store_removed(s, lang, key)) add_word(s, lang, word, key, n, day);
+	if (!store_removed(s, key)) add_word(s, lang, word, key, n, day);
 	free(key);
 }
 
-void store_remove(struct store *s, const char *lang, const char *word)
+void store_remove(struct store *s, const char *word)
 {
 	char *key = fold_dup(word);
 	if (!key) return;
 	for (size_t i = 0; i < s->nw;)
-		if (!strcmp(s->w[i].key, key) && (!strcmp(lang, "*") || !strcmp(s->w[i].lang, lang))) drop(s->w, &s->nw, i);
+		if (!strcmp(s->w[i].key, key)) drop(s->w, &s->nw, i);
 		else i++;
-	size_t i = lower(s->x, s->nx, lang, key);
-	if (!(i < s->nx && !cmp(s->x[i].lang, s->x[i].key, lang, key))) {
-		char *w = strdup(word);
-		struct sword *e = w ? insert(&s->x, &s->nx, &s->capx, i) : NULL;
-		if (!e) { free(w); free(key); return; }
-		snprintf(e->lang, sizeof e->lang, "%s", lang);
-		e->key = key; e->word = w;
-		return;
-	}
-	free(key);
+	if (store_removed(s, key)) { free(key); return; }
+	size_t i = lower(s->x, s->nx, "*", key);
+	char *w = strdup(word);
+	struct sword *e = w ? insert(&s->x, &s->nx, &s->capx, i) : NULL;
+	if (!e) { free(w); free(key); return; }
+	snprintf(e->lang, sizeof e->lang, "*");
+	e->key = key; e->word = w;
 }
 
-int store_restore(struct store *s, const char *lang, const char *word)
+int store_restore(struct store *s, const char *word)
 {
 	char *key = fold_dup(word);
 	int n = 0;
 	if (!key) return 0;
 	for (size_t i = 0; i < s->nx;)
-		if (!strcmp(s->x[i].key, key) && (!strcmp(lang, "*") || !strcmp(s->x[i].lang, lang))) { drop(s->x, &s->nx, i); n++; }
+		if (!strcmp(s->x[i].key, key)) { drop(s->x, &s->nx, i); n++; }
 		else i++;
 	free(key);
 	return n;
@@ -253,15 +249,21 @@ int store_load(struct store *s, const char *dir)
 			unsigned long cn = strtoul(c, NULL, 10), dn = strtoul(d, NULL, 10);
 			if (key && cn) add_word(s, lang, word, key, (uint32_t)(cn > UINT32_MAX ? UINT32_MAX : cn), (uint32_t)dn);
 			free(key);
-		} else if (!strcmp(f1, "x") && store_valid_lang(lang, 1))
-			store_remove(s, lang, word);
+		} else if (!strcmp(f1, "x") && store_valid_lang(lang, 1)) {
+			/* lines from version 1 may name one language; they count for all */
+			char *key = fold_dup(word), *w = strdup(word);
+			struct sword *e = key && w && !store_removed(s, key) ? insert(&s->x, &s->nx, &s->capx, lower(s->x, s->nx, lang, key)) : NULL;
+			if (!e) { free(key); free(w); continue; }
+			snprintf(e->lang, sizeof e->lang, "%s", lang);
+			e->key = key; e->word = w;
+		}
 	}
 	free(line);
 	fclose(f);
 	if (!ok) { store_free(s); return -1; }
 	/* a removed word is never kept as learned */
 	for (size_t i = 0; i < s->nw;)
-		if (store_removed(s, s->w[i].lang, s->w[i].key)) drop(s->w, &s->nw, i); else i++;
+		if (store_removed(s, s->w[i].key)) drop(s->w, &s->nw, i); else i++;
 	return 0;
 }
 
