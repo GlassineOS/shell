@@ -89,6 +89,9 @@
  * keyboard the on-screen keyboard comes up on a text field's focus
  * (hd_text_focus) unless a physical keyboard is attached (see
  * kbd_physical; re-checked on sway's input events).
+ * osk im the keyboard is the input method (wvkbd --im): swayd gives its
+ * own up and takes the focus from the keyboard:
+ * osk focus 1 PURPOSE | osk focus 0 | osk changed
  *
  * glassine-swayd [-v]
  * glassine-swayd COMMAND ARGS... send a command (above) to the running one
@@ -2073,6 +2076,11 @@ static void command(char *m)
         else WARN("full: no focused window of a screen's layout");
         return;
     }
+    /* the keyboard as the input method (wvkbd --im --notify): it has the seat's one */
+    if (!strcmp(m, "osk im")) { hd_im_release(); return; }
+    if (sscanf(m, "osk focus %d %ld", &lv, &n) == 2) { hd_text_report(lv == 1, (int)n); return; }
+    if (!strcmp(m, "osk focus 0")) { hd_text_report(0, 0); return; }
+    if (!strcmp(m, "osk changed")) { hd_text_report_changed(); return; }
     if (sscanf(m, "scrmove %ld %d", &n, &lv) == 2) { scr_move(n, lv); return; }
     if (sscanf(m, "scrclose %ld", &n) == 1) { scr_close(n); return; }
     if (sscanf(m, "next %7s", dir) == 1) { next_set(dir); return; }

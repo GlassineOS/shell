@@ -572,6 +572,19 @@ expect "a dialog that fits: where sway put it, centred in the work area, its siz
 swaymsg -q '[app_id=small-1] move absolute position 100 0'; sleep 1.2
 expect "a dialog the user moves under the bar stays there" "$(geo_of small-1 | cut -d' ' -f2-3)" "100 0"
 swaymsg -q 'bar top mode invisible'
+# the keyboard as the input method (wvkbd --im, one per seat): it says "osk im", swayd gives its
+# own up and takes the text focus from the keyboard's reports, with the same rules
+tf() { grep "text field" /tmp/swayd.log | tail -1 | sed 's/.*\(text field\)/\1/'; }
+cmd "osk im"
+expect "osk im: swayd gives its input method up" "$(grep -c 'the keyboard is the input method' /tmp/swayd.log)" "1"
+nf0=$(grep -c 'text field focused' /tmp/swayd.log)
+cmd "osk focus 1 0"
+expect "osk focus 1: the keyboard comes up" "$(tf)" "text field focused: keyboard shown"
+cmd "osk focus 1 13"
+expect "... a terminal (purpose 13) doesn't count" "$(tf)" "text field left: keyboard hidden"
+cmd "osk focus 1 6"; cmd "osk changed"; cmd "osk focus 0 0"
+expect "... focus 0: it goes" "$(tf)" "text field left: keyboard hidden"
+expect "... shown once for focus 1 and changed" "$(($(grep -c 'text field focused' /tmp/swayd.log) - nf0))" "2"
 echo "--- handle history"; grep -n "handle [0-9]: level\|no handles\|placeholder\|closed" /tmp/swayd.log | tail -40
 grep -iE "error|fail" /tmp/swayd.log | grep -v "FIFO write failed" | head -5
 [ $fail = 0 ] || { echo "--- swayd.log"; grep -n "placeholder\|kill" /tmp/swayd.log | head -20; tail -30 /tmp/swayd.log; }
