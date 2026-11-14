@@ -154,9 +154,9 @@ suggestions and no handwriting popup, and nothing is learned there.
   control. Edge, chips and type follow the theme's voice; the app under the paper keeps
   its own look. No other decoration. The design is the `shell.write` boards in
   GlassineOS/ui.
-- **FR-011**: Recognition runs in a separate, replaceable program behind a line-based
-  contract (pen strokes with timing in, ranked text candidates out), on the device. It
-  starts on demand and stops when handwriting mode has been unused for a while.
+- **FR-011**: Recognition is the handwriting recognizer of spec 007, a separate program
+  on the device that the keyboard uses through its interface (strokes and context in,
+  ranked candidates out, gestures reported); the keyboard never waits on it.
 - **FR-012**: Pending text: a pause of a configurable length (default 0.8 s) after the
   last stroke triggers recognition; the best candidate shows in the field as pending
   text, the ink dims, and the best candidate with two alternatives shows along the
@@ -172,9 +172,8 @@ suggestions and no handwriting popup, and nothing is learned there.
   default, local only, one setting, one erase action, none from private fields); a
   committed best candidate that the person then edits in the field within a short time
   stores the edit as the label. Labels come only from the person's confirmation, never
-  from a recognizer's own output. The recognizer adapts from these samples only while
-  the device is idle and charging; how it adapts is the recognizer's own concern
-  (FR-011).
+  from a recognizer's own output. The keyboard hands each sample to the recognizer, which
+  stores it and adapts while the device is idle and charging (spec 007 FR-009).
 - **FR-014**: Cost: no processing while the keyboard is hidden; suggestions appear within
   50 ms of a key press on the reference device; recognition of a short word within 1 s.
 - **FR-015**: No device names in the code; the keyboard and the programs behind FR-005
@@ -191,9 +190,8 @@ suggestions and no handwriting popup, and nothing is learned there.
 | `glassine_ink_v1` ink areas | consumed (GlassineOS/protocols, spec 003) | 1 | — |
 | AT-SPI field extents (optional, FR-010) | consumed (the accessibility bus) | — | — |
 | Predictor line contract (FR-005) | owned (shell) | 1 | defined with the plan |
-| Recognizer line contract (FR-011) | owned (shell) | 1 | defined with the plan |
+| Handwriting recognizer interface (FR-011, FR-013a) | consumed (spec 007) | 1 | spec 007 |
 | Learned words store and the erase action | owned (shell); the settings app uses it | 1 | FR-008 |
-| Handwriting samples store (strokes + confirmed text) | owned (shell); the recognizer reads it | 1 | FR-013a |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
 
 ## Device scope and risk
@@ -225,12 +223,7 @@ settings.
 
 ## Out of scope
 
-- Choosing the handwriting recognition model and how it trains (its own spec; this one
-  fixes the contract, the flow and the samples it learns from).
+- The recognizer itself, its model and how it learns (spec 007).
 - Swipe typing, voice input, cloud services of any kind.
 - Recognition of whole handwritten pages or notes outside a text field.
 
-## Open questions
-
-- [NEEDS CLARIFICATION: the default recognizer — an open model trained by the project
-  versus a licensed engine — and the languages it must cover first.]
