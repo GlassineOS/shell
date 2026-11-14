@@ -74,6 +74,14 @@ it; the ink clears after it is committed.
 through a word in the writing area, **Then** the last word is deleted; a caret mark
 inserts a space; a scratch-out of pending text discards it.
 
+### Scenario 8a – Correcting teaches the recognizer (Priority: P2)
+
+**Given** pending text from handwriting, **When** the person picks an alternative, or
+opens the read text with the correction control, changes it with the keys and commits
+it, **Then** the corrected text goes into the field, and the ink with the confirmed text
+is kept as a lesson for this device's recognizer; a short note on the paper says so.
+From the first day, recognition improves with use.
+
 ### Scenario 9 – Apps without text input (Priority: P1)
 
 **Given** an app that doesn't support text input (terminals without it, X11 apps),
@@ -134,6 +142,15 @@ suggestions and no handwriting popup, and nothing is learned there.
 - **FR-013**: Gestures per Scenario 8 are recognized from the strokes before text
   recognition and need surrounding text for deletion; without it, strike-through deletes
   by sending Backspace for the last committed word's length.
+- **FR-013a**: Learning from handwriting: an explicit pick of an alternative and a
+  correction (FR-012, Scenario 8a) each store the strokes with the confirmed text as a
+  training sample, in the person's data directory under the same rules as FR-008 (on by
+  default, local only, one setting, one erase action, none from private fields); a
+  committed best candidate that the person then edits in the field within a short time
+  stores the edit as the label. Labels come only from the person's confirmation, never
+  from a recognizer's own output. The recognizer adapts from these samples only while
+  the device is idle and charging; how it adapts is the recognizer's own concern
+  (FR-011).
 - **FR-014**: Cost: no processing while the keyboard is hidden; suggestions appear within
   50 ms of a key press on the reference device; recognition of a short word within 1 s.
 - **FR-015**: No device names in the code; the keyboard and the programs behind FR-005
@@ -152,6 +169,7 @@ suggestions and no handwriting popup, and nothing is learned there.
 | Predictor line contract (FR-005) | owned (shell) | 1 | defined with the plan |
 | Recognizer line contract (FR-011) | owned (shell) | 1 | defined with the plan |
 | Learned words store and the erase action | owned (shell); the settings app uses it | 1 | FR-008 |
+| Handwriting samples store (strokes + confirmed text) | owned (shell); the recognizer reads it | 1 | FR-013a |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
 
 ## Device scope and risk
@@ -183,8 +201,8 @@ settings.
 
 ## Out of scope
 
-- Choosing and training the handwriting recognition model (its own spec; this one fixes
-  the contract and the flow).
+- Choosing the handwriting recognition model and how it trains (its own spec; this one
+  fixes the contract, the flow and the samples it learns from).
 - Swipe typing, voice input, cloud services of any kind.
 - Recognition of whole handwritten pages or notes outside a text field.
 
