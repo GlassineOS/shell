@@ -15,7 +15,11 @@ FR-006 to FR-008a; docs/predictor.md).
                  for inode/directory), else its path to copy. Settings never creates it.
   the languages  a language is installed when its base model is there:
                  $GLASSINE_PREDICT_MODELS/LANG.gpm (/usr/share/glassine/predict/LANG.gpm)
-                 with a valid header.
+                 with a valid header. The active ones are glassine-predict's (active(),
+                 docs/predictor.md "Active languages"): `languages` when set; else the
+                 layout's language when installed; else the installed ones by code, at most 4;
+                 else the layout's (learned words only). Only installed languages have a
+                 switch; one without a model is offered to install, never shown as on.
   the packages   each language's model is the package glassine-predict-model-LANG; the
                  languages to add are those the package indexes have (packages.py's data,
                  the same the Packages page shows), installed through its change flow.
@@ -242,25 +246,57 @@ def installed(d=None):
     return out
 
 
+def active(langs, layout, models):
+    """the active languages as glassine-predict takes them (docs/predictor.md, "Active
+    languages"): langs (`languages`, None: unset) as it is; else the layout's language when
+    its model is installed; else the installed languages by code, at most MAX_LANGS; else,
+    with none installed, the layout's language (learned words only)"""
+    if langs:
+        return list(langs)
+    if layout in models:
+        return [layout]
+    if models:
+        return sorted(models)[:MAX_LANGS]
+    return [layout]
+
+
+def with_model(active, models):
+    """the active languages that have a model: those that give base suggestions"""
+    return [c for c in active if c in models]
+
+
 def lang_rows(models, active, layout):
-    """the switches of the Languages page (the installed languages and the active ones), in
-    the order they are shown and written: the layout's language first, then by name
-    -> [(code, name, words or None, on)]"""
-    codes = set(models) | set(active)
-    order = sorted(codes, key=lambda c: (c != layout, lang_name(c).casefold(), c))
-    return [(c, lang_name(c), models.get(c), c in active) for c in order]
+    """the switches of the Languages page (the installed languages: one without a model is
+    never shown as on), in the order they are shown and written: the layout's language
+    first, then by name -> [(code, name, words, on)]"""
+    order = sorted(models, key=lambda c: (c != layout, lang_name(c).casefold(), c))
+    return [(c, lang_name(c), models[c], c in active) for c in order]
 
 
 def to_add(pkgs, models, active, layout):
-    """the languages offered to install: packages in the indexes without an installed
-    model -> [(code, name, package)], in the rows' order"""
-    out = {}
+    """the languages offered to install -> [(code, name, package or None, why)]: the
+    layout's language without a model first (why "layout"), then the active ones without a
+    model (why "on", a `languages` list naming them), then the indexes' other packages
+    without a model, by name (why None). package: in the indexes, else None (nothing to
+    install from)"""
+    pk = {}
     for n in pkgs:
         c = model_lang(n)
-        if c and c not in models and c not in active:
-            out[c] = n
-    order = sorted(out, key=lambda c: (c != layout, lang_name(c).casefold(), c))
-    return [(c, lang_name(c), out[c]) for c in order]
+        if c and c not in models:
+            pk[c] = n
+    first = [c for c in [layout] + list(active) if c not in models]
+    first = [c for i, c in enumerate(first) if c not in first[:i]]
+    rest = sorted((c for c in pk if c not in first), key=lambda c: (lang_name(c).casefold(), c))
+    return [(c, lang_name(c), pk.get(c), "layout" if c == layout else "on" if c in active else None)
+            for c in first + rest]
+
+
+def missing_layout(models, layout, pkgs):
+    """the Keyboard page's note: the layout language's package when its model isn't
+    installed but the indexes have it, else None"""
+    if layout in models:
+        return None
+    return next((n for n in pkgs if model_lang(n) == layout), None)
 
 
 def toggled(rows, code):

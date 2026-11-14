@@ -390,7 +390,7 @@ class Base:
         self.kbd = ""                           # hardware keyboard layout: "" (as the OSK) | a KBD_LAYOUTS code
         self.shortcuts = sway_shortcuts()       # the sway session's (keys.conf)
         # Keyboard > Typing (predict.py): the switches, the email/web choice, the languages
-        # (None: unset, the layout's language), the base models {code: words}; the learned
+        # (None: unset, predict.active()), the base models {code: words}; the learned
         # words [(word, count, lang, day)] (None: not read yet), the removed ones, the reason they
         # can't be read, the handwriting samples (None: no recognizer); their folder (None: no
         # home), whether it exists yet and whether something opens folders
@@ -454,18 +454,25 @@ class Base:
         return "en" if self.osk == "us" else "de"
 
     def kb_active(self):
-        return self.kb_langs or [self.kb_layout_lang()]
+        """the active languages, as glassine-predict takes them (predict.active)"""
+        return predict.active(self.kb_langs, self.kb_layout_lang(), self.kb_models)
+
+    def kb_dicts(self):
+        """the active languages with a dictionary (none: learned words only)"""
+        return predict.with_model(self.kb_active(), self.kb_models)
 
     def kb_lang_rows(self):
         """the Languages page: [(code, name, words or None, on)]"""
         return predict.lang_rows(self.kb_models, self.kb_active(), self.kb_layout_lang())
 
     def kb_to_add(self, pkgs):
-        """the Languages page's "Add a language": [(code, name, package)] from the indexes' names"""
+        """the Languages page's "Add a language": [(code, name, package or None, why)] from the
+        indexes' names (predict.to_add)"""
         return predict.to_add(pkgs, self.kb_models, self.kb_active(), self.kb_layout_lang())
 
     def kb_installed(self, code):
-        """a language's package was installed: read the models again (it stays off)"""
+        """a language's package was installed: read the models again (on when it is the
+        layout's language or named in `languages`, else off)"""
         self.kb_models = predict.installed()
         self.changed()
 
@@ -719,6 +726,9 @@ class Demo(Base):
             self.kb_opener = False
         elif k == "unreadable":                         # a first line it doesn't understand (a hand edit)
             self.kb_words, self.kb_gone, self.kb_err = None, [], "glassine-predict: the learned words file can't be read"
+        elif k == "layout-missing":                     # only English installed, `languages` unset,
+            self.osk, self.kb_langs = "german", None    # the layout German: English suggests, German to install
+            self.kb_models = {"en": 40000}
         elif k == "missing":                            # glassine-predict isn't installed
             self.kb_words, self.kb_gone, self.kb_err = None, [], "Word suggestions aren’t installed on this system."
             self.kb_dir_there = False

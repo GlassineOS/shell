@@ -579,6 +579,7 @@ def build(ui, be):
         add(B.Head("On-screen keyboard layout"))
         add(B.Radio("German", "QWERTZ", be.osk == "german", lambda: be.set_osk("german")))
         add(B.Radio("US English", "QWERTY", be.osk == "us", lambda: be.set_osk("us")))
+        layout_dict_note(ui, be, add)
         same = "German" if be.osk == "german" else "US English"
         add(B.Head("Hardware keyboard layout"))
         add(B.Radio("As the on-screen keyboard", same, be.kbd == "", lambda: be.set_kbd("")))
@@ -603,19 +604,25 @@ def build(ui, be):
             add(st)
         add(B.Note("Suggestions come from every language that is on, in one row, leaning to the language you are "
                    "writing in. A word you pick or type is learned into its language."))
+        if not be.kb_dicts():
+            add(B.Note("No language that is on has a dictionary, so suggestions come only from learned words. "
+                       "Install one below" + (" or turn on an installed one." if be.kb_models else ".")))
         add(B.Head("On the keyboard", list_=True))
         for code, name, n, on in be.kb_lang_rows():     # (the order they are written in)
-            add(B.Toggle(name, predict.fmt_words(n) if n is not None else "Not installed · learned words only", on,
-                         lambda code=code: be.toggle_kb_lang(code)))
+            add(B.Toggle(name, predict.fmt_words(n), on, lambda code=code: be.toggle_kb_lang(code)))
+        if not be.kb_models:
+            add(B.Note("No language is installed yet."))
         add(B.Head("Add a language", list_=True))
         more = be.kb_to_add(d.names(predict.MODEL_PKG))
         if not more:
             add(B.Note("No other language in the package lists. Check for updates in Packages to read them again."))
-        for code, name, pkg in more:
-            dl = d.info(pkg).get("dl")
-            fn = ui.pk.ask("install", pkg, done=lambda code=code: be.kb_installed(code))
-            add(B.Item(name, packages.BUSY if running else ("Download " + dl) if dl else "", act="Install",
-                       act_fn=fn, act_off=fn is None))
+        for code, name, pkg, why in more:
+            dl = d.info(pkg).get("dl") if pkg else ""
+            fn = ui.pk.ask("install", pkg, done=lambda code=code: be.kb_installed(code)) if pkg else None
+            sub = packages.BUSY if running and pkg else ("Download " + dl) if dl else ""
+            if why:
+                sub = "%s · %s" % (LANG_WHY[why], sub if sub else "Install for suggestions" if pkg else "Not in the package lists")
+            add(B.Item(name, sub, act="Install", act_fn=fn, act_off=fn is None))
         add(B.Item("All keyboard languages", "In Packages, where installed ones can also be removed", icon="deployed_code",
                    chev=True, fn=lambda: ui.pk.search_for(predict.MODEL_PKG.rstrip("-"))))
 
@@ -717,14 +724,38 @@ def build(ui, be):
     return Page(title, bl, back=back, refresh=p in REFRESH)
 
 
+LANG_WHY = {"layout": "Your keyboard layout", "on": "Turned on, not installed"}
+
+
+def layout_dict_note(ui, be, add):
+    """Keyboard: the layout's language has no dictionary but the package indexes have one:
+    a note with Install (the Languages page's flow; nothing is installed on its own)"""
+    lay = be.kb_layout_lang()
+    if lay in be.kb_models:
+        return
+    d = ui.pk.d
+    d.ensure()                                          # (the package indexes, read once)
+    pkg = predict.missing_layout(be.kb_models, lay, d.names(predict.MODEL_PKG))
+    if not pkg:
+        return
+    now = [predict.lang_name(c) for c in be.kb_dicts()]
+    dl = d.info(pkg).get("dl")
+    fn = ui.pk.ask("install", pkg, done=lambda: be.kb_installed(lay))
+    add(B.Item("No dictionary for %s" % predict.lang_name(lay),
+               packages.BUSY if fn is None else "%s for now%s" % ("Suggestions in " + " · ".join(now) if now else "Learned words only",
+                                                                 " · Download " + dl if dl else ""),
+               act="Install", act_fn=fn, act_off=fn is None))
+
+
 def typing_section(ui, be, add):
     """Keyboard > Typing (spec 006 FR-006 to FR-008a, the design's keyboard page)"""
     add(B.Head("Typing"))
     add(B.Toggle("Suggestions", "Three words above the keys, from the text before the cursor", be.kb_sugg,
                  lambda: be.set_kb_sugg(not be.kb_sugg)))
-    names = [predict.lang_name(c) for c in be.kb_active()]
-    add(B.Item("Suggestion languages", " · ".join(names) + (" · mixed in one row" if len(names) > 1 else ""), icon="translate",
-               chev=True, fn=lambda: ui.go("kb-langs"), sum_txt=", ".join(names)))
+    names = [predict.lang_name(c) for c in be.kb_dicts()]
+    sub = " · ".join(names) + (" · mixed in one row" if len(names) > 1 else "") if names else "No dictionary · learned words only"
+    add(B.Item("Suggestion languages", sub, icon="translate", chev=True, fn=lambda: ui.go("kb-langs"),
+               sum_txt=", ".join(names) if names else "Learned words only"))
     add(B.Segments("Email & web addresses", ADDR_SUB[be.kb_addr], ADDRS, be.kb_addr, be.set_kb_addr))
     add(B.Toggle("Handwriting", "A pen tap on an empty field lays a sheet of paper over it", be.kb_hw,
                  lambda: be.set_kb_hw(not be.kb_hw)))
