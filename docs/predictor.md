@@ -176,6 +176,12 @@ Private hints win over `addresses` (an email field marked `sensitive_data` stays
 hint this version doesn't know still stops learning. Turning learning off keeps what was learned;
 erasing is separate.
 
+The same file holds two keys for the keyboard, which the predictor ignores: `suggestions` (`off`,
+`false` or `0`: no suggestion row) and `handwriting` (the same values: no writing surface and no
+pen key); both on when unset. The settings app writes all five keys (Keyboard > Typing): it
+changes only the lines of the key it sets, keeps every other line, and replaces the file through a
+temporary file beside it.
+
 ## The words command
 
 For the settings app and anything else that shows or changes the learned words. It works on the

@@ -1,0 +1,265 @@
+"""Keyboard > Typing: the word predictor's settings and the learned words (shell spec 006,
+FR-006 to FR-008a; docs/predictor.md).
+
+  predict.conf   $XDG_CONFIG_HOME/glassine/predict.conf (~/.config/glassine/predict.conf):
+                 `KEY = VALUE` lines, the last line of a key wins. glassine-predict reads
+                 `learning`, `addresses` and `languages`; `suggestions` and `handwriting`
+                 are the keyboard's (on unless `off`, `false` or `0`). Settings changes
+                 only the lines of the key it sets and keeps every other line (comments,
+                 unknown keys); it writes a temporary file beside it, syncs and renames it.
+  the words      only through `glassine-predict words list|removed|remove|restore|erase`
+                 (the store's own lock); Settings never opens the store.
+  the languages  a language is installed when its base model is there:
+                 $GLASSINE_PREDICT_MODELS/LANG.gpm (/usr/share/glassine/predict/LANG.gpm)
+                 with a valid header.
+  handwriting    the samples belong to the handwriting recognizer (GlassineOS/handwriting
+                 spec 001, FR-010), which doesn't exist yet: hw_samples() and hw_erase()
+                 are the place to call it.
+
+No GLib here: the host tests use it as it is.
+"""
+import os
+import re
+import struct
+import subprocess
+import tempfile
+
+KEYS = ("suggestions", "handwriting", "learning", "addresses", "languages")
+ADDRESSES = ("off", "suggest", "learn")
+MAX_LANGS = 4                     # the predictor takes at most 4 languages (docs/predictor.md)
+LANG_RE = re.compile(r"^[a-z]{2,3}([-_][A-Za-z0-9]+)?$")
+CMD = "glassine-predict"          # found on PATH (/usr/bin on the device)
+# the languages' own names (the design lists them so); others show their code
+NAMES = {"en": "English", "de": "Deutsch", "fr": "Français", "es": "Español", "it": "Italiano",
+         "nl": "Nederlands", "pt": "Português", "pl": "Polski", "sv": "Svenska", "no": "Norsk",
+         "nb": "Norsk", "da": "Dansk", "fi": "Suomi", "cs": "Čeština"}
+
+
+def conf_path():
+    x = os.environ.get("XDG_CONFIG_HOME", "")
+    if x.startswith("/"):
+        return os.path.join(x, "glassine", "predict.conf")
+    return os.path.join(os.environ.get("HOME", "/"), ".config", "glassine", "predict.conf")
+
+
+def models_dir():
+    return os.environ.get("GLASSINE_PREDICT_MODELS") or "/usr/share/glassine/predict"
+
+
+def lang_name(code):
+    return NAMES.get(code) or NAMES.get(re.split(r"[-_]", code)[0], code)
+
+
+# -- predict.conf ---------------------------------------------------------------------------
+
+def _key_of(line):
+    """the key a line sets as glassine-predict reads it (conf_get), else None"""
+    s = line.lstrip(" \t")
+    for k in KEYS:
+        if s.startswith(k) and s[len(k):].lstrip(" \t").startswith("="):
+            return k
+    return None
+
+
+def _val_of(line):
+    return line.split("=", 1)[1].strip(" \t\r\n")
+
+
+def read_conf(path=None):
+    """-> {key: value} for the keys Settings knows (the last line of each wins)"""
+    out = {}
+    try:
+        with open(path or conf_path(), encoding="utf-8", errors="replace") as f:
+            for line in f:
+                k = _key_of(line)
+                if k:
+                    out[k] = _val_of(line)
+    except OSError:
+        pass
+    return out
+
+
+def write_conf(changes, path=None):
+    """changes {key: value or None}: None removes the key's lines, a value replaces the
+    last line of the key (earlier ones are removed, so the file says it once) or is added
+    at the end. Every other line stays as it is."""
+    path = path or conf_path()
+    try:
+        with open(path, encoding="utf-8", errors="surrogateescape") as f:
+            lines = f.read().splitlines(keepends=True)
+    except FileNotFoundError:
+        lines = []
+    for k, v in changes.items():
+        if v is not None and ("\n" in v or len(k) + len(v) + 4 > 250):
+            raise ValueError("%s: value too long" % k)
+        idx = [i for i, l in enumerate(lines) if _key_of(l) == k]
+        new = "%s = %s\n" % (k, v) if v is not None else None
+        if new and idx:
+            lines[idx[-1]] = new
+            idx = idx[:-1]
+        for i in reversed(idx):
+            del lines[i]
+        if new and not any(_key_of(l) == k for l in lines):
+            if lines and not lines[-1].endswith("\n"):
+                lines[-1] += "\n"
+            lines.append(new)
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    mode = 0o644
+    try:
+        mode = os.stat(path).st_mode & 0o777
+    except OSError:
+        pass
+    fd, tmp = tempfile.mkstemp(prefix=".predict.conf.", dir=d)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", errors="surrogateescape") as f:
+            f.write("".join(lines))
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def flag(v, default=True):
+    """on/off as glassine-predict reads `learning`: off, false, 0 are off"""
+    if v is None:
+        return default
+    return v not in ("off", "false", "0")
+
+
+def addresses(v):
+    return v if v in ("off", "learn") else "suggest"
+
+
+def parse_langs(v):
+    """`languages` as glassine-predict takes it -> [codes], or None (unset or invalid)"""
+    if v is None:
+        return None
+    out = [x.strip() for x in v.split(",")]
+    if not out or len(out) > MAX_LANGS or len(set(out)) != len(out) or not all(LANG_RE.match(x) for x in out):
+        return None
+    return out
+
+
+# -- the languages --------------------------------------------------------------------------
+
+def model_words(path):
+    """the number of words in a base model (gpm.h: magic GLPM, version 1, nvocab at 16),
+    None when the file isn't a valid model"""
+    try:
+        with open(path, "rb") as f:
+            h = f.read(20)
+    except OSError:
+        return None
+    if len(h) < 20 or h[:4] != b"GLPM" or struct.unpack_from("<I", h, 4)[0] != 1:
+        return None
+    return struct.unpack_from("<I", h, 16)[0]
+
+
+def installed(d=None):
+    """{code: words} of the base models there"""
+    d = d or models_dir()
+    out = {}
+    try:
+        names = os.listdir(d)
+    except OSError:
+        return out
+    for n in names:
+        if n.endswith(".gpm") and LANG_RE.match(n[:-4]):
+            w = model_words(os.path.join(d, n))
+            if w is not None:
+                out[n[:-4]] = w
+    return out
+
+
+def lang_rows(models, active, known, layout):
+    """the Languages page's rows, in the order they are shown and written: the layout's
+    language first, then by name -> [(code, name, words or None, on)]"""
+    codes = set(models) | set(active) | set(known)
+    order = sorted(codes, key=lambda c: (c != layout, lang_name(c).casefold(), c))
+    return [(c, lang_name(c), models.get(c), c in active) for c in order]
+
+
+def toggled(rows, code):
+    """the active list after a tap on code's toggle (the rows' order), or a reason it
+    can't change: ("last", None) / ("max", None)"""
+    on = [c for c, _, _, a in rows if a]
+    if code in on:
+        if len(on) == 1:
+            return "last", None
+        return None, [c for c in on if c != code]
+    if len(on) >= MAX_LANGS:
+        return "max", None
+    return None, [c for c, _, _, a in rows if a or c == code]
+
+
+def fmt_words(n):
+    return "{:,} words".format(n)
+
+
+# -- the words command ----------------------------------------------------------------------
+
+class Failed(Exception):
+    """glassine-predict is missing or failed: a short text for the person"""
+
+
+def words_cmd(*args, timeout=15):
+    try:
+        p = subprocess.run((CMD, "words") + args, capture_output=True, text=True, timeout=timeout)
+    except FileNotFoundError:
+        raise Failed("Word suggestions aren’t installed on this system.")
+    except (OSError, subprocess.SubprocessError) as e:
+        raise Failed(str(e))
+    if p.returncode != 0:
+        msg = (p.stderr.strip().splitlines() or [""])[-1]
+        raise Failed(msg or "glassine-predict words %s stopped with status %d." % (args[0], p.returncode))
+    return p.stdout
+
+
+def learned():
+    """-> [(word, count, lang)], most used first (the command's order)"""
+    out = []
+    for line in words_cmd("list").splitlines():
+        f = line.split("\t")
+        if len(f) >= 3:
+            try:
+                out.append((f[1], int(f[2]), f[0]))
+            except ValueError:
+                pass
+    return out
+
+
+def removed():
+    """-> [word]; a line is `WORD`, or `LANG WORD` from a version 1 predictor"""
+    return [line.split("\t")[-1] for line in words_cmd("removed").splitlines() if line.split("\t")[-1]]
+
+
+def remove(word):
+    words_cmd("remove", word)
+
+
+def restore(word):
+    words_cmd("restore", word)
+
+
+def erase():
+    words_cmd("erase")
+
+
+# -- handwriting samples (the recognizer, GlassineOS/handwriting spec 001) -------------------
+
+def hw_samples():
+    """the number of handwriting samples kept for this person, None while there is no
+    recognizer to ask"""
+    return None
+
+
+def hw_erase():
+    """erase the handwriting samples and adaptation (the recognizer's own erase): nothing
+    to do while there is no recognizer"""
