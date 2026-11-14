@@ -64,9 +64,10 @@ word. The settings show that learning is on, turn it off, and erase what was lea
 writing area opens at once just below the field's cursor (above it near the bottom
 edge), instead of the keys. The same happens from the keyboard's handwriting key in any
 field. **When** the person writes, **Then** the ink appears at pen latency; after a short pause the
-recognized text shows in the field as pending (underlined) text with up to three
-alternatives; continuing to write, tapping an alternative, or a confirm gesture commits
-it; the ink clears after it is committed.
+recognized text shows in the field as pending (underlined) text, the ink dims, and the
+paper offers the text and two alternatives along its top edge; writing on, tapping an
+alternative, switching to keys or putting the paper away commits it; the ink clears
+after it is committed.
 
 ### Scenario 8 – Editing with the pen (Priority: P3)
 
@@ -77,8 +78,10 @@ inserts a space; a scratch-out of pending text discards it.
 ### Scenario 8a – Correcting teaches the recognizer (Priority: P2)
 
 **Given** pending text from handwriting, **When** the person picks an alternative, or
-opens the read text with the correction control (which brings up the on-screen keyboard
-with the paper still showing the ink), changes it with the keys and commits it, **Then** the corrected text goes into the field, and the ink with the confirmed text
+opens the read text with the correction control after the alternatives (an edit field on
+the paper and the on-screen keyboard, the paper still showing the ink and the keyboard's
+suggestion strip showing the alternatives), changes it with the keys and commits it with
+Use or Enter, **Then** the corrected text goes into the field, and the ink with the confirmed text
 is kept as a lesson for this device's recognizer; a short note on the paper says so.
 From the first day, recognition improves with use.
 
@@ -96,16 +99,24 @@ suggestions and no handwriting popup, and nothing is learned there.
   arrows, Backspace with nothing to replace, modifier combinations) stay key events.
   Without an active field everything is key events, as without this feature.
 - **FR-002**: The keyboard shows and hides itself with the field's focus (activate and
-  deactivate). The session's own show/hide commands keep working and win until the next
-  focus change.
+  deactivate). Its hide key and the session's own show/hide commands keep working and
+  win until the next focus change.
 - **FR-003**: Suggestions come from the text before the cursor as the app reports it
   (bounded by the protocol, about 4 KB) plus what the person typed since. If the app
   reports no surrounding text, suggestions use only what was typed into that field since
   it was focused. When the app reports that the text changed by other means, the
   keyboard drops its own view of the word being typed.
-- **FR-004**: Suggestion row: one row above the keys, up to three entries, the most
-  likely in the middle; it takes no space when the keyboard has nothing to show or the
-  field is private. Updating it costs no full-panel refresh.
+- **FR-004**: Suggestion strip: one row above the keys, as tall as a key row: the pen
+  key (FR-010) over the first key column, up to three words, the most likely in the
+  middle, and a hide key over the last column. With nothing to suggest, or in a private
+  field, the words stay empty and the strip keeps its place (no jump of the keys); the
+  pen key is hidden where handwriting isn't offered. Updating it costs no full-panel
+  refresh.
+- **FR-004a**: Keys: each letter key shows its long-press alternate small in its upper
+  right corner; holding a key 0.4 s types the alternate, a shorter tap the letter. A key
+  that is down shows inverted, with no popup (one panel update less per key). The layouts
+  are the keyboard's own layers (letters with a number row and a nav row; a symbols
+  layer); the design is the `shell.keyboard` board in GlassineOS/ui.
 - **FR-005**: Prediction runs in a separate, replaceable program behind a line-based
   contract (context in, ranked candidates out); the keyboard works when it is missing or
   slow (no row, no blocking). The default predictor combines a per-language base model
@@ -116,13 +127,15 @@ suggestions and no handwriting popup, and nothing is learned there.
   suggestions, no learning, no handwriting, nothing about the field written anywhere.
   Fields with purpose terminal: no learning.
 - **FR-008**: Learned words live in the person's data directory, readable only by them,
-  never leave the device, and are erased by one action in the settings. Learning has a
-  setting (on by default) in the settings app's keyboard page.
+  never leave the device, and are erased by one action in the settings. The settings
+  app's keyboard page has: suggestions on or off, learning on or off (on by default),
+  handwriting on or off, and one action that erases what was learned (words and
+  handwriting samples).
 - **FR-009**: Field purpose selects the opening layer per Scenario 5; the
   auto-capitalization hint switches capitals after a sentence end on or off.
 - **FR-010**: Handwriting mode: a pen tap into an empty text field opens the writing
-  surface directly; a key on the keyboard switches between keys and handwriting in any
-  field. A finger tap opens the keys as before. The writing surface is the input method's
+  surface directly; the pen key in the suggestion strip switches to handwriting in any
+  field, and the paper's keys control switches back. A finger tap opens the keys as before. The writing surface is the input method's
   popup, which the compositor places at the field's cursor; it is a fixed height and the
   full width of the field's window. It announces itself as an ink area, so the pen draws
   directly. Where accessibility information gives the field's size, the surface aligns to
@@ -130,15 +143,20 @@ suggestions and no handwriting popup, and nothing is learned there.
 - **FR-010a**: The writing surface reads as a sheet of paper laid over the app: the
   theme's paper colour, partly see-through over a light blur of what lies under it, so the
   ink keeps its contrast on any background; a thin edge, one guide line to write on, and
-  two controls in a corner (switch to keys, put the paper away). No other decoration. The
-  design is the `shell.write` boards in GlassineOS/ui.
+  two controls in a corner (switch to keys, put the paper away); while text is pending,
+  a row along the top edge with the read text and its alternatives and a correction
+  control. Edge, chips and type follow the theme's voice; the app under the paper keeps
+  its own look. No other decoration. The design is the `shell.write` boards in
+  GlassineOS/ui.
 - **FR-011**: Recognition runs in a separate, replaceable program behind a line-based
   contract (pen strokes with timing in, ranked text candidates out), on the device. It
   starts on demand and stops when handwriting mode has been unused for a while.
-- **FR-012**: Pending text: the best candidate shows in the field as pending text; the
-  alternatives show in the suggestion row; a pause of a configurable length (default
-  0.8 s) after the last stroke triggers recognition; writing further or a confirm commits
-  the pending text.
+- **FR-012**: Pending text: a pause of a configurable length (default 0.8 s) after the
+  last stroke triggers recognition; the best candidate shows in the field as pending
+  text, the ink dims, and the best candidate with two alternatives shows along the
+  paper's top edge (the best in the middle). Writing further, switching to keys or
+  putting the paper away commits the best candidate; tapping an alternative commits that
+  one. During a correction (Scenario 8a) the pending text follows the edit.
 - **FR-013**: Gestures per Scenario 8 are recognized from the strokes before text
   recognition and need surrounding text for deletion; without it, strike-through deletes
   by sending Backspace for the last committed word's length.
