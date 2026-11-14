@@ -257,31 +257,54 @@ static void flush_pending(void) { if (pending.nw) learned_write(NULL, NULL, NULL
 static void op_remove(struct store *s, const char *l, const char *w) { store_remove(s, l, w); }
 static void op_restore(struct store *s, const char *l, const char *w) { store_restore(s, l, w); }
 
-/* $XDG_CONFIG_HOME/glassine/predict.conf: learning=off turns learning off */
-static int learning_on(void)
+/* $XDG_CONFIG_HOME/glassine/predict.conf, KEY = VALUE lines, read at each use: the value
+ * of key (trimmed) in out, 1 when found; the last line with the key wins */
+static int conf_get(const char *key, char *out, size_t n)
 {
 	const char *x = getenv("XDG_CONFIG_HOME"), *h = getenv("HOME");
 	char p[4096];
 	if (x && x[0] == '/') snprintf(p, sizeof p, "%s/glassine/predict.conf", x);
 	else if (h && h[0] == '/') snprintf(p, sizeof p, "%s/.config/glassine/predict.conf", h);
-	else return 1;
+	else return 0;
 	FILE *f = fopen(p, "re");
-	if (!f) return 1;
+	if (!f) return 0;
 	char line[256];
-	int on = 1;
+	size_t kl = strlen(key);
+	int found = 0;
 	while (fgets(line, sizeof line, f)) {
 		char *s = line;
 		while (*s == ' ' || *s == '\t') s++;
-		if (!strncmp(s, "learning", 8)) {
-			s += 8;
-			while (*s == ' ' || *s == '\t') s++;
-			if (*s++ != '=') continue;
-			while (*s == ' ' || *s == '\t') s++;
-			on = !(!strncmp(s, "off", 3) || !strncmp(s, "false", 5) || *s == '0');
-		}
+		if (strncmp(s, key, kl)) continue;
+		s += kl;
+		while (*s == ' ' || *s == '\t') s++;
+		if (*s++ != '=') continue;
+		while (*s == ' ' || *s == '\t') s++;
+		size_t l = strcspn(s, "\r\n");
+		while (l && (s[l - 1] == ' ' || s[l - 1] == '\t')) l--;
+		snprintf(out, n, "%.*s", (int)l, s);
+		found = 1;
 	}
 	fclose(f);
-	return on;
+	return found;
+}
+
+/* learning = off (also false, 0) turns learning off */
+static int learning_on(void)
+{
+	char v[64];
+	if (!conf_get("learning", v, sizeof v)) return 1;
+	return !(!strcmp(v, "off") || !strcmp(v, "false") || !strcmp(v, "0"));
+}
+
+/* addresses = off | suggest | learn: email and URL fields; anything else is suggest */
+enum { ADDR_OFF, ADDR_SUGGEST, ADDR_LEARN };
+static int addresses_mode(void)
+{
+	char v[64];
+	if (!conf_get("addresses", v, sizeof v)) return ADDR_SUGGEST;
+	if (!strcmp(v, "off")) return ADDR_OFF;
+	if (!strcmp(v, "learn")) return ADDR_LEARN;
+	return ADDR_SUGGEST;
 }
 
 /* the sum of the learned words' weights in a language, kept between requests */
@@ -312,7 +335,7 @@ static int is_removed(const char *lang, const char *key) { return store_removed(
 
 /* ---------------------------------------------------------------- fields */
 
-enum { F_SUGGEST = 1, F_LEARN = 2, F_CAPS = 4 };
+enum { F_SUGGEST = 1, F_LEARN = 2, F_CAPS = 4, F_ADDR = 8, F_NOLEARN = 16 };
 
 /* text-input-v3 purpose[,hint...] -> flags, or -1. Private (password, pin,
  * sensitive_data, hidden_text): 0. Unknown names never learn. */
@@ -333,6 +356,7 @@ static int field_flags(const char *field)
 			known = 1;
 			if (i <= 2) flags = F_SUGGEST | F_LEARN;        /* normal, alpha, name */
 			else if (i == 3) flags = F_SUGGEST;              /* terminal: no learning */
+			else if (i == 7 || i == 8) flags = F_ADDR;       /* url, email: the addresses setting */
 			else if (i >= 12) priv = 1;                      /* password, pin */
 		}
 	if (!known) { for (const char *c = p; *c; c++) if (!((*c >= 'a' && *c <= 'z') || *c == '_')) return -1; flags = F_SUGGEST; }
@@ -341,11 +365,23 @@ static int field_flags(const char *field)
 		for (i = 0; i < n && strcmp(p, hints[i]); i++) ;
 		if (i == n) {
 			for (const char *c = p; *c; c++) if (!((*c >= 'a' && *c <= 'z') || *c == '_')) return -1;
-			flags &= ~F_LEARN;
+			flags = (flags & ~F_LEARN) | F_NOLEARN;
 		} else if (i >= 9) priv = 1;
 		else if (i == 3) flags |= F_CAPS;
 	}
 	return priv ? 0 : flags;
+}
+
+/* the addresses setting applied to an email or URL field (read at each request) */
+static int field_resolve(int fl)
+{
+	if (fl > 0 && (fl & F_ADDR)) {
+		int m = addresses_mode();
+		fl &= ~(F_SUGGEST | F_LEARN);
+		if (m >= ADDR_SUGGEST) fl |= F_SUGGEST;
+		if (m == ADDR_LEARN && !(fl & F_NOLEARN)) fl |= F_LEARN;
+	}
+	return fl;
 }
 
 /* ---------------------------------------------------------------- prediction */
@@ -634,6 +670,7 @@ static void handle(struct req *r, int superseded)
 	if (v == 1) {           /* predict ID LANG FIELD BEFORE WORD */
 		int fl = field_flags(r->f[3]);
 		if (fl < 0) { reply("error", id, "bad-field", NULL); return; }
+		fl = field_resolve(fl);
 		if (superseded) { reply("drop", id, NULL, NULL); return; }
 		char out[NCAND][PT_WORD_MAX * 2 + 8];
 		int n = fl ? predict(lang, fl, r->f[4], r->len[4], r->f[5], r->len[5], out) : 0;
@@ -646,6 +683,7 @@ static void handle(struct req *r, int superseded)
 	if (v == 2) {           /* learn ID LANG FIELD WORD */
 		int fl = field_flags(r->f[3]);
 		if (fl < 0) { reply("error", id, "bad-field", NULL); return; }
+		fl = field_resolve(fl);
 		const char *w = r->f[4];
 		if (!(fl & F_LEARN) || r->len[4] < 2 || !store_valid_word(w) || !learning_on()) { reply("learn", id, "skip", NULL); return; }
 		learned_refresh();

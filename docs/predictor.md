@@ -89,7 +89,8 @@ The predictor applies the rule itself, whatever the keyboard sends:
 | purpose `password` or `pin`, or the hint `sensitive_data` or `hidden_text` | none | no |
 | purpose `normal`, `alpha`, `name` | yes | yes |
 | purpose `terminal` | yes | no |
-| `digits`, `number`, `phone`, `date`, `time`, `datetime`, `url`, `email` | none | no |
+| purpose `email` or `url` | by the `addresses` setting (below): `off` none, `suggest` (the default) yes, `learn` yes | only with `learn` |
+| `digits`, `number`, `phone`, `date`, `time`, `datetime` | none | no |
 | a purpose or hint this version doesn't know | yes | no |
 
 In a private field the reply is an empty `predict ID` or `learn ID skip`, and nothing is read
@@ -122,10 +123,19 @@ language and then by the word folded to lowercase; words match folded. A reader 
 it doesn't understand, and leaves it as it is. At most 20000 learned words are kept; beyond that the
 least used go first, a use counting half after 90 days.
 
-Learning can be turned off in `$XDG_CONFIG_HOME/glassine/predict.conf` (or
-`~/.config/glassine/predict.conf`): a line `learning = off` (also `false`, `0`); anything else,
-or no file, is on. The predictor reads it at each `learn`. Turning learning off keeps what was
-learned; erasing is separate.
+The settings are in `$XDG_CONFIG_HOME/glassine/predict.conf` (or
+`~/.config/glassine/predict.conf`), `KEY = VALUE` lines; the last line of a key wins, other lines
+are ignored. The predictor reads them at each request that needs them, so a change counts from the
+next request.
+
+| Key | Values | Default |
+|---|---|---|
+| `learning` | `off` (also `false`, `0`) stops learning everywhere; anything else is on | on |
+| `addresses` | email and URL fields: `off` no words and no learning; `suggest` words from the base model and the words already learned, nothing typed there is learned; `learn` words and learning as in a normal field. Anything else is `suggest` | `suggest` |
+
+Private hints win over `addresses` (an email field marked `sensitive_data` stays private), and a
+hint this version doesn't know still stops learning. Turning learning off keeps what was learned;
+erasing is separate.
 
 ## The words command
 

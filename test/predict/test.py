@@ -208,6 +208,36 @@ r = p.ask("learn\tt3\ten\tnormal\tzonkword")
 p.close()
 check("learning off: not learned", (r, os.path.exists(h.store)), ("learn\tt3\tskip", False))
 
+# email and URL fields follow addresses = off | suggest | learn (default suggest)
+for value in [None, "bogus", "off", "suggest", "learn"]:
+    for field in ["email", "url"]:
+        h = Home()
+        os.makedirs(os.path.join(h.conf, "glassine"))
+        if value is not None:
+            open(os.path.join(h.conf, "glassine", "predict.conf"), "w").write("addresses = %s\n" % value)
+        p = Predictor(h)
+        words = words_of(p.ask(predict("a1", "Thank you ", "", field)))
+        r = p.ask("learn\ta2\ten\t%s\tzonkword" % field)
+        p.close()
+        mode = {"off": "off", "learn": "learn"}.get(value, "suggest")
+        name = "addresses %s, %s" % (value or "missing", field)
+        check(name + ": words", bool(words), mode != "off")
+        check(name + ": learning", (r, os.path.exists(h.store)),
+              ("learn\ta2\tok", True) if mode == "learn" else ("learn\ta2\tskip", False))
+h = Home()
+os.makedirs(os.path.join(h.conf, "glassine"))
+conf = os.path.join(h.conf, "glassine", "predict.conf")
+open(conf, "w").write("addresses = learn\n")
+p = Predictor(h)
+check("addresses learn: private hints still win",
+      [p.ask(predict("a3", "Thank you ", "", "email,sensitive_data")), p.ask("learn\ta4\ten\temail,hidden_text\tzonkword"),
+       p.ask("learn\ta5\ten\turl,some_future_hint\tzonkword")], ["predict\ta3", "learn\ta4\tskip", "learn\ta5\tskip"])
+check("addresses learn: number fields still get nothing",
+      [p.ask(predict("a6", "Thank you ", "", "number")), p.ask("learn\ta7\ten\tdate\tzonkword")], ["predict\ta6", "learn\ta7\tskip"])
+open(conf, "w").write("addresses = off\n")
+check("the setting is read at the next request", p.ask(predict("a8", "Thank you ", "", "email")), "predict\ta8")
+p.close()
+
 # ---- learning
 h = Home()
 p = Predictor(h, umask=0)
