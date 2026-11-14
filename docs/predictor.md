@@ -57,10 +57,20 @@ still answered, so a version 1 client keeps working; its `remove` now removes in
 | `restore ID LANGS WORD` | `restore ID ok`, or `restore ID none` when WORD wasn't removed |
 | anything wrong | `error ID REASON` (`ID` is `-` when the line has no usable id) |
 
-**Active languages:** `languages` in `predict.conf` (below), when it is set and valid, wins over
-the request's `LANGS`; the keyboard sends its layout's language, which counts only while the
-setting is unset. An empty `LANGS` is allowed only while the setting is set. A language without a
-model contributes only learned words.
+**Active languages**, the first rule that applies:
+
+1. `languages` in `predict.conf` (below), when it is set and valid: that list as it is. A language
+   in it without a model contributes only learned words; with none of them installed there are
+   only learned words (the settings app says so).
+2. The request's `LANGS` that have a model (the keyboard sends its layout's language).
+3. When none of them has a model: the installed languages, the valid models in the models
+   directory by code, at most 4. A layout language without a model doesn't count here, its
+   learned words included; they are kept and count again once its model is installed.
+4. With no model installed at all: the request's `LANGS` (learned words only).
+
+An empty `LANGS` is allowed only while the setting is set. Installing or removing a model takes
+effect at the next request (the models directory is watched); nothing is downloaded by the
+predictor.
 
 **predict:** `BEFORE` is the text before the word being typed (what the app reports as
 surrounding text before the cursor, up to the protocol's 4 KB, plus what was typed since; FR-003)
@@ -185,7 +195,7 @@ next request.
 | Key | Values | Default |
 |---|---|---|
 | `learning` | `off` (also `false`, `0`) stops learning everywhere; anything else is on | on |
-| `languages` | the active languages in order, `en,de` (spaces allowed); wins over the keyboard's list. An invalid list counts as unset | unset: the keyboard's layout language |
+| `languages` | the active languages in order, `en,de` (spaces allowed); wins over the keyboard's list. An invalid list counts as unset | unset: the keyboard's layout language when its model is installed, else the installed languages ("Active languages") |
 | `addresses` | email and URL fields: `off` no words and no learning; `suggest` words from the base model and the words already learned, nothing typed there is learned; `learn` words and learning as in a normal field. Anything else is `suggest` | `suggest` |
 
 Private hints win over `addresses` (an email field marked `sensitive_data` stays private), and a
@@ -221,7 +231,9 @@ call too (FR-008). Exit status 0, 1 when the store can't be read or written (a m
 
 One file per language: `/usr/share/glassine/predict/LANG.gpm` (`$GLASSINE_PREDICT_MODELS`
 replaces the directory), read-only through mmap, with its licence and attributions in
-`LANG.gpm.license` beside it. No model for a language: learned words only. A file that isn't a
+`LANG.gpm.license` beside it. A language is installed when its file is there and valid, `LANG`
+being 2 or 3 lowercase letters, then optionally `-` or `_` and letters or digits. No model for an
+active language: learned words only. A file that isn't a
 valid model is ignored with one line on stderr. The format is the header of
 `src/predict/gpm.h`: the vocabulary sorted by folded word (a prefix is one binary search), each
 word's likeliest next words, and the likeliest next words after word pairs, with probabilities in

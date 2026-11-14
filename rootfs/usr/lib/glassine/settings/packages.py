@@ -297,6 +297,9 @@ class Demo(Base):
                 self.db[b + sfx] = P_("%d.%d.%d-r0" % (1 + i % 3, i * 7 % 20, i % 5), d, "0.3 MB", "0.9 MB", "pkgs.alpinelinux.org")
         self.inst = {"libretro-mgba", "htop", "vim", "sdl2", predict.MODEL_PKG + "en", predict.MODEL_PKG + "de"}
         self.added = ["htop", "vim", predict.MODEL_PKG + "de"]
+        if os.environ.get("GLASSINE_DEMO_KB") == "layout-missing":     # (the backend's demo state of that name)
+            self.inst.discard(predict.MODEL_PKG + "de")
+            self.added.remove(predict.MODEL_PKG + "de")
         self.removed = ["nano"]
         self.newer = [("firefox", "142.0.1", "142.0", "raised"), ("mesa", "24.2.8", "24.2.7", "raised")]
         self.upd_all = [("firefox", "142.0", "142.0.1"), ("mesa", "24.2.7", "24.2.8"), ("labwc", "0.8.1", "0.8.2"),

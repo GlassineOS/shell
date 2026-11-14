@@ -48,6 +48,14 @@ for t in ${THEMES:-white editorial stationery}; do
     for k in empty no-opener unreadable missing; do
         GLASSINE_DEMO_KB=$k python3 $S --demo --render /out/shots/$t-kb-words-$k.png --page kb-words --theme $t 2>/out/err.txt || { echo "FAIL $t kb-words $k"; cat /out/err.txt; fail=1; }
     done
+    # the keyboard layout's language without a dictionary (only English installed, the layout German):
+    # the Languages page offers it first, the Keyboard page has a note with Install; every window size
+    for w in full column row quarter; do
+        n=$t; [ $w = full ] || n=$t-$w
+        for pg in kb-langs keyboard; do
+            GLASSINE_DEMO_KB=layout-missing python3 $S --demo --render /out/shots/$n-$pg-layout-missing.png --page $pg --theme $t --size $(size $w) 2>/out/err.txt || { echo "FAIL $n $pg layout-missing"; cat /out/err.txt; fail=1; }
+        done
+    done
     GLASSINE_DEMO_KB=missing python3 $S --demo --render /out/shots/$t-keyboard-missing.png --page "keyboard#3" --theme $t 2>/out/err.txt || { echo "FAIL $t keyboard missing"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-sheet-erase-learned.png --page keyboard --theme $t --sheet erase-learned 2>/out/err.txt || { echo "FAIL $t sheet erase-learned"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-sheet-forget-words.png --page kb-words --theme $t --sheet forget-words 2>/out/err.txt || { echo "FAIL $t sheet forget-words"; cat /out/err.txt; fail=1; }
