@@ -64,8 +64,11 @@ are carried out in order.
 **learn:** the keyboard sends it for each word the person finished (a space or punctuation after
 it) or picked from the suggestions. `skip`: the field doesn't learn (below), learning is off, the
 word was removed, or it isn't a word (one letter, digits, symbols, more than 48 bytes). A word the
-base model doesn't know is suggested once it was learned twice (Scenario 6); a known word moves up
-with use. Learned words count at once; they are written to the store 2 s after the last request,
+base model doesn't know is suggested once it was learned twice (Scenario 6); among the completions
+of a word being typed, the person's words move up with use (next words after a space come from the
+base model and the context alone). A learned word is shown as last typed, except that a capital
+only at its first letter (a sentence start) doesn't replace a lowercase spelling; words of the
+base model keep the model's spelling. Learned words count at once; they are written to the store 2 s after the last request,
 at most 30 s after the first one waiting, after 64 waiting words, and at exit.
 
 **remove** (FR-008a, the keyboard's hold on a suggestion): `WORD` is never suggested again in
@@ -161,7 +164,8 @@ stops the build), the builder's options and the licence text. Docker runs the co
 (`extract.py`) and the builder (`src/predict/build.c`) in Alpine; the same sources give the same
 bytes. Every 200th line of each corpus is held out, and `glassine-predict bench LANG FILE` measures
 on it: the time of each prediction while typing every word letter by letter, and how often the
-next word is among the three.
+next word is among the three; with `-l` it learns every typed word on the way, as the keyboard
+would (in memory; the person's store is never used).
 
 English (`en.sources`): the Simple English Wikipedia (the `wikimedia/wikipedia` dataset at a fixed
 revision; CC BY-SA 3.0 and GFDL) and the English sentences of Tatoeba (an archived export at a fixed
