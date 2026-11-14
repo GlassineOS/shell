@@ -240,6 +240,7 @@ class UI:
         self.sheet = None
         self.pairing = None
         self.auth = None                 # the admin-auth page: {why, then, err, busy}
+        self.kbq, self.kb_typing = "", False     # kb-words: the search (filters as you type), its field has the keys
         self.hostname = getattr(be, "hostname", None) or os.uname().nodename
         self.names = self._app_names()
         from . import backend as _be
@@ -267,6 +268,8 @@ class UI:
         if page == "wifi-new":
             self.pw, self.user = "", ""
             self.fld = "user" if self.eap else "pw"
+        if page != "kb-words":
+            self.kb_typing = False
         if page == "time-city":                          # open at the current city's page
             self.pp[page] = "focus"
         self.be.refresh(page.split("#")[0])
@@ -278,7 +281,7 @@ class UI:
         if self.sheet:
             return False
         p = self.page.split("#")[0]
-        return p in ("wifi-new", "admin-auth") or (p == "packages" and self.pk.kb)
+        return p in ("wifi-new", "admin-auth") or (p == "packages" and self.pk.kb) or (p == "kb-words" and self.kb_typing)
 
     def sync_osk(self):
         """a text field asks the system's keyboard daemon: the window shrinks and the
@@ -411,6 +414,9 @@ class UI:
         if self.page.split("#")[0] in packages.PAGES:
             self.pk.key(ch)
             return
+        if self.page.split("#")[0] == "kb-words":
+            self.kb_key(ch)
+            return
         if self.eap and self.fld == "user":
             self.user += ch
         else:
@@ -433,6 +439,33 @@ class UI:
             self.be.forget(ssid)
             self.go("wifi")
         self.show(Sheet("Forget %s?" % ssid, "The saved password is removed. You will need it again to reconnect.", "Forget", ok))
+
+    # -- Keyboard > Typing
+    def kb_focus(self):
+        """the learned words' search field: the keys go to it"""
+        self.kb_typing = True
+        self.sync_osk()
+        self.redraw()
+
+    def kb_key(self, k):
+        """filters as it is typed; Enter puts the keyboard away"""
+        if k == "back":
+            self.kbq = self.kbq[:-1]
+        elif k == "done":
+            self.kb_typing = False
+            self.sync_osk()
+        else:
+            self.kbq += k
+        self.pp[self.page] = 0
+        self.redraw()
+
+    def sheet_erase_learned(self):
+        def ok():
+            self.sheet = None
+            self.be.kb_erase()
+            self.redraw()
+        self.show(Sheet("Erase what was learned?", "The learned words and the list of removed words are deleted from this device. "
+                        "Removed words can be suggested again. This can’t be undone.", "Erase", ok))
 
     # -- Bluetooth
     def sheet_forget_dev(self, d):
@@ -518,6 +551,9 @@ class UI:
     def key(self, k):
         if self.page.split("#")[0] in packages.PAGES:   # the Packages search field
             self.pk.key(k)
+            return
+        if self.page.split("#")[0] == "kb-words":       # the learned words' search
+            self.kb_key(k)
             return
         if k == "back":
             if self.eap and self.fld == "user":
@@ -904,6 +940,10 @@ class Window(Gtk.ApplicationWindow):
                 ui.pk.kb = False
                 ui.sync_osk()
                 self.redraw()
+            elif ui.page.split("#")[0] == "kb-words" and ui.kb_typing:
+                ui.kb_typing = False
+                ui.sync_osk()
+                self.redraw()
             elif ui.back_of(ui.page):
                 ui.go(ui.back_of(ui.page))
             return True
@@ -974,7 +1014,7 @@ def P_read(path):
 
 def render(argv, be):
     """--render OUT.png [--page P [--app ID]] [--theme T] [--sheet forget-net|forget-dev|pair] [--size WxH]
-    [--ask SSID [--eap] [--uuid U] [--user U]] [--pw PW] [--pp N] [--pick KEY] [--pk PRESET] [--markers OUT.json] [--outline]
+    [--ask SSID [--eap] [--uuid U] [--user U]] [--pw PW] [--pp N] [--pick KEY] [--pk PRESET] [--kbq TEXT] [--markers OUT.json] [--outline]
     P may be a section's sub-page ("power#2"); --pick KEY opens a choice row's page (gestures: g3Up ...)"""
     global OUTLINE
     OUTLINE = OUTLINE or "--outline" in argv
@@ -1004,6 +1044,8 @@ def render(argv, be):
         ui.pw = opt("--pw")
     if page == "wifi-net":
         ui.net_info = be.net_info(ui.net)
+    if "--kbq" in argv:                                 # the learned words' search, being typed
+        ui.kbq, ui.kb_typing = opt("--kbq"), True
     if "--pk" in argv:                                  # a Packages state (the design's pkPreset)
         packages.preset(ui, opt("--pk"))
     if page == "admin-auth":                            # the password page, also with a wrong one
@@ -1022,6 +1064,8 @@ def render(argv, be):
         ui.show(Sheet("Checking for updates failed", None, "Close", None, icon="error", cancel="Details",
                       parts=[Lines([("apk stopped with this message. Nothing was changed.", False)]),
                              MonoBox("ERROR: Unable to lock database: Read-only file system")]))
+    elif sheet == "erase-learned":
+        ui.sheet_erase_learned()
     elif sheet == "error":
         ui.show(Sheet("Could not connect to Bibliothek", "Secrets were required, but not provided.", cancel="OK"))
     surf = cairo.ImageSurface(cairo.FORMAT_RGB24, W * 2, H * 2)

@@ -8,6 +8,7 @@ from . import blocks as B
 from .theme import NAMES
 from .backend import KBD_LAYOUTS, app_content
 from . import packages
+from . import predict
 
 # the tabs on the card's right edge: (page, icon, label)
 TABS = [("eink", "contrast", "E-ink"), ("apps", "apps", "Apps"), ("power", "battery_5_bar", "Power"),
@@ -17,8 +18,8 @@ TABS = [("eink", "contrast", "E-ink"), ("apps", "apps", "Apps"), ("power", "batt
 PARENT = {"wifi-net": "wifi", "wifi-new": "wifi", "bt-dev": "bt", "bt-add": "bt", "app": "apps", "origins": "apps", "render-apps": "eink",
           "light-range": "light", "time-zone": "time", "time-city": "time-zone",
           "packages": "apps", "pkg-search": "packages", "pkg": "packages", "pkg-changes": "packages",
-          "pkg-updates": "packages", "pkg-output": "packages"}
-SHORT = {"apps": "Apps", "gestures": "Gestures", "wifi": "Wi-Fi", "bt": "Bluetooth", "light": "Light", "eink": "E-ink",
+          "pkg-updates": "packages", "pkg-output": "packages", "kb-langs": "keyboard", "kb-words": "keyboard"}
+SHORT = {"keyboard": "Keyboard", "apps": "Apps", "gestures": "Gestures", "wifi": "Wi-Fi", "bt": "Bluetooth", "light": "Light", "eink": "E-ink",
          "time": "Date", "time-zone": "Regions"}
 REFRESH = ("wifi", "bt-add", "power", "storage", "about")
 FREEZES = [("off", "Off"), ("auto", "Auto"), ("always", "Always")]
@@ -56,6 +57,11 @@ CONTENT_SUB = {"normal": "What counts as motion: scrolling, dragging and fast ch
                "pages": "For readers. A new page is not motion: one full-quality refresh, a full flash every 6th page. Only real scrolling uses Fluidity",
                "moving": "For games and video. Every change is motion, even slow ones with no finger down. Sharpens once the app pauses"}
 CONTENT_NOTE = "Fluidity says how motion is drawn. Content says what counts as motion."
+# Keyboard > Typing (spec 006 FR-007a): email and web-address fields
+ADDRS = [("off", "Off"), ("suggest", "Suggest"), ("learn", "Suggest & learn")]
+ADDR_SUB = {"off": "No suggestions in these fields", "suggest": "Suggestions, but nothing typed there is learned",
+            "learn": "Learned like any other field"}
+KB_LIMIT = 100                                  # learned words shown at once (the search finds the rest)
 AHEADS = [("predict", "Predict"), ("run", "Early"), ("off", "After read")]
 AHEAD_SUB = {"predict": "Sway draws so its frame lands just before the panel needs it",
              "run": "Sway draws the next frame as soon as one arrives",
@@ -582,10 +588,53 @@ def build(ui, be):
         add(B.Head("Behaviour"))
         add(B.Toggle("Show on text focus", "Opens when a text field is tapped" +
                      ", unless a keyboard is connected", be.osk_auto, lambda: be.set_osk_auto(not be.osk_auto)))
+        typing_section(ui, be, add)
         if be.shortcuts:
             add(B.Head("Keyboard shortcuts", "With a connected keyboard"))
             for keys, label in be.shortcuts:
                 add(B.KV(label, keys))
+
+    elif p == "kb-langs":
+        title = "Languages"
+        add(B.Note("Suggestions come from every language that is on, in one row, leaning to the language you are "
+                   "writing in. A word you pick or type is learned into its language."))
+        add(B.Head("Languages", list_=True))
+        for code, name, n, on in be.kb_lang_rows():     # (the order they are written in)
+            if n is None and not on:
+                add(B.KV(name, "Not installed"))
+            else:
+                add(B.Toggle(name, predict.fmt_words(n) if n is not None else "Not installed · learned words only", on,
+                             lambda code=code: be.toggle_kb_lang(code)))
+
+    elif p == "kb-words":
+        title = "Words"
+        add(B.Note("Words the keyboard learned from your typing, kept on this device only. A removed word is never "
+                   "suggested or learned again; you can still type it."))
+        add(B.Head("Search", list_=True))
+        add(packages.Search(ui.kbq, ui.kb_typing, ui.kb_focus, placeholder="A learned word"))
+        if be.kb_err:
+            add(B.Note(be.kb_err))
+        elif be.kb_words is None:
+            add(B.Note("Reading the learned words…"))
+        else:
+            q = ui.kbq.strip().casefold()
+            hits = [x for x in be.kb_words if q in x[0].casefold()] if q else be.kb_words
+            many = len(be.kb_active()) > 1
+            add(B.Head(("%d match" if len(hits) == 1 else "%d matches") % len(hits) if q else "Most used first",
+                       "%d word%s" % (len(be.kb_words), "" if len(be.kb_words) == 1 else "s"), list_=True))
+            for w, n, lang in hits[:KB_LIMIT]:
+                add(B.Item(w, ("Used once" if n == 1 else "Used %d times" % n) + (" · " + predict.lang_name(lang) if many else ""),
+                           act="Remove", act_fn=(lambda w=w: be.kb_remove(w))))
+            if not hits:
+                add(B.Note("No learned word matches." if q else "Nothing learned yet."))
+            elif len(hits) > KB_LIMIT:
+                add(B.Note("The %d most used are shown. Search to find the others." % KB_LIMIT))
+            add(B.Head("Removed", list_=True))
+            for w in be.kb_gone:
+                add(B.Item(w, "Not suggested in any language or learned again", act="Put back",
+                           act_fn=(lambda w=w: be.kb_restore(w))))
+            if not be.kb_gone:
+                add(B.Note("Nothing removed. You can also hold a word in the keyboard’s suggestions to remove it."))
 
     elif p == "appearance":
         title = "Appearance"
@@ -677,6 +726,39 @@ def build(ui, be):
         add(B.Note("Updates are installed from the host with glassine-mainline update."))
 
     return Page(title, bl, back=back, refresh=p in REFRESH)
+
+
+def typing_section(ui, be, add):
+    """Keyboard > Typing (spec 006 FR-006 to FR-008a, the design's keyboard page)"""
+    add(B.Head("Typing"))
+    add(B.Toggle("Suggestions", "Three words above the keys, from the text before the cursor", be.kb_sugg,
+                 lambda: be.set_kb_sugg(not be.kb_sugg)))
+    names = [predict.lang_name(c) for c in be.kb_active()]
+    add(B.Item("Suggestion languages", " · ".join(names) + (" · mixed in one row" if len(names) > 1 else ""), icon="translate",
+               chev=True, fn=lambda: ui.go("kb-langs"), sum_txt=", ".join(names)))
+    add(B.Segments("Email & web addresses", ADDR_SUB[be.kb_addr], ADDRS, be.kb_addr, be.set_kb_addr))
+    add(B.Toggle("Handwriting", "A pen tap on an empty field lays a sheet of paper over it", be.kb_hw,
+                 lambda: be.set_kb_hw(not be.kb_hw)))
+    add(B.Toggle("Learn as I go", "New words and corrected handwriting, kept on this device only", be.kb_learn,
+                 lambda: be.set_kb_learn(not be.kb_learn)))
+    nw, ng, nh = len(be.kb_words or ()), len(be.kb_gone), be.kb_hw_n or 0
+    if be.kb_err:
+        sub = be.kb_err
+    elif be.kb_words is None:
+        sub = "Reading…"
+    elif nw:
+        sub = "%d word%s%s · remove any of them" % (nw, "" if nw == 1 else "s", " · %d removed" % ng if ng else "")
+    else:
+        sub = "%d removed" % ng if ng else "None yet"
+    add(B.Item("Learned words", sub, icon="menu_book", chev=True, fn=lambda: ui.go("kb-words")))
+    what = ["%d word%s" % (nw, "" if nw == 1 else "s")]
+    if be.kb_hw_n is not None:          # the recognizer's samples, once there is one to ask
+        what.append("%d handwriting sample%s" % (nh, "" if nh == 1 else "s"))
+    if ng:
+        what.append("%d removed" % ng)
+    some = bool(nw or ng or nh)
+    add(B.Item("Erase what was learned", " · ".join(what) if some else "Nothing learned", act="Erase",
+               act_fn=ui.sheet_erase_learned if some and not be.kb_err else None, act_off=not some or bool(be.kb_err)))
 
 
 def _gb(b):
