@@ -31,6 +31,7 @@ from . import blocks as B
 from glassine_ui import paint as P
 from .blocks import Block, _bw
 from .theme import OFF
+from . import predict
 
 ROOT = "/usr/sbin/glassine-settings-root"
 ACK = "/etc/glassine/apk-acknowledged"          # glassine apk's own first-change acknowledgement
@@ -51,6 +52,9 @@ def mb(b):
 
 
 def pretty(n):
+    code = predict.model_lang(n)
+    if code:
+        return predict.lang_name(code) + " for the keyboard"
     return {"retroarch": "RetroArch"}.get(n, n)
 
 
@@ -223,6 +227,10 @@ class Base:
     def info(self, n):
         return self.db.get(n) or {}
 
+    def names(self, prefix):
+        """the packages whose name starts with prefix, in the indexes or installed"""
+        return sorted(n for n in set(self.db) | set(self.inst) if n.startswith(prefix))
+
     def acked(self):
         return False
 
@@ -272,6 +280,9 @@ class Demo(Base):
             "firefox": P_("142.0.1-r0", "Web browser", "78 MB", "254 MB", "mozilla.org/firefox"),
             "mesa": P_("24.2.8-r0", "Open-source OpenGL and Vulkan drivers", "21 MB", "88 MB", "mesa3d.org"),
         }
+        for code, name, dl, size in (("en", "English", "2.6 MB", "5.3 MB"), ("de", "Deutsch", "3.0 MB", "6.0 MB"),
+                                     ("fr", "Français", "2.8 MB", "5.6 MB"), ("es", "Español", "2.7 MB", "5.5 MB")):
+            self.db[predict.MODEL_PKG + code] = P_("0_git20261114-r0", "Keyboard suggestions: " + name, dl, size, "github.com/GlassineOS/shell")
         self.retro = ["retroarch", "retroarch-assets", "libretro-mgba", "libretro-snes9x", "libretro-genesis-plus-gx", "libretro-nestopia",
                       "libretro-gambatte", "libretro-picodrive", "libretro-fceumm", "libretro-beetle-pce-fast", "libretro-mupen64plus-next",
                       "libretro-dosbox-pure", "libretro-core-info"]
@@ -284,8 +295,8 @@ class Demo(Base):
             for sfx, d in (("", b + ": shared library"), ("-dev", "Development files for " + b), ("-doc", "Documentation for " + b)):
                 self.lib.append(b + sfx)
                 self.db[b + sfx] = P_("%d.%d.%d-r0" % (1 + i % 3, i * 7 % 20, i % 5), d, "0.3 MB", "0.9 MB", "pkgs.alpinelinux.org")
-        self.inst = {"libretro-mgba", "htop", "vim", "sdl2"}
-        self.added = ["htop", "vim"]
+        self.inst = {"libretro-mgba", "htop", "vim", "sdl2", predict.MODEL_PKG + "en", predict.MODEL_PKG + "de"}
+        self.added = ["htop", "vim", predict.MODEL_PKG + "de"]
         self.removed = ["nano"]
         self.newer = [("firefox", "142.0.1", "142.0", "raised"), ("mesa", "24.2.8", "24.2.7", "raised")]
         self.upd_all = [("firefox", "142.0", "142.0.1"), ("mesa", "24.2.7", "24.2.8"), ("labwc", "0.8.1", "0.8.2"),
@@ -1024,6 +1035,11 @@ class State:
         self.ui.pp["pkg-search"] = 0
         self.ui.go("pkg-search")
 
+    def search_for(self, q):
+        """Packages' results for q, as if typed there (Keyboard > Languages' full list)"""
+        self.q = q
+        self.search()
+
     def focus(self):
         self.kb = True
         self.ui.sync_osk()
@@ -1041,15 +1057,17 @@ class State:
         self.ui.redraw()
 
     # a change: the note (once), the plan, the run, the result
-    def ask(self, op, name):
+    def ask(self, op, name, done=None):
+        """-> the action of a change's button (None while another change runs); done:
+        what follows its success (after the result sheet is up)"""
         if self.d.run:
             return None
-        return lambda: self._ask(op, name)
+        return lambda: self._ask(op, name, done)
 
-    def _ask(self, op, name):
+    def _ask(self, op, name, done=None):
         from .app import Sheet
         if not self.d.acked():
-            sh = Sheet("Before your first change", None, "OK", lambda: (self.d.ack(), self._ask(op, name)), icon="info",
+            sh = Sheet("Before your first change", None, "OK", lambda: (self.d.ack(), self._ask(op, name, done)), icon="info",
                        parts=[Lines([("Packages you add or remove are kept when the system updates. Manual edits of the system are not.", False),
                                      ("This note appears only once.", True)])])
             self.ui.show(sh)
@@ -1065,6 +1083,12 @@ class State:
                 p.on_done = lambda: self.ui.be.app_removed(name)
                 self.show_plan(p)
             self.d.plan_uninstall(a, self.ui.be.origin(a), planned)
+            return
+        if done:
+            def planned(p):
+                p.on_done = done
+                self.show_plan(p)
+            self.d.plan(op, name, planned)
             return
         self.d.plan(op, name, self.show_plan)
 

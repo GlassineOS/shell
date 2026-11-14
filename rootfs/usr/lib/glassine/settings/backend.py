@@ -456,12 +456,16 @@ class Base:
 
     def kb_lang_rows(self):
         """the Languages page: [(code, name, words or None, on)]"""
-        return predict.lang_rows(self.kb_models, self.kb_active(), self.kb_known(), self.kb_layout_lang())
+        return predict.lang_rows(self.kb_models, self.kb_active(), self.kb_layout_lang())
 
-    def kb_known(self):
-        """languages listed even without a model: those of the keyboard layouts on offer"""
-        return sorted({"en" if l == "us" else "de" for l in OSK_LAYERS} |
-                      {{"us": "en", "gb": "en"}.get(c.split()[0], c.split()[0]) for c, _, _ in KBD_LAYOUTS})
+    def kb_to_add(self, pkgs):
+        """the Languages page's "Add a language": [(code, name, package)] from the indexes' names"""
+        return predict.to_add(pkgs, self.kb_models, self.kb_active(), self.kb_layout_lang())
+
+    def kb_installed(self, code):
+        """a language's package was installed: read the models again (it stays off)"""
+        self.kb_models = predict.installed()
+        self.changed()
 
     def _kb_save(self, changes):
         """write predict.conf's keys (the demo: nothing)"""
@@ -713,7 +717,10 @@ class Demo(Base):
 
     def kb_restore(self, w): self.kb_gone = [x for x in self.kb_gone if x != w]; self.changed()
     def kb_erase(self): self.kb_words, self.kb_gone = [], []; self.changed()
-    def kb_known(self): return ["en", "de", "fr", "es"]
+
+    def kb_installed(self, code):
+        self.kb_models = dict(self.kb_models, **{code: 40000})
+        self.changed()
 
     def zones(self):
         return {"Africa": ["Cairo", "Johannesburg", "Lagos", "Nairobi"],
