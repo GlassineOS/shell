@@ -154,7 +154,7 @@ suggestions and no handwriting popup, and nothing is learned there.
   control. Edge, chips and type follow the theme's voice; the app under the paper keeps
   its own look. No other decoration. The design is the `shell.write` boards in
   GlassineOS/ui.
-- **FR-011**: Recognition is the handwriting recognizer of spec 007, a separate program
+- **FR-011**: Recognition is the handwriting recognizer (`GlassineOS/handwriting` spec 001), a separate program
   on the device that the keyboard uses through its interface (strokes and context in,
   ranked candidates out, gestures reported); the keyboard never waits on it.
 - **FR-012**: Pending text: a pause of a configurable length (default 0.8 s) after the
@@ -173,7 +173,7 @@ suggestions and no handwriting popup, and nothing is learned there.
   committed best candidate that the person then edits in the field within a short time
   stores the edit as the label. Labels come only from the person's confirmation, never
   from a recognizer's own output. The keyboard hands each sample to the recognizer, which
-  stores it and adapts while the device is idle and charging (spec 007 FR-009).
+  stores it and adapts while the device is idle and charging (`GlassineOS/handwriting` spec 001, FR-009).
 - **FR-014**: Cost: no processing while the keyboard is hidden; suggestions appear within
   50 ms of a key press on the reference device; recognition of a short word within 1 s.
 - **FR-015**: No device names in the code; the keyboard and the programs behind FR-005
@@ -190,7 +190,7 @@ suggestions and no handwriting popup, and nothing is learned there.
 | `glassine_ink_v1` ink areas | consumed (GlassineOS/protocols, spec 003) | 1 | — |
 | AT-SPI field extents (optional, FR-010) | consumed (the accessibility bus) | — | — |
 | Predictor line contract (FR-005) | owned (shell) | 1 | defined with the plan |
-| Handwriting recognizer interface (FR-011, FR-013a) | consumed (spec 007) | 1 | spec 007 |
+| Handwriting recognizer interface (FR-011, FR-013a) | consumed (`GlassineOS/handwriting`) | 1 | handwriting spec 001 |
 | Learned words store and the erase action | owned (shell); the settings app uses it | 1 | FR-008 |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
 
@@ -223,7 +223,7 @@ settings.
 
 ## Out of scope
 
-- The recognizer itself, its model and how it learns (spec 007).
+- The recognizer itself, its model and how it learns (`GlassineOS/handwriting` spec 001).
 - Swipe typing, voice input, cloud services of any kind.
 - Recognition of whole handwritten pages or notes outside a text field.
 
