@@ -22,6 +22,7 @@ struct store {
 	uint64_t epoch;         /* bumped by erase */
 	struct sword *w; size_t nw, capw;       /* learned */
 	struct sword *x; size_t nx, capx;       /* removed; lang "*" = every language */
+	char **other; size_t no, capo;          /* lines this version doesn't understand, kept as they are */
 };
 
 /* The store's directory: $XDG_DATA_HOME/glassine/predict (absolute XDG_DATA_HOME),
@@ -36,6 +37,11 @@ int store_lock(const char *dir);
 /* Atomic replace, mode 0600 whatever the umask. 0 or -1. */
 int store_save(const struct store *s, const char *dir);
 void store_free(struct store *s);
+/* dst = the learned and removed words of src (not its other lines). 0 or -1. */
+int store_copy(struct store *dst, const struct store *src);
+/* The file changed from before to after (a hand edit, the words command): drops the
+ * words of pending whose line the change added, changed or deleted, so the change wins. */
+void store_keep_edits(struct store *pending, const struct store *before, const struct store *after);
 
 int store_valid_lang(const char *lang, int star_ok);
 /* A word the store accepts: up to 48 bytes, letters with inner apostrophes. */
@@ -51,7 +57,7 @@ void store_learn(struct store *s, const char *lang, const char *word, uint32_t n
 void store_remove(struct store *s, const char *word);
 /* puts a removed word back everywhere; returns how many lines it had */
 int store_restore(struct store *s, const char *word);
-/* forgets every learned word and the removed list */
+/* forgets every learned word, the removed list and the lines not understood */
 void store_erase(struct store *s);
 /* drops the least used words beyond max */
 void store_trim(struct store *s, size_t max, uint32_t today);

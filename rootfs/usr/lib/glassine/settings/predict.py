@@ -7,8 +7,12 @@ FR-006 to FR-008a; docs/predictor.md).
                  are the keyboard's (on unless `off`, `false` or `0`). Settings changes
                  only the lines of the key it sets and keeps every other line (comments,
                  unknown keys); it writes a temporary file beside it, syncs and renames it.
-  the words      only through `glassine-predict words list|removed|remove|restore|erase`
-                 (the store's own lock); Settings never opens the store.
+  the words      only through `glassine-predict words list|removed|erase` (the store's own
+                 lock); Settings never opens the store. The Words page counts them (stats())
+                 and offers their folder, $XDG_DATA_HOME/glassine/predict
+                 (~/.local/share/glassine/predict), as glassine-predict finds it: opened in
+                 the file manager (xdg-open) when one handles folders (xdg-mime's default
+                 for inode/directory), else its path to copy. Settings never creates it.
   the languages  a language is installed when its base model is there:
                  $GLASSINE_PREDICT_MODELS/LANG.gpm (/usr/share/glassine/predict/LANG.gpm)
                  with a valid header.
@@ -21,11 +25,14 @@ FR-006 to FR-008a; docs/predictor.md).
 
 No GLib here: the host tests use it as it is.
 """
+import datetime
 import os
 import re
+import shutil
 import struct
 import subprocess
 import tempfile
+import time
 
 KEYS = ("suggestions", "handwriting", "learning", "addresses", "languages")
 ADDRESSES = ("off", "suggest", "learn")
@@ -59,6 +66,48 @@ def model_lang(pkg):
     if not LANG_RE.match(code) or re.split(r"[-_]", code)[-1] in NOT_LANG:
         return None
     return code
+
+
+def store_dir():
+    """the learned words' folder, as glassine-predict finds it (store_dir in store.c): an
+    absolute $XDG_DATA_HOME, else $HOME/.local/share; None without a usable home"""
+    x, h = os.environ.get("XDG_DATA_HOME", ""), os.environ.get("HOME", "")
+    if x.startswith("/"):
+        return os.path.join(x, "glassine", "predict")
+    if h.startswith("/"):
+        return os.path.join(h, ".local", "share", "glassine", "predict")
+    return None
+
+
+def short_path(path):
+    """the path with the home folder as ~"""
+    h = os.environ.get("HOME", "").rstrip("/")
+    if h and (path == h or path.startswith(h + "/")):
+        return "~" + path[len(h):]
+    return path
+
+
+def folder_opener(timeout=5):
+    """True when something opens a folder: xdg-open is there and xdg-mime names a default
+    application for inode/directory"""
+    if not shutil.which("xdg-open") or not shutil.which("xdg-mime"):
+        return False
+    try:
+        p = subprocess.run(("xdg-mime", "query", "default", "inode/directory"), capture_output=True,
+                           text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return p.returncode == 0 and bool(p.stdout.strip())
+
+
+def open_folder(path):
+    """the folder in the file manager (xdg-open, not waited for); False when it can't start"""
+    try:
+        subprocess.Popen(("xdg-open", path), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+    except OSError:
+        return False
+    return True
 
 
 def lang_name(code):
@@ -231,6 +280,45 @@ def fmt_words(n):
     return "{:,} words".format(n)
 
 
+def stats(words, active, models):
+    """the Words page's counts: [(code, name, learned words)] for the active languages (in
+    their order), then the installed ones and any other with learned words (by name), the
+    total, and the day of the last use (None: nothing learned)"""
+    per, last = {}, None
+    for _, _, lang, day in words:
+        per[lang] = per.get(lang, 0) + 1
+        if day is not None and (last is None or day > last):
+            last = day
+    rest = sorted((set(models) | set(per)) - set(active), key=lambda c: (lang_name(c).casefold(), c))
+    rows = [(c, lang_name(c), per.get(c, 0)) for c in list(active) + rest]
+    return rows, len(words), last
+
+
+def today():
+    """the store's day of now (days since 1970-01-01, UTC)"""
+    return int(time.time() // 86400)
+
+
+def fmt_day(day, now=None):
+    """a store day as the page says it: Today, Yesterday, or the date (3 November 2026)"""
+    now = today() if now is None else now
+    if day == now:
+        return "Today"
+    if day == now - 1:
+        return "Yesterday"
+    d = datetime.date(1970, 1, 1) + datetime.timedelta(days=day)
+    return "%d %s %d" % (d.day, MONTHS[d.month - 1], d.year)     # (English, as the page; not the locale's)
+
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September",
+          "October", "November", "December")
+
+
+def fmt_count(n):
+    """a number of words: None, 1 word, 2,140 words"""
+    return "None" if not n else "1 word" if n == 1 else "{:,} words".format(n)
+
+
 # -- the words command ----------------------------------------------------------------------
 
 class Failed(Exception):
@@ -251,13 +339,15 @@ def words_cmd(*args, timeout=15):
 
 
 def learned():
-    """-> [(word, count, lang)], most used first (the command's order)"""
+    """-> [(word, count, lang, day)], most used first (the command's order); day: of the
+    last use, days since 1970-01-01 (UTC), None when the line has none"""
     out = []
     for line in words_cmd("list").splitlines():
         f = line.split("\t")
         if len(f) >= 3:
             try:
-                out.append((f[1], int(f[2]), f[0]))
+                day = int(f[3]) if len(f) >= 4 and f[3].isdigit() else None
+                out.append((f[1], int(f[2]), f[0], day))
             except ValueError:
                 pass
     return out
@@ -266,14 +356,6 @@ def learned():
 def removed():
     """-> [word]; a line is `WORD`, or `LANG WORD` from a version 1 predictor"""
     return [line.split("\t")[-1] for line in words_cmd("removed").splitlines() if line.split("\t")[-1]]
-
-
-def remove(word):
-    words_cmd("remove", word)
-
-
-def restore(word):
-    words_cmd("restore", word)
 
 
 def erase():

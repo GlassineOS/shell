@@ -61,7 +61,6 @@ CONTENT_NOTE = "Fluidity says how motion is drawn. Content says what counts as m
 ADDRS = [("off", "Off"), ("suggest", "Suggest"), ("learn", "Suggest & learn")]
 ADDR_SUB = {"off": "No suggestions in these fields", "suggest": "Suggestions, but nothing typed there is learned",
             "learn": "Learned like any other field"}
-KB_LIMIT = 100                                  # learned words shown at once (the search finds the rest)
 AHEADS = [("predict", "Predict"), ("run", "Early"), ("off", "After read")]
 AHEAD_SUB = {"predict": "Sway draws so its frame lands just before the panel needs it",
              "run": "Sway draws the next frame as soon as one arrives",
@@ -622,33 +621,9 @@ def build(ui, be):
 
     elif p == "kb-words":
         title = "Words"
-        add(B.Note("Words the keyboard learned from your typing, kept on this device only. A removed word is never "
-                   "suggested or learned again; you can still type it."))
-        add(B.Head("Search", list_=True))
-        add(packages.Search(ui.kbq, ui.kb_typing, ui.kb_focus, placeholder="A learned word"))
-        if be.kb_err:
-            add(B.Note(be.kb_err))
-        elif be.kb_words is None:
-            add(B.Note("Reading the learned words…"))
-        else:
-            q = ui.kbq.strip().casefold()
-            hits = [x for x in be.kb_words if q in x[0].casefold()] if q else be.kb_words
-            many = len(be.kb_active()) > 1
-            add(B.Head(("%d match" if len(hits) == 1 else "%d matches") % len(hits) if q else "Most used first",
-                       "%d word%s" % (len(be.kb_words), "" if len(be.kb_words) == 1 else "s"), list_=True))
-            for w, n, lang in hits[:KB_LIMIT]:
-                add(B.Item(w, ("Used once" if n == 1 else "Used %d times" % n) + (" · " + predict.lang_name(lang) if many else ""),
-                           act="Remove", act_fn=(lambda w=w: be.kb_remove(w))))
-            if not hits:
-                add(B.Note("No learned word matches." if q else "Nothing learned yet."))
-            elif len(hits) > KB_LIMIT:
-                add(B.Note("The %d most used are shown. Search to find the others." % KB_LIMIT))
-            add(B.Head("Removed", list_=True))
-            for w in be.kb_gone:
-                add(B.Item(w, "Not suggested in any language or learned again", act="Put back",
-                           act_fn=(lambda w=w: be.kb_restore(w))))
-            if not be.kb_gone:
-                add(B.Note("Nothing removed. You can also hold a word in the keyboard’s suggestions to remove it."))
+        add(B.Note("Words the keyboard learned from your typing, kept on this device only. Hold a word in the "
+                   "suggestions to remove it. The folder holds them in a plain text file you can edit."))
+        words_section(ui, be, add)
 
     elif p == "appearance":
         title = "Appearance"
@@ -761,7 +736,7 @@ def typing_section(ui, be, add):
     elif be.kb_words is None:
         sub = "Reading…"
     elif nw:
-        sub = "%d word%s%s · remove any of them" % (nw, "" if nw == 1 else "s", " · %d removed" % ng if ng else "")
+        sub = "%s%s" % (predict.fmt_count(nw), " · %d removed" % ng if ng else "")
     else:
         sub = "%d removed" % ng if ng else "None yet"
     add(B.Item("Learned words", sub, icon="menu_book", chev=True, fn=lambda: ui.go("kb-words")))
@@ -773,6 +748,43 @@ def typing_section(ui, be, add):
     some = bool(nw or ng or nh)
     add(B.Item("Erase what was learned", " · ".join(what) if some else "Nothing learned", act="Erase",
                act_fn=ui.sheet_erase_learned if some and not be.kb_err else None, act_off=not some or bool(be.kb_err)))
+
+
+def words_section(ui, be, add):
+    """Keyboard > Words (spec 006 FR-008a): what was learned, counted; the folder; Forget"""
+    there = be.kb_dir_there
+    if be.kb_err:
+        add(B.Head("Learned words"))
+        add(B.Note(be.kb_err))
+        if there:                                       # (a hand edit can break the first line)
+            add(B.Note("If the file was edited by hand, its first line must stay as it was: "
+                       "glassine-words, the version and a number."))
+    elif be.kb_words is None:
+        add(B.Head("Learned words"))
+        add(B.Note("Reading the learned words…"))
+    else:
+        rows, total, last = predict.stats(be.kb_words, be.kb_active(), be.kb_models)
+        add(B.Head("Learned words", predict.fmt_count(total) if total else ""))
+        for code, name, n in rows:
+            add(B.KV(name, predict.fmt_count(n)))
+        if len(rows) > 1:
+            add(B.KV("In all", predict.fmt_count(total)))
+        add(B.KV("Removed", predict.fmt_count(len(be.kb_gone))))
+        add(B.KV("Last learned", predict.fmt_day(last) if last is not None else "Nothing yet"))
+    add(B.Head("Word folder"))
+    if not be.kb_dir or not there:
+        add(B.Note("No words are learned yet. Their folder is made when the first word is learned."))
+    elif be.kb_opener:
+        add(B.Item("Open the word folder", predict.short_path(be.kb_dir), icon="folder", chev=True, fn=be.kb_open_folder))
+    else:
+        copied = ui.copied == be.kb_dir
+        add(B.Item("Word folder", be.kb_dir, act="Copied" if copied else "Copy", act_fn=lambda: ui.copy_text(be.kb_dir)))
+        add(B.Note("Nothing on this system opens folders. The words are in the file “words” there; a text editor opens it."))
+    some = there and not be.kb_err and bool(be.kb_words or be.kb_gone)
+    add(B.Head("Forget"))
+    add(B.Item("Forget all learned words", "The learned words and the removed list" if some else
+               "The learned words can’t be read" if be.kb_err and there else "Nothing learned",
+               act="Forget", act_fn=ui.sheet_forget_words if some else None, act_off=not some))
 
 
 def _gb(b):
