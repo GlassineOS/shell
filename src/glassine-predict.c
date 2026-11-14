@@ -174,6 +174,7 @@ static double qp(uint32_t q) { return exp2(-(double)q / 8.0); }
 static char store_path[4096];
 static int have_store_path;
 static struct store learned;            /* the file as last read, with the pending words */
+static struct store seen;               /* the file as last read or written, without them */
 static struct store pending;            /* learned since, not written yet */
 static uint64_t pending_epoch;
 static struct timespec pending_since;
@@ -212,10 +213,15 @@ static void learned_refresh(void)
 		store_free(&learned);
 	} else {
 		learned_unreadable = 0;
+		/* someone else changed the file (a hand edit, the words command): the change
+		 * wins for the words it touched; an erase drops everything waiting */
+		if (s.epoch != pending_epoch) { store_free(&pending); pending_epoch = s.epoch; }
+		else store_keep_edits(&pending, &seen, &s);
+		store_free(&seen);
+		store_copy(&seen, &s);
 		store_free(&learned);
 		learned = s;
 		learned_gen++;
-		if (learned.epoch != pending_epoch) { store_free(&pending); pending_epoch = learned.epoch; }
 		/* what was learned since counts at once, written or not */
 		for (size_t i = 0; i < pending.nw; i++)
 			store_learn(&learned, pending.w[i].lang, pending.w[i].word, pending.w[i].count, pending.w[i].day);
@@ -238,6 +244,8 @@ static int learned_write(void (*op)(struct store *, const char *, const char *),
 	struct store s;
 	int r = -1;
 	if (!store_load(&s, store_path)) {
+		/* a change since the file was last read wins, as in learned_refresh */
+		if (s.epoch == pending_epoch) store_keep_edits(&pending, &seen, &s);
 		if (s.epoch == pending_epoch)
 			for (size_t i = 0; i < pending.nw; i++)
 				store_learn(&s, pending.w[i].lang, pending.w[i].word, pending.w[i].count, pending.w[i].day);

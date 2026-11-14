@@ -157,9 +157,24 @@ per word, tab-separated: `w LANG WORD COUNT DAY` a learned word as last typed, i
 and the day of its last use (days since 1970-01-01, UTC); `x LANG WORD` a removed word: it counts in every
 language, whatever `LANG` says (written as `*`; version 1 of the predictor could write one
 language there). The learned words come first, then the removed ones, each sorted by
-language and then by the word folded to lowercase; words match folded. A reader skips lines it doesn't understand; a writer refuses a file whose first line
-it doesn't understand, and leaves it as it is. At most 20000 learned words are kept; beyond that the
-least used go first, a use counting half after 90 days.
+language and then by the word folded to lowercase; words match folded. A reader also takes spaces
+between the fields (a word has none) and a carriage return at the end of a line. A line it doesn't
+understand (a missing field, a count that isn't a whole number above 0, a word the store wouldn't
+accept) counts for nothing, and a writer keeps it as it is, after the lines it writes, so a
+mistyped line is never lost; `erase` drops these lines too. A writer refuses a file whose first
+line it doesn't understand, and leaves it as it is (the predictor then doesn't learn, and the
+`words` command stops with status 1, until the line is right again). At most 20000 learned words
+are kept; beyond that the least used go first, a use counting half after 90 days.
+
+**Edited by hand.** The file is plain text and may be changed in a text editor while the predictor
+runs, in place or by replacing it. The predictor keeps the file as it last read or wrote it, and
+notices a change by the file's inode, size and modification time at its next request, and when
+it writes in any case (it always reads the file again under the lock before writing). The
+change wins for the words it touched: a word whose line was deleted, changed (count, day,
+spelling) or added drops the uses of it that were waiting to be written; the other waiting words
+are written on top of the edited file. Uses learned after the predictor noticed the change count
+as usual. A word removed by adding an `x` line is out from the next request; deleting an `x` line puts the word
+back. The same rule covers a change made by the `words` command or another program.
 
 The settings are in `$XDG_CONFIG_HOME/glassine/predict.conf` (or
 `~/.config/glassine/predict.conf`), `KEY = VALUE` lines; the last line of a key wins, other lines

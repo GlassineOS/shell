@@ -62,8 +62,11 @@ word. The settings show that learning is on, turn it off, and erase what was lea
 never use), **When** they hold it in the strip, **Then** the strip asks in place whether
 to remove it; removing it stops it being suggested at once, and it isn't learned again
 from later typing. **When** they open the learned words in the settings, **Then** they
-see the words with how often each was used, can remove any of them, and can put back a
-word they removed.
+see how many words were learned in each language and in all, how many were removed and
+when a word was last learned, can open the folder that holds the words, and can forget
+all learned words. **Given** that folder, **When** they change the words file in a text
+editor while the keyboard is in use, **Then** their change is kept and words typed after
+it are learned as usual.
 
 ### Scenario 7 – Writing above the field (Priority: P2)
 
@@ -155,11 +158,19 @@ suggestions and no handwriting popup, and nothing is learned there.
 - **FR-008a**: Removing words. Holding a word in the strip turns the strip into a
   question in the same row (remove the word, or keep it); no popup. A removed word is
   never suggested again and isn't learned again, whether it was learned or comes from
-  the base dictionary; typing it stays possible. The settings' learned words page lists
-  the learned words, most used first, with a search, a remove action per word and a list
-  of removed words that can be put back; erasing everything also clears the removed
-  list. The designs are the `shell.keyboard.remove` and `settings.keyboard.words` boards
-  in GlassineOS/ui.
+  the base dictionary; typing it stays possible. The settings' learned words page shows
+  counts, not the words: the learned words per language (the active and installed
+  languages, and any other with learned words) and in all, the number of removed words,
+  and the day a word was last learned. It opens the folder that holds the words in the
+  file manager when the system has one that opens folders, and otherwise shows the
+  folder's path to copy; before the first word is learned there is no folder, the page
+  creates none and says that nothing is learned yet. One action forgets all learned
+  words after a confirmation; it also clears the removed list. The words are one plain
+  text file that may be changed in a text editor, also while the keyboard runs: the
+  change wins for every word it changed, added or deleted, words learned after it count,
+  and lines the keyboard doesn't understand are kept as they are. A removed word comes
+  back by deleting its line, or by forgetting all learned words. The designs are the
+  `shell.keyboard.remove` and `settings.keyboard.words` boards in GlassineOS/ui.
 - **FR-009**: Field purpose selects the opening layer per Scenario 5: number and phone
   open a keypad (3 × 3 digits, 0 below, the purpose's extra keys in a fourth column, a key
   back to the letters), PIN a keypad of digits, Backspace and Enter only; email and URL
@@ -220,7 +231,7 @@ suggestions and no handwriting popup, and nothing is learned there.
 | AT-SPI field extents (optional, FR-010) | consumed (the accessibility bus) | — | — |
 | Predictor line contract (FR-005, FR-006) | owned (shell) | 2 | defined with the plan |
 | Handwriting recognizer interface (FR-011, FR-013a) | consumed (`GlassineOS/handwriting`) | 1 | handwriting spec 001 |
-| Learned words store: list, remove, put back, erase | owned (shell); the settings app and the keyboard use it | 1 | FR-008, FR-008a |
+| Learned words store: list, remove, put back, erase; a plain text file the person may edit | owned (shell); the settings app and the keyboard use it | 1 | FR-008, FR-008a |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
 
 ## Device scope and risk
