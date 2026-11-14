@@ -15,7 +15,7 @@ size() { case $1 in full) echo 702x884 ;; column) echo 350x884 ;; row) echo 702x
 for t in ${THEMES:-white editorial stationery}; do
     for w in ${WINS:-full column row quarter}; do
         n=$t; [ $w = full ] || n=$t-$w
-        for pg in ${PAGES:-wifi wifi-net wifi-new bt bt-dev bt-add sound light light-range eink render-apps apps origins app power keyboard gestures appearance time time-zone time-city storage about admin-auth}; do
+        for pg in ${PAGES:-wifi wifi-net wifi-new bt bt-dev bt-add sound light light-range eink render-apps apps origins app power keyboard kb-langs kb-words gestures appearance time time-zone time-city storage about admin-auth}; do
             extra=; [ "$pg" = wifi-new ] && extra="--pw kranich"; [ "$pg" = admin-auth ] && extra="--pw secret --auth-err"
             python3 $S --demo --render /out/shots/$n-$pg.png --page $pg --theme $t --size $(size $w) $extra 2>/out/err.txt || { echo "FAIL $n $pg"; cat /out/err.txt; fail=1; }
         done
@@ -40,7 +40,16 @@ for t in ${THEMES:-white editorial stationery}; do
     python3 $S --demo --render /out/shots/$t-column-pick-pkey.png --page power --pick pkey --theme $t --size $(size column) 2>/out/err.txt || { echo "FAIL $t pick pkey"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-quarter-eink-1.png --page "eink#1" --theme $t --size $(size quarter) --markers /out/shots/$t-quarter-eink-1.json 2>/out/err.txt || { echo "FAIL $t eink#1"; cat /out/err.txt; fail=1; }
     # the sway session's keyboard shortcuts (keys.conf's "## " labels): the Keyboard page's section
-    python3 $S --demo --render /out/shots/$t-keyboard-shortcuts.png --page "keyboard#3" --theme $t 2>/out/err.txt || { echo "FAIL $t keyboard#3"; cat /out/err.txt; fail=1; }
+    python3 $S --demo --render /out/shots/$t-keyboard-shortcuts.png --page "keyboard#4" --theme $t 2>/out/err.txt || { echo "FAIL $t keyboard#4"; cat /out/err.txt; fail=1; }
+    # Keyboard > Typing (spec 006): its section, the learned words searched, with removed words, none,
+    # without glassine-predict, and the erase question
+    python3 $S --demo --render /out/shots/$t-keyboard-typing.png --page "keyboard#3" --theme $t 2>/out/err.txt || { echo "FAIL $t keyboard#3"; cat /out/err.txt; fail=1; }
+    python3 $S --demo --render /out/shots/$t-kb-words-search.png --page kb-words --kbq "in" --theme $t 2>/out/err.txt || { echo "FAIL $t kb-words search"; cat /out/err.txt; fail=1; }
+    for k in removed empty missing; do
+        GLASSINE_DEMO_KB=$k python3 $S --demo --render /out/shots/$t-kb-words-$k.png --page kb-words --theme $t 2>/out/err.txt || { echo "FAIL $t kb-words $k"; cat /out/err.txt; fail=1; }
+    done
+    GLASSINE_DEMO_KB=missing python3 $S --demo --render /out/shots/$t-keyboard-missing.png --page "keyboard#3" --theme $t 2>/out/err.txt || { echo "FAIL $t keyboard missing"; cat /out/err.txt; fail=1; }
+    python3 $S --demo --render /out/shots/$t-sheet-erase-learned.png --page keyboard --theme $t --sheet erase-learned 2>/out/err.txt || { echo "FAIL $t sheet erase-learned"; cat /out/err.txt; fail=1; }
     # the e-ink page with another dither pattern: its pattern row
     GLASSINE_DEMO_DOTS=bayer python3 $S --demo --render /out/shots/$t-eink-dots.png --page "eink#1" --theme $t 2>/out/err.txt || { echo "FAIL $t eink-dots"; cat /out/err.txt; fail=1; }
     # an app's own dither pattern (the demo's Stellarium: dizzy)
@@ -64,6 +73,7 @@ want=$(grep -c '^## ' $P/rootfs/usr/share/glassine/sway/keys.conf)
 python3 /t/tab.py $P || fail=1
 python3 /t/files.py $P || fail=1
 python3 /t/homeconf.py $P || fail=1
+TMPDIR=/tmp python3 /t/kb_typing.py $P || fail=1
 # Settings opened on the page Home asks for (glassine-shell launch glassine-settings new updates)
 for t in ${THEMES:-white}; do
     python3 $S --demo --render /out/shots/$t-start-updates.png --page pkg-updates --theme $t 2>/out/err.txt || { echo "FAIL $t pkg-updates"; cat /out/err.txt; fail=1; }

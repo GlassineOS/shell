@@ -730,8 +730,8 @@ class Search(Block):
     """the search field (52 high, 1.5px ink, radius KS segR; focused: the caret and a ring)"""
     KIND = "search"
 
-    def __init__(self, val, focus, on, submit=None):
-        self.val, self.focus_, self.on, self.submit = val, focus, on, submit
+    def __init__(self, val, focus, on, submit=None, placeholder="Package name or words from its description"):
+        self.val, self.focus_, self.on, self.submit, self.ph = val, focus, on, submit, placeholder
         self.label = "Search"
 
     def height(self, c, w):
@@ -751,7 +751,7 @@ class Search(Block):
             ",0 0 0 2px %s,0 0 0 4px %s" % (t["paper"], t["ink"]) if self.focus_ else ""))
         c.icon("search", 22, x + 14 + 11, fy + 26)
         tx = x + 14 + 22 + 10
-        s = self.val or "Package name or words from its description"
+        s = self.val or self.ph
         tw, th = c.m(s, t["rowFont"], maxw=w - (tx - x) - 20)
         c.txt(s, t["rowFont"], tx, fy + (52 - th) / 2, t["ink"] if self.val else t["sub"], maxw=w - (tx - x) - 20)
         if self.focus_:
