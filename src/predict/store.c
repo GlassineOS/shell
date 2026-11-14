@@ -121,7 +121,16 @@ static void add_word(struct store *s, const char *lang, const char *word, const 
 		e->count = e->count > UINT32_MAX - n ? UINT32_MAX : e->count + n;
 		if (day >= e->day) {
 			e->day = day;
-			if (strcmp(e->word, word)) { char *d = strdup(word); if (d) { free(e->word); e->word = d; } }
+			/* the spelling as last typed, but a capital only on the first letter (a
+			 * sentence start) doesn't replace a lowercase one */
+			int cap_only = 0;
+			{
+				uint32_t a0, b0;
+				int la = pt_u8dec((const unsigned char *)e->word, strlen(e->word), &a0);
+				int lb = pt_u8dec((const unsigned char *)word, strlen(word), &b0);
+				cap_only = !pt_is_upper(a0) && pt_is_upper(b0) && pt_fold(b0) == a0 && !strcmp(e->word + la, word + lb);
+			}
+			if (!cap_only && strcmp(e->word, word)) { char *d = strdup(word); if (d) { free(e->word); e->word = d; } }
 		}
 		return;
 	}

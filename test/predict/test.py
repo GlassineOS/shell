@@ -280,6 +280,48 @@ p.ask("learn\tw2\ten\tnormal\tsignalword")
 p.p.terminate()
 check("SIGTERM: exits 0 and writes", (p.p.wait(timeout=10), "signalword" in h.words("list")[1]), (0, True))
 
+# many learned words: the most used one with a beginning still comes first; base words keep
+# the model's spelling; a capital at a sentence start doesn't replace a lowercase spelling
+h = Home()
+p = Predictor(h)
+random.seed(3)
+batch = []
+for i in range(300):
+    w = "s" + "".join(random.choice("abcdefghijklmnopqrstuvwxy") for _ in range(5))
+    batch += ["learn\tc%d\ten\tnormal\t%s" % (i, w)] * 2
+batch += ["learn\tz%d\ten\tnormal\tszzzlast" % i for i in range(50)]
+p.send("\n".join(batch) + "\n")
+p.lines(len(batch))
+check("300 learned words with 's': the most used is suggested", words_of(p.ask(predict("c1", "Xyzzy ", "s")))[0], "szzzlast")
+p.ask("learn\tc2\ten\tnormal\tThe")
+check("a base word keeps the model's spelling", words_of(p.ask(predict("c3", "I saw ", "th")))[0], "the")
+for w in ["kindle", "Kindle"]:
+    p.ask("learn\tc4\ten\tnormal\t" + w)
+check("a capital at a sentence start keeps the learned lowercase", words_of(p.ask(predict("c5", "", "kind"))), ["kindle"])
+p.ask("learn\tc6\ten\tnormal\tKINDLE")
+check("... another spelling replaces it", words_of(p.ask(predict("c7", "", "kind"))), ["KINDLE"])
+p.close()
+
+# replies keep the order of the requests, errors included
+h = Home()
+p = Predictor(h)
+p.send(predict("o1", "Thank you ") + "\n" + "x" * 40000 + "\nhello\to2\t1\nab\x00c\nhello\to3\t1\n")
+check("errors keep their place", [l.split("\t")[0] + " " + l.split("\t")[2] for l in p.lines(5)],
+      ["predict for", "error too-long", "hello 1", "error bad-line", "hello 1"])
+p.close()
+
+# a store that can't be written: no busy loop, still answering
+h = Home()
+open(h.data, "w").write("a file where the data directory should be")
+p = Predictor(h)
+p.ask("learn\tu1\ten\tnormal\tunwritable")
+time.sleep(3)
+cpu = sum(int(x) for x in open("/proc/%d/stat" % p.p.pid).read().rsplit(")", 1)[1].split()[11:13])
+check("an unwritable store: no busy loop (CPU ticks)", cpu < 30, True)
+check("... and it still answers", p.ask("hello\tu2\t1"), "hello\tu2\t1")
+code, rest, err = p.close()
+check("... exits 0", code, 0)
+
 # a store this version can't read is left alone
 h = Home()
 os.makedirs(h.store)
