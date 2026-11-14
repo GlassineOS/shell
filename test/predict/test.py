@@ -310,6 +310,66 @@ p.ask("learn\tw2\ten\tnormal\tsignalword")
 p.p.terminate()
 check("SIGTERM: exits 0 and writes", (p.p.wait(timeout=10), "signalword" in h.words("list")[1]), (0, True))
 
+# the store edited by hand while the predictor runs: the edit wins for the words it changed
+# or deleted, words learned before the edit and not touched by it are kept, words learned
+# after it count, and lines the predictor doesn't understand are kept as they are
+h = Home()
+WF = os.path.join(h.store, "words")
+p = Predictor(h)
+for w in ["zebrafish"] * 2 + ["tea"] * 3 + ["Glassine"]:
+    p.ask("learn\th0\ten\tnormal\t" + w)
+p.close()
+
+
+def store_lines():
+    return open(WF, encoding="utf-8", newline="\n").read().splitlines()
+
+
+def by_word():
+    return {l.split("\t")[1]: int(l.split("\t")[2]) for l in h.words("list")[1].splitlines()}
+
+
+p = Predictor(h)
+for w in ["zebrafish", "tea", "kettle", "Glassine"]:           # waiting, not written yet
+    p.ask("learn\th1\ten\tnormal\t" + w)
+check("hand edit: the words wait unwritten", "kettle" in open(WF).read(), False)
+lines = [l for l in store_lines() if "\tzebrafish\t" not in l]  # a deleted word
+lines = [l.replace("\ttea\t3\t", "\ttea\t50\t") for l in lines]  # a changed count
+lines += ["w\ten\thandword\t3\t20000",                          # a word added by hand
+          "a line the predictor doesn't understand", "w\ten\tnot a word\t2\t20000",
+          "w  en  spaced  4  20000", "w\ten\tcrlf\t2\t20000\r"]   # spaces, an editor's CR
+tmp = WF + ".edit"
+open(tmp, "w", encoding="utf-8", newline="\n").write("\n".join(lines) + "\n")
+os.rename(tmp, WF)                                             # an editor that renames
+time.sleep(2.6)                                                # the predictor writes on its own
+check("hand edit: the waiting words were written", "kettle" in open(WF).read(), True)
+got = by_word()
+check("hand edit then write: a deleted word stays deleted", "zebrafish" in got, False)
+check("... a changed count stays as edited", got.get("tea"), 50)
+check("... a word learned before the edit and not touched by it is kept", got.get("Glassine"), 2)
+check("... a new word learned before the edit is kept", got.get("kettle"), 1)
+check("... a word added by hand is read", got.get("handword"), 3)
+check("... fields split by spaces and a CR at the end are read", (got.get("spaced"), got.get("crlf")), (4, 2))
+check("... lines it doesn't understand are kept as they were",
+      [l for l in store_lines() if "understand" in l or "not a word" in l],
+      ["a line the predictor doesn't understand", "w\ten\tnot a word\t2\t20000"])
+# an edit in place (same file) while a use of the word waits, then learning: the edit wins
+# for that word, what is learned after the edit counts
+p.ask("learn\th4\ten\tnormal\ttea")
+lines = [l.replace("\ttea\t50\t", "\ttea\t7\t") for l in store_lines() if "\tkettle\t" not in l and "\thandword\t" not in l]
+with open(WF, "r+", encoding="utf-8", newline="\n") as f:
+    f.truncate(0)
+    f.write("\n".join(lines) + "\n")
+p.ask("learn\th2\ten\tnormal\tkettle")
+p.ask("learn\th3\ten\tnormal\tafterword")
+code, rest, err = p.close()
+got = by_word()
+check("hand edit in place, then learning: as edited, and the words learned after it count",
+      (code, "handword" in got, got.get("tea"), got.get("kettle"), got.get("afterword")), (0, False, 7, 1, 1))
+check("the words command keeps the lines it doesn't understand", (h.words("remove", "tea")[0],
+      "a line the predictor doesn't understand" in store_lines()), (0, True))
+check("erase drops them with everything else", (h.words("erase")[0], store_lines()[1:]), (0, []))
+
 # many learned words: the most used one with a beginning still comes first; base words keep
 # the model's spelling; a capital at a sentence start doesn't replace a lowercase spelling
 h = Home()
