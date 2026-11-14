@@ -44,12 +44,13 @@ int store_valid_word(const char *w);
 struct sword *store_find(const struct store *s, const char *lang, const char *key);
 /* first learned word of lang whose key starts with prefix (then walk while it matches) */
 size_t store_prefix(const struct store *s, const char *lang, const char *prefix);
-int store_removed(const struct store *s, const char *lang, const char *key);
+/* removed words count in every language */
+int store_removed(const struct store *s, const char *key);
 void store_learn(struct store *s, const char *lang, const char *word, uint32_t n, uint32_t day);
-/* removes the learned word and keeps it out; lang "*" = every language */
-void store_remove(struct store *s, const char *lang, const char *word);
-/* puts a removed word back (lang "*": every entry of it); returns how many */
-int store_restore(struct store *s, const char *lang, const char *word);
+/* removes the word in every language: its learned counts go, it stays out */
+void store_remove(struct store *s, const char *word);
+/* puts a removed word back everywhere; returns how many lines it had */
+int store_restore(struct store *s, const char *word);
 /* forgets every learned word and the removed list */
 void store_erase(struct store *s);
 /* drops the least used words beyond max */

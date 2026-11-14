@@ -32,9 +32,9 @@ $(OUT)/glassine-rotd: $(S)/glassine-rotd.c
 $(OUT)/glassine-predict: $(S)/glassine-predict.c $(S)/predict/store.c $(S)/predict/store.h $(S)/predict/text.h $(S)/predict/gpm.h
 	$(CC) $(CFLAGS) -o $@ $(S)/glassine-predict.c $(S)/predict/store.c -lm
 
-# The base models (docs/predictor.md): downloads pinned sources (about 180 MB), builds in
-# Docker, writes predict-models/LANG.gpm and its licence. Not part of all or check.
-PREDICT_LANGS ?= en
+# The base models (docs/predictor.md): downloads pinned sources (180 MB for en, 510 MB for de),
+# builds in Docker, writes predict-models/LANG.gpm and its licence. Not part of all or check.
+PREDICT_LANGS ?= en de
 predict-model:
 	for l in $(PREDICT_LANGS); do sh tools/predict-model/build.sh $$l || exit 1; done
 
