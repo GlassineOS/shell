@@ -108,9 +108,17 @@ suggestions and no handwriting popup, and nothing is learned there.
   deletions through the input method; keys without a text meaning (Enter, Tab, Escape,
   arrows, Backspace with nothing to replace, modifier combinations) stay key events.
   Without an active field everything is key events, as without this feature.
-- **FR-002**: The keyboard shows and hides itself with the field's focus (activate and
-  deactivate). Its hide key and the session's own show/hide commands keep working and
-  win until the next focus change.
+- **FR-002**: The keyboard tells the session when a text field gains or loses the focus,
+  with the field's purpose, and when the focused field reports a change; the session
+  decides when the keyboard shows and hides. A focused field brings the keyboard up,
+  except a terminal field, while a physical keyboard is attached, or when the person
+  turned the automatic keyboard off in the settings. A field that an app focuses as it
+  opens from the shell holds the keyboard back until the person taps with the field
+  still focused, or the field reports a change after a short settling time. When the
+  field loses the focus the keyboard goes if it came up by itself; shown by the person
+  (the bar's keyboard button), it stays. Attaching a physical keyboard hides a keyboard
+  that came up by itself. The keyboard's hide key and the session's own show/hide
+  commands keep working and win until the next focus change.
 - **FR-003**: Suggestions come from the text before the cursor as the app reports it
   (bounded by the protocol, about 4 KB) plus what the person typed since. If the app
   reports no surrounding text, suggestions use only what was typed into that field since
