@@ -128,8 +128,13 @@ suggestions and no handwriting popup, and nothing is learned there.
   contract (context in, ranked candidates out); the keyboard works when it is missing or
   slow (no row, no blocking). The default predictor combines a per-language base model
   with the person's learned words.
-- **FR-006**: The language follows the active keyboard layout; a field whose text is
-  clearly in another installed language may switch the suggestions to it.
+- **FR-006**: Suggestions come from one or more languages the person chooses in the
+  settings (by default the language of the active keyboard layout). With several, the
+  strip mixes their words in one ranking, leaning to the language the text before the
+  cursor reads like, so a person who writes in two languages gets both without
+  switching. A word is learned into the language it was suggested from; a typed word
+  into the language whose dictionary knows it, else the one the text reads like. A
+  removed word is not suggested in any language.
 - **FR-007**: Private fields (purpose password or PIN, or the sensitive or hidden-text
   hint): no suggestions, no learning, no handwriting, nothing about the field written
   anywhere. Fields with purpose terminal, number, date or time, or a purpose or hint the
@@ -141,8 +146,8 @@ suggestions and no handwriting popup, and nothing is learned there.
 - **FR-008**: Learned words live in the person's data directory, readable only by them,
   never leave the device, and are erased by one action in the settings. The settings
   app's keyboard page has: suggestions on or off, learning on or off (on by default),
-  handwriting on or off, the choice for email and web addresses (FR-007a), the learned
-  words (FR-008a), and one action that erases what was learned (words and handwriting
+  handwriting on or off, the suggestion languages (FR-006), the choice for email and
+  web addresses (FR-007a), the learned words (FR-008a), and one action that erases what was learned (words and handwriting
   samples).
 - **FR-008a**: Removing words. Holding a word in the strip turns the strip into a
   question in the same row (remove the word, or keep it); no popup. A removed word is
@@ -210,7 +215,7 @@ suggestions and no handwriting popup, and nothing is learned there.
 | `tablet-v2` pen events on the writing surface | consumed (sway) | — | — |
 | `glassine_ink_v1` ink areas | consumed (GlassineOS/protocols, spec 003) | 1 | — |
 | AT-SPI field extents (optional, FR-010) | consumed (the accessibility bus) | — | — |
-| Predictor line contract (FR-005) | owned (shell) | 1 | defined with the plan |
+| Predictor line contract (FR-005, FR-006) | owned (shell) | 2 | defined with the plan |
 | Handwriting recognizer interface (FR-011, FR-013a) | consumed (`GlassineOS/handwriting`) | 1 | handwriting spec 001 |
 | Learned words store: list, remove, put back, erase | owned (shell); the settings app and the keyboard use it | 1 | FR-008, FR-008a |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
