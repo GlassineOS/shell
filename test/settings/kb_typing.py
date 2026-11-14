@@ -1,9 +1,11 @@
 """Keyboard > Typing (spec 006 FR-006 to FR-008a): predict.conf read and written as
 glassine-predict reads it (the other lines kept, atomic), the languages from the models,
-the toggles writing `languages =` in order, the addresses choice, and the learned words
-page's remove / put back / erase through `glassine-predict words`: a stand-in that prints
-what the multi-language predictor prints, the real one built from this repository when
-a compiler is there, and a missing or failing one (a short error, no crash).
+the toggles writing `languages =` in order, the addresses choice, and the Words page: its
+counts, the folder (opened when something opens folders, else its path to copy; never
+made by the page) and Forget, through `glassine-predict words`: a stand-in that prints
+what the multi-language predictor prints, the real one built from this repository on a
+fixture store when a compiler is there, and a missing or failing one (a short error, no
+crash).
 Exit 1 on a failed check.
    typing.py REPO"""
 import os
@@ -197,7 +199,26 @@ ui.go("kb-langs")
 check("no languages in the indexes: a note, no Install rows",
       [type(b).__name__ for b in blocks()][-3:], ["Head", "Note", "Item"])
 
-# -- the words command ----------------------------------------------------------------------
+# -- the Words page: counts, the folder, Forget ---------------------------------------------
+check("stats: the active languages first (their order), then installed and learned-only ones by name",
+      PR.stats([("okay", 9, "en", 20406), ("Haus", 2, "de", 20410), ("hola", 1, "es", None), ("tea", 4, "en", 20400)],
+               ["en", "de"], {"en": 40000, "fr": 40000}),
+      ([("en", "English", 2), ("de", "Deutsch", 1), ("es", "Español", 1), ("fr", "Français", 0)], 4, 20410))
+check("stats: nothing learned", PR.stats([], ["en"], {}), ([("en", "English", 0)], 0, None))
+check("a day as the page says it", [PR.fmt_day(d, now=20406) for d in (20406, 20405, 20405 - 1)],
+      ["Today", "Yesterday", "12 November 2025"])
+check("a count of words", [PR.fmt_count(n) for n in (0, 1, 2140)], ["None", "1 word", "2,140 words"])
+PR.today = lambda: 30000                        # (the page's "Today": not the test's)
+for c in ("es", "it", "nl", "sv"):              # (the languages page's extra models: not here)
+    if os.path.exists(T + "/models/%s.gpm" % c):
+        os.unlink(T + "/models/%s.gpm" % c)
+STORE = T + "/data/glassine/predict"
+check("the folder: $XDG_DATA_HOME, as glassine-predict", PR.store_dir(), STORE)
+os.environ["XDG_DATA_HOME"] = "relative"
+check("the folder: a relative $XDG_DATA_HOME is ignored", PR.store_dir(), T + "/home/.local/share/glassine/predict")
+os.environ["XDG_DATA_HOME"] = T + "/data"
+check("the folder shown with ~", PR.short_path(T + "/home/.local/share/glassine/predict"), "~/.local/share/glassine/predict")
+
 STUB = T + "/stub"
 os.makedirs(STUB)
 STATE = T + "/stub-state"
@@ -208,73 +229,151 @@ echo "$*" >> $S.log
 [ -e $S.fail ] && { echo "glassine-predict: words: the store can't be written" >&2; exit 1; }
 [ "$1" = words ] || exit 2
 case $2 in
-list) [ -e $S.erased ] || printf 'en\\tokay\\t96\\t20406\\nde\\tFeierabend\\t21\\t20407\\nen\\tteh\\t3\\t20400\\n' |
-    while IFS= read -r l; do w=$(printf '%%s' "$l" | cut -f2); grep -qxF "$w" $S.gone || printf '%%s\\n' "$l"; done ;;
-removed) cat $S.gone ;;
-remove) echo "$3" >> $S.gone ;;
-restore) awk -v w="$3" '$0 != w' $S.gone > $S.tmp; mv $S.tmp $S.gone ;;
-erase) : > $S.gone; touch $S.erased ;;
+list) [ -e $S.erased ] || printf 'en\\tokay\\t96\\t20406\\nde\\tFeierabend\\t21\\t20407\\nen\\tteh\\t3\\t20400\\n' ;;
+removed) [ -e $S.erased ] || printf 'gonna\\nwanna\\n' ;;
+erase) touch $S.erased ;;
 *) exit 2 ;;
 esac
 """ % STATE)
-os.chmod(STUB + "/glassine-predict", 0o755)
-open(STATE + ".gone", "w").close()
+# xdg-mime names a file manager only while $S.mime exists; xdg-open writes what it opened
+open(STUB + "/xdg-mime", "w").write("#!/bin/sh\n[ \"$*\" = 'query default inode/directory' ] && [ -e %s.mime ] && echo files.desktop\nexit 0\n" % STATE)
+open(STUB + "/xdg-open", "w").write("#!/bin/sh\necho \"$*\" > %s.opened\n" % STATE)
+for n in ("glassine-predict", "xdg-mime", "xdg-open"):
+    os.chmod(STUB + "/" + n, 0o755)
 PATH0 = os.environ["PATH"]
 os.environ["PATH"] = STUB + ":" + PATH0
+PR.write_conf({"languages": "en,de"})
+be.read_typing()
 be.kb_read_words()
-check("list: most used first, with the language", be.kb_words, [("okay", 96, "en"), ("Feierabend", 21, "de"), ("teh", 3, "en")])
-be.kb_remove("teh")
-check("remove: one call, no -l (every language)", open(STATE + ".log").read().splitlines()[-3], "words remove teh")
-check("... the lists read again", ([w for w, _, _ in be.kb_words], be.kb_gone), (["okay", "Feierabend"], ["teh"]))
-be.kb_restore("teh")
-check("put back", ("words restore teh" in open(STATE + ".log").read(), be.kb_gone, len(be.kb_words)), (True, [], 3))
+check("list: most used first, with the language and the day",
+      be.kb_words, [("okay", 96, "en", 20406), ("Feierabend", 21, "de", 20407), ("teh", 3, "en", 20400)])
+check("removed: read", be.kb_gone, ["gonna", "wanna"])
+check("no folder yet, nothing opens folders", (be.kb_dir, be.kb_dir_there, be.kb_opener), (STORE, False, False))
+
+
+def page(name, u=None):
+    u = u or A.UI(be, lambda: None)
+    u.page = name
+    s = cairo.ImageSurface(cairo.FORMAT_RGB24, 702, 884)
+    A.Renderer(u).draw(cairo.Context(s), 702, 884, 1)
+    u.L = A.Layout(702, 884)
+    return pages.build(u, be).blocks
+
+
+def rows(name, u=None):
+    """the page's rows as (kind, label, value or sub or action)"""
+    out = []
+    for b in page(name, u):
+        k = type(b).__name__
+        if k == "KV":
+            out.append((k, b.label, b.val))
+        elif k == "Item":
+            out.append((k, b.label, b.sub, b.act if not b.act_off else None))
+        elif k in ("Head", "Note"):
+            out.append((k, b.label))
+    return out
+
+
+def section(name, head, u=None):
+    """the rows under a heading, up to the next one"""
+    out, on = [], False
+    for r in rows(name, u):
+        if r[0] == "Head":
+            on = r[1] == head
+        elif on:
+            out.append(r)
+    return out
+
+
+def first(name, kind, label, u=None):
+    return next((b for b in page(name, u) if type(b).__name__ == kind and b.label == label), None)
+
+
+check("words page: the counts per language, in all, removed, the last day; no word rows", [r for r in rows("kb-words") if r[0] == "KV"],
+      [("KV", "English", "2 words"), ("KV", "Deutsch", "1 word"), ("KV", "In all", "3 words"), ("KV", "Removed", "2 words"),
+       ("KV", "Last learned", "15 November 2025")])
+check("... no folder: no link, it says nothing is learned yet; Forget is off",
+      (section("kb-words", "Word folder"), section("kb-words", "Forget")),
+      ([("Note", "No words are learned yet. Their folder is made when the first word is learned.")],
+       [("Item", "Forget all learned words", "Nothing learned", None)]))
+check("... and the page made no folder", os.path.exists(STORE), False)
+os.makedirs(STORE)
+be.kb_read_words()
+check("a folder, nothing opens folders: the path with Copy and a note",
+      section("kb-words", "Word folder"),
+      [("Item", "Word folder", STORE, "Copy"),
+       ("Note", "Nothing on this system opens folders. The words are in the file “words” there; a text editor opens it.")])
+u = A.UI(be, lambda: None)
+u.copied = STORE
+check("... once copied, its button says so", first("kb-words", "Item", "Word folder", u).act, "Copied")
+open(STATE + ".mime", "w").close()
+be.kb_read_words()
+link = first("kb-words", "Item", "Open the word folder")
+check("something opens folders: the link with the folder's path", (be.kb_opener, link and link.sub, link and link.icon),
+      (True, STORE, "folder"))
+link.fn()
+import time  # noqa: E402
+for _ in range(50):
+    if os.path.exists(STATE + ".opened"):
+        break
+    time.sleep(0.05)
+check("... a tap opens the folder in the file manager", open(STATE + ".opened").read().strip() if os.path.exists(STATE + ".opened") else None, STORE)
+os.unlink(STATE + ".mime")
+open(STUB + "/xdg-mime", "w").write("#!/bin/sh\nexit 3\n")
+check("xdg-mime failing: nothing opens folders", PR.folder_opener(), False)
+os.environ["PATH"] = T + "/only-predict:" + PATH0
+os.makedirs(T + "/only-predict")
+os.symlink(STUB + "/glassine-predict", T + "/only-predict/glassine-predict")
+check("no xdg-open: nothing opens folders", PR.folder_opener(), False)
+os.environ["PATH"] = STUB + ":" + PATH0
+
+hw = []
+PR.hw_erase = lambda: hw.append(1)
+ui = A.UI(be, lambda: None)
+ui.page = "kb-words"
+check("Forget is on with words learned", first("kb-words", "Item", "Forget all learned words").act_off, False)
+ui.sheet_forget_words()
+check("Forget: the question says what goes", (ui.sheet.title, ui.sheet.ok_label, "list of removed words" in ui.sheet.body),
+      ("Forget all learned words?", "Forget", True))
+ui.sheet.ok()
+check("... the words command's erase, the lists read again, no sheet left; handwriting untouched",
+      (open(STATE + ".log").read().splitlines()[-3], be.kb_words, be.kb_gone, ui.sheet, hw), ("words erase", [], [], None, []))
+check("... then nothing to forget", (first("kb-words", "Item", "Forget all learned words").act_off,
+                                    first("kb-words", "KV", "Last learned").val), (True, "Nothing yet"))
+os.unlink(STATE + ".erased")
+be.kb_read_words()
 open(STATE + ".fail", "w").close()
 n = len(errors)
-be.kb_remove("okay")
-check("a failing command: a short error, the page still has a reason", (errors[n:], be.kb_err),
-      (["Could not remove “okay”"], "glassine-predict: words: the store can't be written"))
+be.kb_forget()
+check("a failing erase: a short error, the page still has a reason", (errors[n:], be.kb_err),
+      (["Could not forget the learned words"], "glassine-predict: words: the store can't be written"))
+check("... the folder is still offered", first("kb-words", "Item", "Word folder") is not None, True)
 os.unlink(STATE + ".fail")
-be.kb_remove("okay")
+be.kb_read_words()
 ui = A.UI(be, lambda: None)
 ui.page = "keyboard"
 ui.sheet_erase_learned()
 ui.sheet.ok()
-check("erase (through the sheet): both lists empty, no sheet left", (be.kb_words, be.kb_gone, ui.sheet), ([], [], None))
-check("... one erase call", "words erase" in open(STATE + ".log").read(), True)
-
-# the page renders in every state, the words search filters
-def render(page, q=None):
-    u = A.UI(be, lambda: None)
-    u.page = page
-    if q is not None:
-        u.kbq, u.kb_typing = q, True
-    s = cairo.ImageSurface(cairo.FORMAT_RGB24, 702, 884)
-    A.Renderer(u).draw(cairo.Context(s), 702, 884, 1)
-    u.L = A.Layout(702, 884)
-    return [getattr(b, "label", "") for b in pages.build(u, be).blocks]
-
-
+check("the keyboard page's erase: the words and the handwriting samples", (be.kb_words, be.kb_gone, ui.sheet, hw), ([], [], None, [1]))
+item = first("keyboard#3", "Item", "Learned words")
+check("the keyboard page's link to the Words page", item and item.sub, "None yet")
 os.unlink(STATE + ".erased")
 be.kb_read_words()
-check("words page: the search keeps the matches", [x for x in render("kb-words", "EI") if x in ("okay", "Feierabend", "teh")], ["Feierabend"])
-check("typing goes to the search field", (lambda u: (u.go("kb-words"), u.kb_focus(), u.type("o"), u.key("back"), u.type("k"),
-                                                     u.typing(), u.kbq, u.pw)[5:])(A.UI(be, lambda: None)), (True, "k", ""))
+check("... with words: how many, how many removed", first("keyboard#3", "Item", "Learned words").sub, "3 words · 2 removed")
 
 # missing glassine-predict: the pages render, the actions say why
 os.environ["PATH"] = T + "/empty"
 be.kb_read_words()
 check("missing: no words, a reason", (be.kb_words, be.kb_err), (None, "Word suggestions aren’t installed on this system."))
-n = len(errors)
-be.kb_restore("x")
-check("missing: an action is a short error", errors[n:], ["Could not put back “x”"])
 for p in ("keyboard", "keyboard#3", "kb-words", "kb-langs"):
     try:
-        render(p)
+        page(p)
         check("missing: %s renders" % p, True, True)
     except Exception as e:  # noqa: BLE001
         check("missing: %s renders" % p, repr(e), None)
 
-# the real glassine-predict from this repository (when a compiler is there)
+# the real glassine-predict from this repository (when a compiler is there), on a store
+# written as a fixture: the counts come from it, Forget empties it
 cc = shutil.which("cc", path=PATH0) or shutil.which("gcc", path=PATH0)
 if cc:
     src = sys.argv[1] + "/src"
@@ -286,18 +385,15 @@ if cc:
         check("the real predictor builds", r.stderr[-400:], "")
     else:
         os.environ["PATH"] = bindir + ":" + PATH0
-        PR.write_conf({"learning": "on", "languages": None})
-        seed = "".join("learn\tl%d\ten\tnormal\t%s\n" % (i, w) for i, w in enumerate(["zonkword"] * 3 + ["tmrw"] * 2 + ["brb"]))
-        subprocess.run([bindir + "/glassine-predict"], input=seed, capture_output=True, text=True, timeout=30)
+        open(STORE + "/words", "w").write("glassine-words 1 0\n" + "".join("w\ten\tword%s\t%d\t20700\n" % (c, i + 1) for i, c in enumerate("abcde")) +
+                                          "w\tde\tHaus\t4\t20760\nw\tfr\tmerci\t1\t20500\nx\t*\tteh\nx\t*\tgonna\nnot a line it knows\n")
         be.kb_read_words()
-        check("real: learned words, most used first", [(w, n) for w, n, _ in be.kb_words or []], [("zonkword", 3), ("tmrw", 2), ("brb", 1)])
-        be.kb_remove("tmrw")
-        check("real: removed", ([w for w, _, _ in be.kb_words], be.kb_gone), (["zonkword", "brb"], ["tmrw"]))
-        be.kb_restore("tmrw")
-        check("real: put back (the counts were dropped)", ([w for w, _, _ in be.kb_words], be.kb_gone), (["zonkword", "brb"], []))
-        be.kb_remove("brb")
-        be.kb_erase()
-        check("real: erased, the removed list too", (be.kb_words, be.kb_gone, be.kb_err), ([], [], None))
+        check("real: the counts from the store", [r for r in rows("kb-words") if r[0] == "KV"],
+              [("KV", "English", "5 words"), ("KV", "Deutsch", "1 word"), ("KV", "Français", "1 word"), ("KV", "In all", "7 words"),
+               ("KV", "Removed", "2 words"), ("KV", "Last learned", "3 November 2026")])
+        be.kb_forget()
+        check("real: forgotten, the removed list too", (be.kb_words, be.kb_gone, be.kb_err), ([], [], None))
+        check("real: the file is left with its first line only", open(STORE + "/words").read(), "glassine-words 1 1\n")
 else:
     print("skip the real predictor: no compiler")
 os.environ["PATH"] = PATH0

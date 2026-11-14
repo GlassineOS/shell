@@ -217,8 +217,72 @@ void store_free(struct store *s)
 {
 	for (size_t i = 0; i < s->nw; i++) { free(s->w[i].key); free(s->w[i].word); }
 	for (size_t i = 0; i < s->nx; i++) { free(s->x[i].key); free(s->x[i].word); }
-	free(s->w); free(s->x);
+	for (size_t i = 0; i < s->no; i++) free(s->other[i]);
+	free(s->w); free(s->x); free(s->other);
 	memset(s, 0, sizeof *s);
+}
+
+static int copy_words(struct sword **dst, size_t *ndst, size_t *cap, const struct sword *src, size_t n)
+{
+	*dst = NULL; *ndst = *cap = 0;
+	if (!n) return 0;
+	struct sword *a = calloc(n, sizeof *a);
+	if (!a) return -1;
+	*dst = a; *cap = n;
+	for (size_t i = 0; i < n; i++) {
+		a[i] = src[i];
+		a[i].key = strdup(src[i].key);
+		a[i].word = strdup(src[i].word);
+		*ndst = i + 1;
+		if (!a[i].key || !a[i].word) return -1;
+	}
+	return 0;
+}
+
+int store_copy(struct store *dst, const struct store *src)
+{
+	memset(dst, 0, sizeof *dst);
+	dst->epoch = src->epoch;
+	if (copy_words(&dst->w, &dst->nw, &dst->capw, src->w, src->nw) ||
+	    copy_words(&dst->x, &dst->nx, &dst->capx, src->x, src->nx)) {
+		store_free(dst);
+		return -1;
+	}
+	return 0;
+}
+
+void store_keep_edits(struct store *pending, const struct store *before, const struct store *after)
+{
+	for (size_t i = 0; i < pending->nw;) {
+		const struct sword *p = &pending->w[i];
+		const struct sword *b = store_find(before, p->lang, p->key), *a = store_find(after, p->lang, p->key);
+		int same = (!b && !a) || (b && a && b->count == a->count && b->day == a->day && !strcmp(b->word, a->word));
+		if (same) i++;
+		else drop(pending->w, &pending->nw, i);
+	}
+}
+
+static int keep_line(struct store *s, const char *line)
+{
+	if (s->no == s->capo) {
+		size_t c = s->capo ? s->capo * 2 : 8;
+		char **p = realloc(s->other, c * sizeof *p);
+		if (!p) return -1;
+		s->other = p; s->capo = c;
+	}
+	if (!(s->other[s->no] = strdup(line))) return -1;
+	s->no++;
+	return 0;
+}
+
+/* a whole number, nothing else */
+static int number(const char *t, unsigned long *v)
+{
+	char *end;
+	if (!t || *t < '0' || *t > '9') return 0;
+	errno = 0;
+	*v = strtoul(t, &end, 10);
+	return !*end && !errno;
 }
 
 int store_load(struct store *s, const char *dir)
@@ -228,37 +292,51 @@ int store_load(struct store *s, const char *dir)
 	snprintf(path, sizeof path, "%s/words", dir);
 	FILE *f = fopen(path, "re");
 	if (!f) return errno == ENOENT ? 0 : -1;
-	char *line = NULL; size_t cap = 0; ssize_t n;
+	char *line = NULL, *raw = NULL; size_t cap = 0; ssize_t n;
 	int ok = 0;
+	/* a line ends in \n, and a \r before it (an editor's) doesn't count */
+#define CHOMP() do { if (n && line[n - 1] == '\n') line[--n] = 0; if (n && line[n - 1] == '\r') line[--n] = 0; } while (0)
 	if ((n = getline(&line, &cap, f)) > 0) {
 		unsigned long long ep;
-		int ver;
-		char tail;
-		if (sscanf(line, HEADER " %d %llu%c", &ver, &ep, &tail) == 3 && ver == 1 && tail == '\n') {
+		int ver, end = -1;
+		CHOMP();
+		if (sscanf(line, HEADER " %d %llu%n", &ver, &ep, &end) == 2 && end >= 0 && !line[end] && ver == 1) {
 			s->epoch = ep;
 			ok = 1;
 		}
 	}
 	while (ok && (n = getline(&line, &cap, f)) > 0) {
-		if (line[n - 1] == '\n') line[--n] = 0;
-		char *f1 = strtok(line, "\t"), *lang = strtok(NULL, "\t"), *word = strtok(NULL, "\t");
-		char *c = strtok(NULL, "\t"), *d = strtok(NULL, "\t");
-		if (!f1 || !lang || !word || !store_valid_word(word)) continue;
-		if (!strcmp(f1, "w") && c && d && store_valid_lang(lang, 0)) {
+		CHOMP();
+		if (!n) continue;
+		free(raw);
+		if (!(raw = strdup(line))) { ok = 0; break; }
+		/* fields split by tabs; spaces (an editor's) do too, a word has none */
+		char *f1 = strtok(line, "\t "), *lang = strtok(NULL, "\t "), *word = strtok(NULL, "\t ");
+		char *c = strtok(NULL, "\t "), *d = strtok(NULL, "\t ");
+		unsigned long cn, dn;
+		int used = 0;
+		if (!f1 || !lang || !word || !store_valid_word(word)) {
+		} else if (!strcmp(f1, "w") && number(c, &cn) && number(d, &dn) && cn && dn <= UINT32_MAX && store_valid_lang(lang, 0)) {
 			char *key = fold_dup(word);
-			unsigned long cn = strtoul(c, NULL, 10), dn = strtoul(d, NULL, 10);
-			if (key && cn) add_word(s, lang, word, key, (uint32_t)(cn > UINT32_MAX ? UINT32_MAX : cn), (uint32_t)dn);
+			if (key) add_word(s, lang, word, key, (uint32_t)(cn > UINT32_MAX ? UINT32_MAX : cn), (uint32_t)dn);
 			free(key);
-		} else if (!strcmp(f1, "x") && store_valid_lang(lang, 1)) {
+			used = 1;
+		} else if (!strcmp(f1, "x") && !c && store_valid_lang(lang, 1)) {
 			/* lines from version 1 may name one language; they count for all */
 			char *key = fold_dup(word), *w = strdup(word);
 			struct sword *e = key && w && !store_removed(s, key) ? insert(&s->x, &s->nx, &s->capx, lower(s->x, s->nx, lang, key)) : NULL;
-			if (!e) { free(key); free(w); continue; }
-			snprintf(e->lang, sizeof e->lang, "%s", lang);
-			e->key = key; e->word = w;
+			if (e) {
+				snprintf(e->lang, sizeof e->lang, "%s", lang);
+				e->key = key; e->word = w;
+			} else { free(key); free(w); }
+			used = 1;
 		}
+		/* a line this version doesn't understand is kept for the next write */
+		if (!used && keep_line(s, raw)) { ok = 0; break; }
 	}
+#undef CHOMP
 	free(line);
+	free(raw);
 	fclose(f);
 	if (!ok) { store_free(s); return -1; }
 	/* a removed word is never kept as learned */
@@ -311,6 +389,8 @@ int store_save(const struct store *s, const char *dir)
 		fprintf(f, "w\t%s\t%s\t%u\t%u\n", s->w[i].lang, s->w[i].word, s->w[i].count, s->w[i].day);
 	for (size_t i = 0; i < s->nx; i++)
 		fprintf(f, "x\t%s\t%s\n", s->x[i].lang, s->x[i].word);
+	for (size_t i = 0; i < s->no; i++)
+		fprintf(f, "%s\n", s->other[i]);
 	int bad = fflush(f) || fsync(fd);
 	if (fclose(f) || bad || rename(tmp, path)) { unlink(tmp); return -1; }
 	return 0;

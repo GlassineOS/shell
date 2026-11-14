@@ -391,11 +391,13 @@ class Base:
         self.shortcuts = sway_shortcuts()       # the sway session's (keys.conf)
         # Keyboard > Typing (predict.py): the switches, the email/web choice, the languages
         # (None: unset, the layout's language), the base models {code: words}; the learned
-        # words [(word, count, lang)] (None: not read yet), the removed ones, the reason they
-        # can't be read, the handwriting samples (None: no recognizer)
+        # words [(word, count, lang, day)] (None: not read yet), the removed ones, the reason they
+        # can't be read, the handwriting samples (None: no recognizer); their folder (None: no
+        # home), whether it exists yet and whether something opens folders
         self.kb_sugg, self.kb_hw, self.kb_learn, self.kb_addr = True, True, True, "suggest"
         self.kb_langs, self.kb_models = None, {}
         self.kb_words, self.kb_gone, self.kb_err, self.kb_hw_n = None, [], None, None
+        self.kb_dir, self.kb_dir_there, self.kb_opener = None, False, False
         self.own_ws = True
         self.rot_auto, self.rot_lock, self.rot_now = True, 0, 0     # glassine-rotd (degrees, content turned clockwise)
         self.zone, self.h24, self.ntp, self.synced = ("Europe", "Berlin"), True, True, ""
@@ -504,8 +506,14 @@ class Base:
             self.kb_read_words()
         self.bg(go)
 
-    def kb_remove(self, w): self._kb_words_op("Could not remove “%s”" % w, predict.remove, w)
-    def kb_restore(self, w): self._kb_words_op("Could not put back “%s”" % w, predict.restore, w)
+    def kb_forget(self):
+        """the Words page's Forget: the learned words and the removed list (not handwriting)"""
+        self._kb_words_op("Could not forget the learned words", predict.erase)
+
+    def kb_open_folder(self):
+        """the learned words' folder in the file manager"""
+        if self.kb_dir and not predict.open_folder(self.kb_dir):
+            self.error("Could not open the folder", "No program to open it was found.")
 
     def kb_erase(self):
         """the learned words, the removed list and the handwriting samples"""
@@ -697,26 +705,28 @@ class Demo(Base):
         # Keyboard > Typing: the design's sample (kbWordsL, kbLangs, KB_LANGS)
         self.osk, self.kb_langs = "us", ["en", "de"]
         self.kb_models = {"en": 40000, "de": 40000}
-        self.kb_words = [("okay", 96, "en"), ("gonna", 41, "en"), ("teh", 23, "en"), ("Feierabend", 21, "de"),
-                         ("e-ink", 19, "en"), ("tmrw", 17, "en"), ("Glassine", 14, "en"), ("gemütlich", 11, "de"),
-                         ("sourdough", 9, "en"), ("kerning", 7, "en"), ("brb", 6, "en"), ("Hokusai", 4, "en"),
-                         ("wanna", 3, "en"), ("refactor", 2, "en")]
-        self.kb_gone = []
-        if os.environ.get("GLASSINE_DEMO_KB") == "removed":     # (test.sh: the Removed list with words)
-            self.kb_words, self.kb_gone = self.kb_words[1:], ["okay", "teh"]
-        elif os.environ.get("GLASSINE_DEMO_KB") == "empty":
-            self.kb_words, self.kb_gone = [], []
-        elif os.environ.get("GLASSINE_DEMO_KB") == "missing":   # glassine-predict isn't installed
-            self.kb_words, self.kb_err = None, "Word suggestions aren’t installed on this system."
+        # (214 learned words, 3 removed, the last one today; the demo's today is the design's)
+        t = predict.today()
+        self.kb_words = [("w%d" % i, 1, "de" if i % 9 == 0 else "en", t - 3 - i % 40) for i in range(211)] + \
+                        [("okay", 96, "en", t), ("Feierabend", 21, "de", t - 1), ("gemütlich", 11, "de", t - 5)]
+        self.kb_gone = ["teh", "gonna", "wanna"]
+        self.kb_dir = os.path.join(os.environ.get("HOME") or "/home/user", ".local/share/glassine/predict")
+        self.kb_dir_there, self.kb_opener = True, True
+        k = os.environ.get("GLASSINE_DEMO_KB")
+        if k == "empty":                                # nothing learned yet: no folder
+            self.kb_words, self.kb_gone, self.kb_dir_there = [], [], False
+        elif k == "no-opener":                          # nothing opens folders: the path to copy
+            self.kb_opener = False
+        elif k == "unreadable":                         # a first line it doesn't understand (a hand edit)
+            self.kb_words, self.kb_gone, self.kb_err = None, [], "glassine-predict: the learned words file can't be read"
+        elif k == "missing":                            # glassine-predict isn't installed
+            self.kb_words, self.kb_gone, self.kb_err = None, [], "Word suggestions aren’t installed on this system."
+            self.kb_dir_there = False
 
     # Keyboard > Typing: in memory
-    def kb_remove(self, w):
-        self.kb_words = [x for x in self.kb_words or [] if x[0] != w]
-        self.kb_gone = [w] + [x for x in self.kb_gone if x != w]
-        self.changed()
-
-    def kb_restore(self, w): self.kb_gone = [x for x in self.kb_gone if x != w]; self.changed()
     def kb_erase(self): self.kb_words, self.kb_gone = [], []; self.changed()
+    def kb_forget(self): self.kb_words, self.kb_gone = [], []; self.changed()
+    def kb_open_folder(self): pass
 
     def kb_installed(self, code):
         self.kb_models = dict(self.kb_models, **{code: 40000})
@@ -1890,6 +1900,9 @@ class Real(Base):
         predict.write_conf(changes)
 
     def kb_read_words(self):
+        d = predict.store_dir()
+        self.kb_dir, self.kb_dir_there = d, bool(d) and os.path.isdir(d)
+        self.kb_opener = predict.folder_opener()
         try:
             self.kb_words, self.kb_gone, self.kb_err = predict.learned(), predict.removed(), None
         except predict.Failed as e:
