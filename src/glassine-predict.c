@@ -16,6 +16,7 @@
 // $XDG_DATA_HOME/glassine/predict/words (mode 0600). Nothing here opens a network
 // socket, and nothing typed is ever written to stderr.
 #define _GNU_SOURCE
+#include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <math.h>
@@ -35,6 +36,7 @@
 #define MAX_LINE 32768          /* bytes of one request line, escaped */
 #define CTX_TAIL 512            /* bytes of context the predictor looks at */
 #define NCAND 3
+#define MAX_LANGS 4
 #define FLUSH_IDLE_MS 2000      /* learned words are written after this long without a request */
 #define FLUSH_MAX_MS 30000      /* or after this long in any case */
 #define FLUSH_AFTER_N 64
@@ -97,6 +99,12 @@ static int model_check(struct model *m)
 	return 0;
 }
 
+static const char *models_dir(void)
+{
+	const char *dir = getenv("GLASSINE_PREDICT_MODELS");
+	return dir && *dir ? dir : "/usr/share/glassine/predict";
+}
+
 static struct model *model_get(const char *lang)
 {
 	for (size_t i = 0; i < nmodels; i++) if (!strcmp(models[i].lang, lang)) return models[i].missing ? NULL : &models[i];
@@ -109,9 +117,8 @@ static struct model *model_get(const char *lang)
 	memset(m, 0, sizeof *m);
 	snprintf(m->lang, sizeof m->lang, "%s", lang);
 	m->missing = 1;
-	const char *dir = getenv("GLASSINE_PREDICT_MODELS");
 	char path[4096];
-	snprintf(path, sizeof path, "%s/%s.gpm", dir && *dir ? dir : "/usr/share/glassine/predict", lang);
+	snprintf(path, sizeof path, "%s/%s.gpm", models_dir(), lang);
 	int fd = open(path, O_RDONLY | O_CLOEXEC);
 	struct stat st;
 	if (fd < 0) return NULL;
@@ -127,6 +134,68 @@ static struct model *model_get(const char *lang)
 	}
 	m->missing = 0;
 	return m;
+}
+
+/* The installed languages: the valid models in the models directory, by code, at most
+ * MAX_LANGS (the fallback while `languages` is unset and the keyboard's language has no
+ * model). Read again, with every model, when the directory changes (a language installed
+ * or removed while the keyboard runs). */
+static char inst[MAX_LANGS][STORE_LANG_MAX];
+static int ninst = -1;
+static struct timespec models_mtim;
+static int models_ok = -1;
+
+/* a model's name as the settings app reads it: 2 or 3 lowercase letters, then optionally
+ * - or _ and letters or digits */
+static int model_name_ok(const char *n, size_t l)
+{
+	size_t i = 0;
+	while (i < l && n[i] >= 'a' && n[i] <= 'z') i++;
+	if (i < 2 || i > 3) return 0;
+	if (i == l) return 1;
+	if ((n[i] != '-' && n[i] != '_') || ++i == l) return 0;
+	for (; i < l; i++)
+		if (!((n[i] >= 'a' && n[i] <= 'z') || (n[i] >= 'A' && n[i] <= 'Z') || (n[i] >= '0' && n[i] <= '9'))) return 0;
+	return 1;
+}
+
+static int cmp_str(const void *a, const void *b) { return strcmp(*(char *const *)a, *(char *const *)b); }
+
+static void models_refresh(void)
+{
+	struct stat st;
+	int ok = !stat(models_dir(), &st);
+	if (ok == models_ok && (!ok || (st.st_mtim.tv_sec == models_mtim.tv_sec && st.st_mtim.tv_nsec == models_mtim.tv_nsec)))
+		return;
+	models_ok = ok;
+	if (ok) models_mtim = st.st_mtim;
+	for (size_t i = 0; i < nmodels; i++) if (!models[i].missing) munmap(models[i].map, models[i].len);
+	nmodels = 0;
+	ninst = -1;
+}
+
+static int installed_langs(const char **langs)
+{
+	if (ninst < 0) {
+		ninst = 0;
+		DIR *d = opendir(models_dir());
+		char *names[256];
+		size_t nn = 0;
+		struct dirent *e;
+		while (d && (e = readdir(d)) && nn < sizeof names / sizeof *names) {
+			size_t l = strlen(e->d_name);
+			if (l > 4 && l - 4 < STORE_LANG_MAX && !strcmp(e->d_name + l - 4, ".gpm") && model_name_ok(e->d_name, l - 4))
+				if ((names[nn] = strndup(e->d_name, l - 4))) nn++;
+		}
+		if (d) closedir(d);
+		qsort(names, nn, sizeof *names, cmp_str);
+		for (size_t i = 0; i < nn; i++) {
+			if (ninst < MAX_LANGS && model_get(names[i])) snprintf(inst[ninst++], STORE_LANG_MAX, "%s", names[i]);
+			free(names[i]);
+		}
+	}
+	for (int i = 0; i < ninst; i++) langs[i] = inst[i];
+	return ninst;
 }
 
 static const char *mkey(const struct model *m, uint32_t id) { return m->str + m->v[id].key; }
@@ -395,7 +464,6 @@ static int field_resolve(int fl)
 
 /* ---------------------------------------------------------------- prediction */
 
-#define MAX_LANGS 4
 #define CTX_WORDS 6             /* words of context that say which language it is */
 
 struct cand {
@@ -822,16 +890,27 @@ static int split_langs(const char *list, char *buf, size_t n, const char **langs
 	return nl ? nl : -1;
 }
 
-/* The active languages: `languages` in predict.conf when it is set and valid, else the
- * request's list. */
+/* The active languages (docs/predictor.md, "Active languages"): `languages` in
+ * predict.conf when it is set and valid; else the request's languages that have a model;
+ * else the installed languages; else, with none installed, the request's list (learned
+ * words only). */
 static int active_langs(const char *req, char *buf, size_t n, const char **langs)
 {
 	char v[256];
+	models_refresh();
 	if (conf_get("languages", v, sizeof v)) {
 		int nl = split_langs(v, buf, n, langs);
 		if (nl > 0) return nl;
 	}
-	return *req ? split_langs(req, buf, n, langs) : -1;
+	if (!*req) return -1;
+	int nl = split_langs(req, buf, n, langs), k = 0;
+	if (nl < 0) return -1;
+	for (int i = 0; i < nl; i++) if (model_get(langs[i])) langs[k++] = langs[i];
+	if (k) return k;
+	const char *il[MAX_LANGS];
+	k = installed_langs(il);
+	for (int i = 0; i < k; i++) langs[i] = il[i];
+	return k ? k : nl;
 }
 
 static void handle(struct req *r, int superseded)

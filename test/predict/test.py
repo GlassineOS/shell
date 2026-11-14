@@ -118,7 +118,8 @@ check("names keep their capital", words_of(p.ask(predict("f", "We went to ", "lo
 check("sentence start with auto_capitalization capitalizes",
       words_of(p.ask(predict("g", "It is raining. ", "", "normal,auto_capitalization")))[0][0].isupper(), True)
 check("at most three, best first", len(words_of(p.ask(predict("h", "The ")))), 3)
-check("unknown language: no model, no words", p.ask(predict("i", "The ", lang="xx")), "predict\ti")
+check("a keyboard language without a model: the installed ones instead", words_of(p.ask(predict("i", "I would like to ", lang="xx")))[:2],
+      ["read", "go"])
 check("a number purpose gets no words", p.ask(predict("j", "The ", field="number")), "predict\tj")
 long_ctx = ("blah " * 2000) + "Thank you "
 check("a 10 KB context: only its end counts", words_of(p.ask(predict("k", long_ctx)))[0], "for")
@@ -473,6 +474,71 @@ check("... read at the next request, spaces allowed", pairs(p.ask(predict("s3", 
 open(conf, "w").write("languages = en,!!\n")
 check("an invalid setting falls back to the request", pairs(p.ask(predict("s4", "I would like to ", lang="en")))[0][1], "en")
 check("... and with no request list it's an error", p.ask(predict("s5", "x ", lang="")), "error\ts5\tbad-lang")
+p.close()
+
+# the active set while `languages` is unset (docs/predictor.md, "Active languages"): the
+# keyboard's language when it has a model, else the installed languages (by code, at most
+# 4), else the keyboard's list (learned words only); a set list is used as it is
+def models_dir(*codes, german=("de",)):
+    """a models directory: the codes in german get the German model, the others the English one"""
+    d = tempfile.mkdtemp()
+    for c in codes:
+        shutil.copy(os.path.join(MODELS, ("de" if c in german else "en") + ".gpm"), os.path.join(d, c + ".gpm"))
+    return d
+
+
+def langs_of(reply):
+    return sorted(set(l for _, l in pairs(reply)))
+
+
+h = Home()
+p = Predictor(h)
+p.ask("hello\th\t2")
+check("unset, the layout's language installed: it alone", pairs(p.ask(predict("a1", "Ich möchte ein ", lang="de")))[0], ("Buch", "de"))
+check("... no English words beside it", langs_of(p.ask(predict("a2", "", "", lang="de"))), ["de"])
+check("unset, the layout's language missing: the installed languages", langs_of(p.ask(predict("a3", "", "", lang="fr"))), ["de", "en"])
+check("... English context, English words", pairs(p.ask(predict("a4", "I would like to ", lang="fr")))[:2], [("read", "en"), ("go", "en")])
+check("... German context, German words", pairs(p.ask(predict("a5", "Ich möchte ein ", lang="fr")))[0], ("Buch", "de"))
+check("... a typed word learns in an installed language, not the missing one",
+      p.ask("learn\ta6\tfr\tnormal\tIch möchte ein \tFlugzeugträger\t"), "learn\ta6\tok\tde")
+check("unset, a list with one installed: only that one", langs_of(p.ask(predict("a7", "", "", lang="fr,en"))), ["en"])
+p.close()
+for german, want in (("fr",), ("fr", "Buch")), (("nl",), None):
+    h = Home()          # five installed: de en es fr nl; only the first 4 by code count
+    h.env["GLASSINE_PREDICT_MODELS"] = d5 = models_dir("nl", "fr", "en", "es", "de", german=german)
+    p = Predictor(h)
+    p.ask("hello\th\t2")
+    got = [x for x in pairs(p.ask(predict("a8", "Ich möchte ein ", lang="sv"))) if x[0] == "Buch"]
+    check("unset, missing, five installed: the first 4 by code (the German model as %s)" % german[0], got[0][::-1] if got else None, want)
+    p.close()
+    shutil.rmtree(d5)
+h = Home()
+h.env["GLASSINE_PREDICT_MODELS"] = d0 = models_dir()
+p = Predictor(h)
+p.ask("hello\th\t2")
+check("unset, nothing installed: no base words", p.ask(predict("a9", "I would like to ", lang="en")), "predict\ta9")
+p.ask("learn\ta10\ten\tnormal\tSee you \tquokka\t")
+p.ask("learn\ta11\ten\tnormal\tSee you \tquokka\t")
+check("... the keyboard's language learns and suggests its learned words", pairs(p.ask(predict("a12", "", "quo", lang="en"))),
+      [("quokka", "en")])
+shutil.copy(os.path.join(MODELS, "de.gpm"), os.path.join(d0, "de.gpm"))
+check("a language installed while running: used at the next request", pairs(p.ask(predict("a13", "Ich möchte ein ", lang="de")))[0],
+      ("Buch", "de"))
+check("... and the missing layout's language falls back to it", langs_of(p.ask(predict("a14", "", "", lang="en"))), ["de"])
+os.unlink(os.path.join(d0, "de.gpm"))
+check("a language removed while running: gone at the next request", p.ask(predict("a15", "Ich möchte ein ", lang="de")), "predict\ta15")
+code, rest, err = p.close()
+check("... a clean exit", code, 0)
+shutil.rmtree(d0)
+h = Home()
+os.makedirs(os.path.join(h.conf, "glassine"))
+open(os.path.join(h.conf, "glassine", "predict.conf"), "w").write("languages = fr\n")
+p = Predictor(h)
+p.ask("hello\th\t2")
+check("a set list naming only a missing language: no base words (learned only)",
+      p.ask(predict("a16", "I would like to ", lang="en")), "predict\ta16")
+open(os.path.join(h.conf, "glassine", "predict.conf"), "w").write("languages = fr, de\n")
+check("a set list with one missing: the others give words", langs_of(p.ask(predict("a17", "", "", lang="en"))), ["de"])
 p.close()
 
 # a store this version can't read is left alone

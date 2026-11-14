@@ -154,7 +154,11 @@ suggestions and no handwriting popup, and nothing is learned there.
   slow (an empty strip that keeps its place, no blocking). The default predictor combines a per-language base model
   with the person's learned words.
 - **FR-006**: Suggestions come from one or more languages the person chooses in the
-  settings (by default the language of the active keyboard layout). With several, the
+  settings. Until the person chooses, they come from the language of the active keyboard
+  layout when its dictionary is installed, otherwise from the installed languages (up to
+  four), so changing the layout never leaves the person without suggestions; a layout
+  language without a dictionary adds nothing, not even its learned words, until its
+  dictionary is installed. Changing the layout never installs anything. With several, the
   strip mixes their words in one ranking, leaning to the language the text before the
   cursor reads like, so a person who writes in two languages gets both without
   switching. A word is learned into the language it was suggested from; a typed word
@@ -162,7 +166,13 @@ suggestions and no handwriting popup, and nothing is learned there.
   removed word is not suggested in any language. Each language's dictionary is a
   package; the settings' languages page lists the installed ones with their switches
   and offers the others to install through the system's package installer, with a way
-  to the full list where installed ones can be removed. Images ship one language.
+  to the full list where installed ones can be removed. A language is shown as on only
+  when its dictionary is installed: the keyboard layout's language and a chosen language
+  without a dictionary are offered first among those to install, each with a line saying
+  why, and when no language that is on has a dictionary the page says suggestions come
+  only from learned words. After choosing a layout whose language has no dictionary but
+  one is available, the keyboard settings say so with a shortcut to install it. Images
+  ship one language.
 - **FR-007**: Private fields (purpose password or PIN, or the sensitive or hidden-text
   hint): no suggestions, no learning, no handwriting, nothing about the field written
   anywhere. Fields with purpose digits, number, phone, date, time or date and time: no
