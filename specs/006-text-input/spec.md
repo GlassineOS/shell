@@ -130,14 +130,20 @@ suggestions and no handwriting popup, and nothing is learned there.
   with the person's learned words.
 - **FR-006**: The language follows the active keyboard layout; a field whose text is
   clearly in another installed language may switch the suggestions to it.
-- **FR-007**: Private fields (purpose password or PIN, or the sensitive hint): no
-  suggestions, no learning, no handwriting, nothing about the field written anywhere.
-  Fields with purpose terminal: no learning.
+- **FR-007**: Private fields (purpose password or PIN, or the sensitive or hidden-text
+  hint): no suggestions, no learning, no handwriting, nothing about the field written
+  anywhere. Fields with purpose terminal, number, date or time, or a purpose or hint the
+  keyboard doesn't know: no learning. Number, date and time fields get no suggestions.
+- **FR-007a**: Email and web-address fields follow a setting with three choices: off (no
+  suggestions, no learning), suggest (suggestions from the base dictionary and the
+  learned words, nothing typed there is learned; the default) and suggest and learn (as
+  any other field).
 - **FR-008**: Learned words live in the person's data directory, readable only by them,
   never leave the device, and are erased by one action in the settings. The settings
   app's keyboard page has: suggestions on or off, learning on or off (on by default),
-  handwriting on or off, the learned words (FR-008a), and one action that erases what
-  was learned (words and handwriting samples).
+  handwriting on or off, the choice for email and web addresses (FR-007a), the learned
+  words (FR-008a), and one action that erases what was learned (words and handwriting
+  samples).
 - **FR-008a**: Removing words. Holding a word in the strip turns the strip into a
   question in the same row (remove the word, or keep it); no popup. A removed word is
   never suggested again and isn't learned again, whether it was learned or comes from
