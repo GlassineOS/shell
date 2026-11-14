@@ -77,8 +77,8 @@ inserts a space; a scratch-out of pending text discards it.
 ### Scenario 8a – Correcting teaches the recognizer (Priority: P2)
 
 **Given** pending text from handwriting, **When** the person picks an alternative, or
-opens the read text with the correction control, changes it with the keys and commits
-it, **Then** the corrected text goes into the field, and the ink with the confirmed text
+opens the read text with the correction control (which brings up the on-screen keyboard
+with the paper still showing the ink), changes it with the keys and commits it, **Then** the corrected text goes into the field, and the ink with the confirmed text
 is kept as a lesson for this device's recognizer; a short note on the paper says so.
 From the first day, recognition improves with use.
 
