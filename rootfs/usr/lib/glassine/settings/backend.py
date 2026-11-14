@@ -24,6 +24,7 @@ import time
 from gi.repository import GLib
 
 from . import homeconf      # favourites: Home's layout file (~/.config/glassine/home.conf)
+from . import predict       # Keyboard > Typing: predict.conf, the languages, the learned words
 
 HOME = os.environ.get("HOME", "/home/user")
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
@@ -388,6 +389,13 @@ class Base:
         self.osk, self.osk_auto, self.theme = "german", True, "white"
         self.kbd = ""                           # hardware keyboard layout: "" (as the OSK) | a KBD_LAYOUTS code
         self.shortcuts = sway_shortcuts()       # the sway session's (keys.conf)
+        # Keyboard > Typing (predict.py): the switches, the email/web choice, the languages
+        # (None: unset, the layout's language), the base models {code: words}; the learned
+        # words [(word, count, lang)] (None: not read yet), the removed ones, the reason they
+        # can't be read, the handwriting samples (None: no recognizer)
+        self.kb_sugg, self.kb_hw, self.kb_learn, self.kb_addr = True, True, True, "suggest"
+        self.kb_langs, self.kb_models = None, {}
+        self.kb_words, self.kb_gone, self.kb_err, self.kb_hw_n = None, [], None, None
         self.own_ws = True
         self.rot_auto, self.rot_lock, self.rot_now = True, 0, 0     # glassine-rotd (degrees, content turned clockwise)
         self.zone, self.h24, self.ntp, self.synced = ("Europe", "Berlin"), True, True, ""
@@ -437,6 +445,72 @@ class Base:
         if a:
             a["removed"] = True
         self.changed()
+
+    # -- Keyboard > Typing (both backends; _kb_save and the words calls are theirs)
+    def kb_layout_lang(self):
+        """the on-screen layout's language: the predictor's default language"""
+        return "en" if self.osk == "us" else "de"
+
+    def kb_active(self):
+        return self.kb_langs or [self.kb_layout_lang()]
+
+    def kb_lang_rows(self):
+        """the Languages page: [(code, name, words or None, on)]"""
+        return predict.lang_rows(self.kb_models, self.kb_active(), self.kb_known(), self.kb_layout_lang())
+
+    def kb_known(self):
+        """languages listed even without a model: those of the keyboard layouts on offer"""
+        return sorted({"en" if l == "us" else "de" for l in OSK_LAYERS} |
+                      {{"us": "en", "gb": "en"}.get(c.split()[0], c.split()[0]) for c, _, _ in KBD_LAYOUTS})
+
+    def _kb_save(self, changes):
+        """write predict.conf's keys (the demo: nothing)"""
+
+    def _kb_set(self, attr, val, changes):
+        setattr(self, attr, val)
+        self._try(lambda: self._kb_save(changes))
+
+    def set_kb_sugg(self, on): self._kb_set("kb_sugg", on, {"suggestions": "on" if on else "off"})
+    def set_kb_hw(self, on): self._kb_set("kb_hw", on, {"handwriting": "on" if on else "off"})
+    def set_kb_learn(self, on): self._kb_set("kb_learn", on, {"learning": "on" if on else "off"})
+
+    def set_kb_addr(self, v):
+        self._kb_set("kb_addr", predict.addresses(v), {"addresses": predict.addresses(v)})
+
+    def toggle_kb_lang(self, code):
+        """a language's toggle: the active list in the rows' order (at least one, at most 4)"""
+        why, new = predict.toggled(self.kb_lang_rows(), code)
+        if why == "last":
+            self.error("At least one language", "Suggestions need a language. To have none, turn Suggestions off on the Keyboard page.")
+        elif why == "max":
+            self.error("At most %d languages" % predict.MAX_LANGS, "Turn another language off first.")
+        else:
+            self._kb_set("kb_langs", new, {"languages": ",".join(new)})
+
+    def kb_read_words(self):
+        """the learned and removed words (glassine-predict words; the demo: in memory)"""
+
+    def _kb_words_op(self, title, fn, *a):
+        """a change through the words command, then the lists read again; a failure is a sheet"""
+        def go():
+            try:
+                fn(*a)
+            except predict.Failed as e:
+                self.error(title, str(e))
+            self.kb_read_words()
+        self.bg(go)
+
+    def kb_remove(self, w): self._kb_words_op("Could not remove “%s”" % w, predict.remove, w)
+    def kb_restore(self, w): self._kb_words_op("Could not put back “%s”" % w, predict.restore, w)
+
+    def kb_erase(self):
+        """the learned words, the removed list and the handwriting samples"""
+        def both():
+            try:
+                predict.erase()
+            finally:
+                predict.hw_erase()
+        self._kb_words_op("Could not erase what was learned", both)
 
     def _try(self, fn):
         try:
@@ -616,6 +690,30 @@ class Demo(Base):
         self.space = [("Userdata", 18.2e9, 52e9), ("System", 6.1e9, 8e9)]
         self.folders = [("Books", 4.1e9), ("Downloads", 2.7e9), (".cache", 1.9e9), ("Music", 1.2e9), ("Maps", 0.82e9)]
         self.space_at = "20:11"
+        # Keyboard > Typing: the design's sample (kbWordsL, kbLangs, KB_LANGS)
+        self.osk, self.kb_langs = "us", ["en", "de"]
+        self.kb_models = {"en": 40000, "de": 40000}
+        self.kb_words = [("okay", 96, "en"), ("gonna", 41, "en"), ("teh", 23, "en"), ("Feierabend", 21, "de"),
+                         ("e-ink", 19, "en"), ("tmrw", 17, "en"), ("Glassine", 14, "en"), ("gemütlich", 11, "de"),
+                         ("sourdough", 9, "en"), ("kerning", 7, "en"), ("brb", 6, "en"), ("Hokusai", 4, "en"),
+                         ("wanna", 3, "en"), ("refactor", 2, "en")]
+        self.kb_gone = []
+        if os.environ.get("GLASSINE_DEMO_KB") == "removed":     # (test.sh: the Removed list with words)
+            self.kb_words, self.kb_gone = self.kb_words[1:], ["okay", "teh"]
+        elif os.environ.get("GLASSINE_DEMO_KB") == "empty":
+            self.kb_words, self.kb_gone = [], []
+        elif os.environ.get("GLASSINE_DEMO_KB") == "missing":   # glassine-predict isn't installed
+            self.kb_words, self.kb_err = None, "Word suggestions aren’t installed on this system."
+
+    # Keyboard > Typing: in memory
+    def kb_remove(self, w):
+        self.kb_words = [x for x in self.kb_words or [] if x[0] != w]
+        self.kb_gone = [w] + [x for x in self.kb_gone if x != w]
+        self.changed()
+
+    def kb_restore(self, w): self.kb_gone = [x for x in self.kb_gone if x != w]; self.changed()
+    def kb_erase(self): self.kb_words, self.kb_gone = [], []; self.changed()
+    def kb_known(self): return ["en", "de", "fr", "es"]
 
     def zones(self):
         return {"Africa": ["Cairo", "Johannesburg", "Lagos", "Nairobi"],
@@ -1086,6 +1184,7 @@ class Real(Base):
         self.osk = "us" if lay.split(",")[0] == "full" else "german"
         self.osk_auto = not os.path.exists(OSK_NO_AUTO)
         self.kbd = read(KBD_LAYOUT) if read(KBD_LAYOUT) in [c for c, _, _ in KBD_LAYOUTS] else ""
+        self.read_typing()
         self.own_ws = not os.path.exists(APP_SHARED_WS)
         self.theme = read(RUN + "/glassine-shell.theme") or read(HOME + "/.config/glassine-shell/theme") or "white"
         rc = (read(ROT_CONF) or "auto").split()
@@ -1180,6 +1279,8 @@ class Real(Base):
             self.discover()
         if page == "storage":
             self.bg(self.measure)
+        if page in ("keyboard", "kb-words"):
+            self.bg(self.kb_read_words)
 
     # -- Wi-Fi (NetworkManager)
     def read_wifi(self, rescan=False):
@@ -1766,6 +1867,26 @@ class Real(Base):
                 os.unlink(KBD_LAYOUT)
             run(KBD_LAYOUT_CMD)
         self._try(go)
+
+    # -- Keyboard > Typing (predict.py: predict.conf, the models, glassine-predict words)
+    def read_typing(self):
+        c = predict.read_conf()
+        self.kb_sugg = predict.flag(c.get("suggestions"))
+        self.kb_hw = predict.flag(c.get("handwriting"))
+        self.kb_learn = predict.flag(c.get("learning"))
+        self.kb_addr = predict.addresses(c.get("addresses"))
+        self.kb_langs = predict.parse_langs(c.get("languages"))
+        self.kb_models = predict.installed()
+        self.kb_hw_n = predict.hw_samples()
+
+    def _kb_save(self, changes):
+        predict.write_conf(changes)
+
+    def kb_read_words(self):
+        try:
+            self.kb_words, self.kb_gone, self.kb_err = predict.learned(), predict.removed(), None
+        except predict.Failed as e:
+            self.kb_words, self.kb_gone, self.kb_err = None, [], str(e)
 
     def set_osk_auto(self, on):
         self.osk_auto = on
