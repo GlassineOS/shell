@@ -1,0 +1,14 @@
+# The English base model (glassine-predict, docs/predictor.md). Read by build.sh.
+# options: glassine-predict-build's options for this language
+# source KIND FILE SHA256 URL [ARGS]: a pinned download; KIND and ARGS as in extract.py
+# licence: the built model's licence and attributions (written beside it as LANG.gpm.license)
+options -s ai -v 40000 -b 12 -B 3 -t 6 -T 4 -P 24
+source wikipedia simplewiki.parquet 31bded16768a47c286becd292079122f5d7d4397a17b87d4250a00ccd581e6f0 https://huggingface.co/datasets/wikimedia/wikipedia/resolve/b04c8d1ceb2f5cd4588862100d08de323dccfbaa/20231101.simple/train-00000-of-00001.parquet
+source tatoeba eng_sentences.tsv.bz2 07f33d399f0a55b917202abbd901f23c39c54a6dd562252985ce8c7e168db6ef https://web.archive.org/web/20261105045929id_/https://downloads.tatoeba.org/exports/per_language/eng/eng_sentences.tsv.bz2 Tom Mary
+licence The word counts in this file are derived from the Simple English Wikipedia
+licence (text from the wikimedia/wikipedia dataset, CC BY-SA 3.0 and GFDL, by the
+licence Wikipedia contributors, https://simple.wikipedia.org) and from English sentences
+licence of the Tatoeba project (CC BY 2.0 FR, by the Tatoeba contributors,
+licence https://tatoeba.org). This model file is licensed CC BY-SA 3.0
+licence (https://creativecommons.org/licenses/by-sa/3.0/). Built with GlassineOS/shell
+licence tools/predict-model/build.sh from en.sources.
