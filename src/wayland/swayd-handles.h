@@ -39,5 +39,10 @@ void hd_tapped(const HandleDef *h);
 void hd_text_focus(int on);
 void hd_dragging(int on);               /* a handle is held or let go: tells glassine-epdd-desktop */
 void hd_text_changed(void);             /* the focused field reported again */
+/* the text focus as an input method saw it (active, content purpose): the terminal rule,
+ * then hd_text_focus or hd_text_changed; _changed: the same field reported again */
+void hd_text_report(int active, int purpose);
+void hd_text_report_changed(void);
+void hd_im_release(void);               /* the keyboard is the input method: give ours up */
 
 #endif
