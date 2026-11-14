@@ -86,9 +86,10 @@ When several `predict` requests are read together (the keyboard was faster than 
 only the newest is answered with words; the older ones get `drop ID`. Other requests between them
 are carried out in order.
 
-**learn:** the keyboard sends it for each word the person finished (a space or punctuation after
-it) or picked from the suggestions, with the text before the word as `BEFORE`, and as `PICKED` the
-language of the suggestion it picked (empty when the word was typed). `skip`: the field doesn't
+**learn:** the keyboard sends it once for each word the person finished (a space, punctuation or
+Enter after it) or picked from the suggestions, with the text before the word as `BEFORE`, and as
+`PICKED` the language of the suggestion it picked (empty when the word was typed). Finishing the
+same word at the same place again (the space after it deleted, then Enter) sends nothing more. `skip`: the field doesn't
 learn (below), learning is off, the word was removed, or it isn't a word (one letter, digits,
 symbols, more than 48 bytes). A word the base model doesn't know is suggested once it was learned
 twice (Scenario 6); among the completions of a word being typed, the person's words move up with
