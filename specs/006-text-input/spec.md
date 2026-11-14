@@ -32,15 +32,17 @@ being typed or, after a space, likely next words given the text before the curso
 
 **Given** suggestions on screen, **When** the person taps one, **Then** it replaces the
 partly typed word (or is inserted at the cursor) followed by a space, in one step that
-the app sees as one edit. Inserted right after a letter, a digit or punctuation that ends
-something (`, . ; : ! ? ) ] }`, a closing typographic quote, an ellipsis), it gets a space
-before it too; after a space, an opening bracket or quote, a dash or a slash it doesn't.
+the app sees as one edit. Inserted right after a digit or punctuation that ends something
+(`, . ; : ! ? ) ] }`, a closing typographic quote, an ellipsis), it gets a space before it
+too; after a space, an opening bracket or quote, a dash or a slash it doesn't.
 In email fields no space follows. A web-address field also takes searches (a browser's
 address bar): there no space follows only while the text being typed looks like an
 address (since the last space it has a `.`, `/`, `:` or `@`), and nothing is put before
 the word then either; a plain word gets its space like anywhere else. When the app
-selected a completion of its own after the typed text, the pick replaces the typed word
-and that selection.
+selected text (its own completion after the typed text, or a word the person selected),
+the pick replaces the selection and the word typed right before it; with such a word it
+takes two edits (the word over the selection, then the typed word and it replaced),
+because apps resolve a deletion around a selection differently.
 
 ### Scenario 3 – Any character arrives (Priority: P1)
 
