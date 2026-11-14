@@ -9,8 +9,9 @@ cursor, and handwriting written directly above the field and turned into text.
 ## Context
 
 The on-screen keyboard (GlassineOS/wvkbd, started by the session through
-`glassine-wvkbd`) is a small, hackable base. Typed text reaches apps as key events; a
-character that the active keymap lacks is sent through a temporary keymap. The compositor
+`glassine-wvkbd`) is a small, hackable base. As the session's input method it commits
+typed text to the focused field, so any character arrives whatever the keymap; apps
+without text input get key events. The compositor
 (sway 1.10) supports the input-method protocol (`input-method-v2`) towards the keyboard
 and the text-input protocol (`text-input-v3`) towards apps, which together give the
 keyboard the focused field's purpose, the text around the cursor, and a popup placed at
@@ -31,7 +32,8 @@ being typed or, after a space, likely next words given the text before the curso
 
 **Given** suggestions on screen, **When** the person taps one, **Then** it replaces the
 partly typed word (or is inserted after the space) followed by a space, in one step that
-the app sees as one edit.
+the app sees as one edit. In email and web-address fields no space follows: the pick
+completes the part of the address being typed.
 
 ### Scenario 3 – Any character arrives (Priority: P1)
 
@@ -137,7 +139,7 @@ suggestions and no handwriting popup, and nothing is learned there.
   layer); the design is the `shell.keyboard` board in GlassineOS/ui.
 - **FR-005**: Prediction runs in a separate, replaceable program behind a line-based
   contract (context in, ranked candidates out); the keyboard works when it is missing or
-  slow (no row, no blocking). The default predictor combines a per-language base model
+  slow (an empty strip that keeps its place, no blocking). The default predictor combines a per-language base model
   with the person's learned words.
 - **FR-006**: Suggestions come from one or more languages the person chooses in the
   settings (by default the language of the active keyboard layout). With several, the
@@ -151,8 +153,9 @@ suggestions and no handwriting popup, and nothing is learned there.
   to the full list where installed ones can be removed. Images ship one language.
 - **FR-007**: Private fields (purpose password or PIN, or the sensitive or hidden-text
   hint): no suggestions, no learning, no handwriting, nothing about the field written
-  anywhere. Fields with purpose terminal, number, date or time, or a purpose or hint the
-  keyboard doesn't know: no learning. Number, date and time fields get no suggestions.
+  anywhere. Fields with purpose digits, number, phone, date, time or date and time: no
+  suggestions and no learning. Fields with purpose terminal, or a purpose or hint the
+  keyboard doesn't know: suggestions, but no learning.
 - **FR-007a**: Email and web-address fields follow a setting with three choices: off (no
   suggestions, no learning), suggest (suggestions from the base dictionary and the
   learned words, nothing typed there is learned; the default) and suggest and learn (as
@@ -237,7 +240,7 @@ suggestions and no handwriting popup, and nothing is learned there.
 | `tablet-v2` pen events on the writing surface | consumed (sway) | — | — |
 | `glassine_ink_v1` ink areas | consumed (GlassineOS/protocols, spec 003) | 1 | — |
 | AT-SPI field extents (optional, FR-010) | consumed (the accessibility bus) | — | — |
-| Predictor line contract (FR-005, FR-006) | owned (shell) | 2 | defined with the plan |
+| Predictor line contract (FR-005, FR-006) | owned (shell) | 2 | `docs/predictor.md` |
 | Handwriting recognizer interface (FR-011, FR-013a) | consumed (`GlassineOS/handwriting`) | 1 | handwriting spec 001 |
 | Learned words store: list, remove, put back, erase; a plain text file the person may edit | owned (shell); the settings app and the keyboard use it | 1 | FR-008, FR-008a |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
