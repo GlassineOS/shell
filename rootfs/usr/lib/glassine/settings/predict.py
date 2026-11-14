@@ -12,6 +12,9 @@ FR-006 to FR-008a; docs/predictor.md).
   the languages  a language is installed when its base model is there:
                  $GLASSINE_PREDICT_MODELS/LANG.gpm (/usr/share/glassine/predict/LANG.gpm)
                  with a valid header.
+  the packages   each language's model is the package glassine-predict-model-LANG; the
+                 languages to add are those the package indexes have (packages.py's data,
+                 the same the Packages page shows), installed through its change flow.
   handwriting    the samples belong to the handwriting recognizer (GlassineOS/handwriting
                  spec 001, FR-010), which doesn't exist yet: hw_samples() and hw_erase()
                  are the place to call it.
@@ -28,6 +31,8 @@ KEYS = ("suggestions", "handwriting", "learning", "addresses", "languages")
 ADDRESSES = ("off", "suggest", "learn")
 MAX_LANGS = 4                     # the predictor takes at most 4 languages (docs/predictor.md)
 LANG_RE = re.compile(r"^[a-z]{2,3}([-_][A-Za-z0-9]+)?$")
+MODEL_PKG = "glassine-predict-model-"     # + LANG: one language's base model
+NOT_LANG = ("doc", "dev", "dbg", "lang")  # subpackage suffixes that aren't a language
 CMD = "glassine-predict"          # found on PATH (/usr/bin on the device)
 # the languages' own names (the design lists them so); others show their code
 NAMES = {"en": "English", "de": "Deutsch", "fr": "Français", "es": "Español", "it": "Italiano",
@@ -44,6 +49,16 @@ def conf_path():
 
 def models_dir():
     return os.environ.get("GLASSINE_PREDICT_MODELS") or "/usr/share/glassine/predict"
+
+
+def model_lang(pkg):
+    """glassine-predict-model-LANG -> LANG, else None"""
+    if not pkg.startswith(MODEL_PKG):
+        return None
+    code = pkg[len(MODEL_PKG):]
+    if not LANG_RE.match(code) or re.split(r"[-_]", code)[-1] in NOT_LANG:
+        return None
+    return code
 
 
 def lang_name(code):
@@ -178,12 +193,25 @@ def installed(d=None):
     return out
 
 
-def lang_rows(models, active, known, layout):
-    """the Languages page's rows, in the order they are shown and written: the layout's
-    language first, then by name -> [(code, name, words or None, on)]"""
-    codes = set(models) | set(active) | set(known)
+def lang_rows(models, active, layout):
+    """the switches of the Languages page (the installed languages and the active ones), in
+    the order they are shown and written: the layout's language first, then by name
+    -> [(code, name, words or None, on)]"""
+    codes = set(models) | set(active)
     order = sorted(codes, key=lambda c: (c != layout, lang_name(c).casefold(), c))
     return [(c, lang_name(c), models.get(c), c in active) for c in order]
+
+
+def to_add(pkgs, models, active, layout):
+    """the languages offered to install: packages in the indexes without an installed
+    model -> [(code, name, package)], in the rows' order"""
+    out = {}
+    for n in pkgs:
+        c = model_lang(n)
+        if c and c not in models and c not in active:
+            out[c] = n
+    order = sorted(out, key=lambda c: (c != layout, lang_name(c).casefold(), c))
+    return [(c, lang_name(c), out[c]) for c in order]
 
 
 def toggled(rows, code):

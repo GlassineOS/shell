@@ -90,24 +90,29 @@ be.osk = "german"
 be.read_typing()
 check("read: the switches, the address choice", (be.kb_sugg, be.kb_hw, be.kb_learn, be.kb_addr), (False, False, False, "off"))
 check("languages unset: the layout's language", be.kb_active(), ["de"])
+for c in ("es", "it", "nl", "sv"):
+    open(T + "/models/%s.gpm" % c, "wb").write(b"GLPM" + struct.pack("<I", 1) + c.encode().ljust(8, b"\0") + struct.pack("<I", 1000) + b"\0" * 64)
+be.read_typing()
 rows = be.kb_lang_rows()
-check("the language rows: the layout's first, then by name; installed or not",
-      [(c, n, w, on) for c, n, w, on in rows if c in ("de", "en", "fr")],
-      [("de", "Deutsch", None, True), ("en", "English", 40000, False), ("fr", "Français", None, False)])
+check("the language rows: installed and active ones, the layout's first, then by name",
+      [(c, n, w, on) for c, n, w, on in rows],
+      [("de", "Deutsch", None, True), ("en", "English", 40000, False), ("es", "Español", 1000, False),
+       ("it", "Italiano", 1000, False), ("nl", "Nederlands", 1000, False), ("sv", "Svenska", 1000, False)])
 be.toggle_kb_lang("en")
 check("a language on: languages = written in the rows' order", PR.read_conf().get("languages"), "de,en")
-be.toggle_kb_lang("fr")
+be.toggle_kb_lang("es")
 be.toggle_kb_lang("de")
-check("... then one off, one on: the order kept", PR.read_conf().get("languages"), "en,fr")
-be.toggle_kb_lang("fr")
+check("... then one off, one on: the order kept", PR.read_conf().get("languages"), "en,es")
+be.toggle_kb_lang("es")
 be.toggle_kb_lang("en")
 check("the last one can't go off (an empty list would be unset)", (PR.read_conf().get("languages"), errors[-1:]),
       ("en", ["At least one language"]))
-for c in ("de", "fr", "no"):
+check("an active language without a model, once off, is no longer listed", "de" in [r[0] for r in be.kb_lang_rows()], False)
+for c in ("nl", "es", "it"):
     be.toggle_kb_lang(c)
-check("four on, in the rows' order", PR.read_conf().get("languages"), "de,en,fr,no")
+check("four on, in the rows' order", PR.read_conf().get("languages"), "en,es,it,nl")
 n = len(errors)
-be.toggle_kb_lang("es")
+be.toggle_kb_lang("sv")
 check("at most 4 languages", (len(PR.parse_langs(PR.read_conf()["languages"])), errors[n:]), (4, ["At most 4 languages"]))
 be.set_kb_addr("learn")
 be.set_kb_sugg(True)
@@ -120,6 +125,77 @@ check("... the comment still there", open(CONF).read().startswith("# keep me\n")
 be.read_typing()
 check("... and read back", (be.kb_sugg, be.kb_hw, be.kb_learn, be.kb_addr), (True, True, True, "learn"))
 check("handwriting samples: no recognizer yet", be.kb_hw_n, None)
+
+# -- languages as packages (glassine-predict-model-LANG), the Packages flow (demo data) ------
+check("model packages: the language from the name, not the parent or a -doc",
+      [PR.model_lang(n) for n in ("glassine-predict-model-en", "glassine-predict-model-pt-BR", "glassine-predict-model",
+                                  "glassine-predict-model-en-doc", "glassine-predict-modelx-en", "vim")],
+      ["en", "pt-BR", None, None, None, None])
+check("to add: in the indexes, without a model, not active; layout's first then by name",
+      PR.to_add(["glassine-predict-model", "glassine-predict-model-fr", "glassine-predict-model-en", "glassine-predict-model-es",
+                 "glassine-predict-model-de", "glassine-predict-model-de-doc"], {"en": 1}, ["en"], "fr"),
+      [("fr", "Français", "glassine-predict-model-fr"), ("de", "Deutsch", "glassine-predict-model-de"),
+       ("es", "Español", "glassine-predict-model-es")])
+check("a model package's name in the change sheets", A.packages.pretty("glassine-predict-model-fr"), "Français for the keyboard")
+
+dm = B.Demo()
+dm.error = lambda t, x: errors.append(t)
+ui = A.UI(dm, lambda: None)
+ui.L = A.Layout(702, 884)
+ui.go("kb-langs")
+
+
+def blocks():
+    return pages.build(ui, dm).blocks
+
+
+def row(label):
+    return next(b for b in blocks() if getattr(b, "label", None) == label)
+
+
+labels = [getattr(b, "label", None) for b in blocks()]
+check("Languages: On the keyboard = the installed, Add a language = the rest of the indexes",
+      labels[labels.index("On the keyboard"):], ["On the keyboard", "English", "Deutsch", "Add a language", "Español", "Français",
+                                                 "All keyboard languages"])
+check("an Install row: the download size from the index", (row("Français").act, row("Français").sub), ("Install", "Download 2.8 MB"))
+row("Français").act_fn()
+check("Install: the existing flow's first-change note", ui.sheet.title, "Before your first change")
+ui.sheet.ok()
+check("... then the plan sheet", (ui.sheet.title, ui.sheet.ok_label), ("Install Français for the keyboard?", "Install"))
+plan = ui.sheet.plan
+ui.sheet.ok()
+check("while it runs: the status line, every Install off and busy",
+      (type(blocks()[0]).__name__, row("Español").act_off, row("Español").sub), ("Status", True, A.packages.BUSY))
+ui.pk.d.run = None
+ui.pk.d._apply(plan)
+ui.pk.d.result = {"kind": "ok", "plan": plan, "files": [], "restart": ""}
+ui.pk.show_result()
+check("done: the result sheet", ui.sheet.title, "Installed Français for the keyboard")
+labels = [getattr(b, "label", None) for b in blocks()]
+check("... Français is on the keyboard now, off; no longer offered",
+      (labels[labels.index("On the keyboard"):labels.index("Add a language")], row("Français").on, labels.count("Français")),
+      (["On the keyboard", "English", "Deutsch", "Français"], False, 1))
+ui.sheet = None
+row("Español").act_fn()
+plan = ui.sheet.plan
+ui.sheet.ok()
+ui.pk.d.run = None
+ui.pk.d.result = {"kind": "error", "plan": plan, "msg": "ERROR: unable to select packages"}
+ui.pk.show_result()
+labels = [getattr(b, "label", None) for b in blocks()]
+check("a failed install: the error sheet, the language still to add",
+      (ui.sheet.title, "Español" in labels[labels.index("Add a language"):]), ("Español for the keyboard wasn’t installed", True))
+ui.sheet = None
+row("All keyboard languages").fn()
+check("All keyboard languages: the Packages search for the models",
+      (ui.page, ui.pk.q, sorted(ui.pk.res[2])), ("pkg-search", "glassine-predict-model",
+                                                  sorted(PR.MODEL_PKG + c for c in ("en", "de", "fr", "es"))))
+pd = ui.pk.d
+pd.inst.discard(PR.MODEL_PKG + "es")
+pd.db = {k: v for k, v in pd.db.items() if not k.startswith(PR.MODEL_PKG) or k in pd.inst}
+ui.go("kb-langs")
+check("no languages in the indexes: a note, no Install rows",
+      [type(b).__name__ for b in blocks()][-3:], ["Head", "Note", "Item"])
 
 # -- the words command ----------------------------------------------------------------------
 STUB = T + "/stub"

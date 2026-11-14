@@ -596,15 +596,29 @@ def build(ui, be):
 
     elif p == "kb-langs":
         title = "Languages"
+        d = ui.pk.d
+        d.ensure()                                      # (the package indexes, read on the first visit)
+        running = d.run is not None
+        st = packages.status_block(d)
+        if st:
+            add(st)
         add(B.Note("Suggestions come from every language that is on, in one row, leaning to the language you are "
                    "writing in. A word you pick or type is learned into its language."))
-        add(B.Head("Languages", list_=True))
+        add(B.Head("On the keyboard", list_=True))
         for code, name, n, on in be.kb_lang_rows():     # (the order they are written in)
-            if n is None and not on:
-                add(B.KV(name, "Not installed"))
-            else:
-                add(B.Toggle(name, predict.fmt_words(n) if n is not None else "Not installed · learned words only", on,
-                             lambda code=code: be.toggle_kb_lang(code)))
+            add(B.Toggle(name, predict.fmt_words(n) if n is not None else "Not installed · learned words only", on,
+                         lambda code=code: be.toggle_kb_lang(code)))
+        add(B.Head("Add a language", list_=True))
+        more = be.kb_to_add(d.names(predict.MODEL_PKG))
+        if not more:
+            add(B.Note("No other language in the package lists. Check for updates in Packages to read them again."))
+        for code, name, pkg in more:
+            dl = d.info(pkg).get("dl")
+            fn = ui.pk.ask("install", pkg, done=lambda code=code: be.kb_installed(code))
+            add(B.Item(name, packages.BUSY if running else ("Download " + dl) if dl else "", act="Install",
+                       act_fn=fn, act_off=fn is None))
+        add(B.Item("All keyboard languages", "In Packages, where installed ones can also be removed", icon="deployed_code",
+                   chev=True, fn=lambda: ui.pk.search_for(predict.MODEL_PKG.rstrip("-"))))
 
     elif p == "kb-words":
         title = "Words"
