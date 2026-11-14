@@ -131,8 +131,14 @@ suggestions and no handwriting popup, and nothing is learned there.
   app's keyboard page has: suggestions on or off, learning on or off (on by default),
   handwriting on or off, and one action that erases what was learned (words and
   handwriting samples).
-- **FR-009**: Field purpose selects the opening layer per Scenario 5; the
-  auto-capitalization hint switches capitals after a sentence end on or off.
+- **FR-009**: Field purpose selects the opening layer per Scenario 5: number and phone
+  open a keypad (3 × 3 digits, 0 below, the purpose's extra keys in a fourth column, a key
+  back to the letters), PIN a keypad of digits, Backspace and Enter only; email and URL
+  keep the letters and change the bottom row (`@ . -`; `/ . .com`). The
+  auto-capitalization hint switches capitals after a sentence end on or off. In a private
+  field (FR-007) the strip shows a lock and says nothing is suggested or learned, and the
+  pen key is hidden. The designs are the `shell.keyboard.purpose` and
+  `shell.keyboard.private` boards in GlassineOS/ui.
 - **FR-010**: Handwriting mode: a pen tap into an empty text field opens the writing
   surface directly; the pen key in the suggestion strip switches to handwriting in any
   field, and the paper's keys control switches back. A finger tap opens the keys as before. The writing surface is the input method's
