@@ -9,8 +9,8 @@
 # change restarts it (shown again if it was). Stock wvkbd-mobintl (no outline or gap):
 # the old look, white keys on black lines, a grey press.
 # Layers (the ⌨ key cycles them): ~/.config/glassine/osk-layers (glassine-settings →
-# Keyboard), else /etc/glassine/osk-layers, default german,special (German QWERTZ
-# with umlauts, the fork's "german" layer); full = US. A change restarts it too.
+# Keyboard), else /etc/glassine/osk-layers, default full,special (US English);
+# german = German QWERTZ with umlauts (the fork's layer). A change restarts it too.
 # A wvkbd-glassine with --predictor is the input method too (spec 006, see below).
 # Landscape (a screen wider than tall) uses the same layers, so it follows the keymap;
 # only full and special become their wide forms (landscape, landscapespecial).
@@ -41,7 +41,7 @@ while swaymsg -t get_version >/dev/null 2>&1; do
             # <<< gen-apps
         esac
         # shellcheck disable=SC2086
-        L=$(cat "$LF" 2>/dev/null || cat /etc/glassine/osk-layers 2>/dev/null); L=${L:-german,special}
+        L=$(cat "$LF" 2>/dev/null || cat /etc/glassine/osk-layers 2>/dev/null); L=${L:-full,special}
         LL=
         for l in $(echo "$L" | tr , ' '); do
             case $l in full) l=landscape ;; special) l=landscapespecial ;; esac

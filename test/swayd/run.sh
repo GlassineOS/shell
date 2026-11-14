@@ -231,7 +231,7 @@ expect "sway config: starts the home app with glassine-home-start" "$(grep -c '^
 # so the IPC command's success is what can be checked)
 H=/tmp/kh; mkdir -p $H/.config/glassine
 kl() { HOME=$H XDG_CONFIG_HOME= sh /o/usr/bin/glassine-kbd-layout "$@"; }
-expect "layout: no files: de (wvkbd's default german)" "$(kl -n)" "de"
+expect "layout: no files: us (glassine-wvkbd's default full)" "$(kl -n)" "us"
 echo "full,special" > $H/.config/glassine/osk-layers
 expect "layout: follows the OSK (us)" "$(kl -n)" "us"
 echo de > $H/.config/glassine/kbd-layout
