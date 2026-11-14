@@ -31,9 +31,18 @@ being typed or, after a space, likely next words given the text before the curso
 ### Scenario 2 – Picking a suggestion (Priority: P1)
 
 **Given** suggestions on screen, **When** the person taps one, **Then** it replaces the
-partly typed word (or is inserted after the space) followed by a space, in one step that
-the app sees as one edit. In email and web-address fields no space follows: the pick
-completes the part of the address being typed.
+partly typed word (or is inserted at the cursor) followed by a space, in one step that
+the app sees as one edit. Inserted right after a digit or punctuation that ends something
+(`, . ; : ! ? ) ] }`, a closing typographic quote, an ellipsis), it gets a space before it
+too; after a space, an opening bracket or quote, a dash or a slash it doesn't.
+In email fields no space follows. A web-address field also takes searches (a browser's
+address bar): there no space follows only while the text being typed looks like an
+address (since the last space it has a `.`, `/`, `:` or `@`), and nothing is put before
+the word then either; a plain word gets its space like anywhere else. When the app
+selected text (its own completion after the typed text, or a word the person selected),
+the pick replaces the selection and the word typed right before it; with such a word it
+takes two edits (the word over the selection, then the typed word and it replaced),
+because apps resolve a deletion around a selection differently.
 
 ### Scenario 3 – Any character arrives (Priority: P1)
 
@@ -125,7 +134,10 @@ suggestions and no handwriting popup, and nothing is learned there.
   (bounded by the protocol, about 4 KB) plus what the person typed since. If the app
   reports no surrounding text, suggestions use only what was typed into that field since
   it was focused. When the app reports that the text changed by other means, the
-  keyboard drops its own view of the word being typed.
+  keyboard drops its own view of the word being typed. Apps report the text after the
+  keyboard's own edits late, half-way through an edit, or one edit behind; a report of
+  text the field had before or during an edit still on its way is taken as late, never
+  as the field's text, and the keyboard asks the app for its newest text then.
 - **FR-004**: Suggestion strip: one row above the keys, as tall as a key row: the pen
   key (FR-010) over the first key column, up to three words, the most likely in the
   middle, and a hide key over the last column. With nothing to suggest, or in a private
