@@ -134,7 +134,10 @@ suggestions and no handwriting popup, and nothing is learned there.
   cursor reads like, so a person who writes in two languages gets both without
   switching. A word is learned into the language it was suggested from; a typed word
   into the language whose dictionary knows it, else the one the text reads like. A
-  removed word is not suggested in any language.
+  removed word is not suggested in any language. Each language's dictionary is a
+  package; the settings' languages page lists the installed ones with their switches
+  and offers the others to install through the system's package installer, with a way
+  to the full list where installed ones can be removed. Images ship one language.
 - **FR-007**: Private fields (purpose password or PIN, or the sensitive or hidden-text
   hint): no suggestions, no learning, no handwriting, nothing about the field written
   anywhere. Fields with purpose terminal, number, date or time, or a purpose or hint the
