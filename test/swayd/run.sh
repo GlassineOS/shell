@@ -47,6 +47,7 @@ def w(n):
     for c in n.get('nodes',[])+n.get('floating_nodes',[]): w(c)
 w(json.load(sys.stdin))"; }
 expect() { if [ "$2" = "$3" ]; then echo "ok   $1"; else echo "FAIL $1"; echo "     got:  $2"; echo "     want: $3"; fail=1; fi; }
+check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fail=1; fi; }
 cmd() { python3 -c "import socket,sys,os; socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM).sendto(sys.argv[1].encode(),os.environ['XDG_RUNTIME_DIR']+'/glassine-swayd')" "$1"; sleep 1; }
 
 term A
@@ -585,6 +586,44 @@ expect "... a terminal (purpose 13) doesn't count" "$(tf)" "text field left: key
 cmd "osk focus 1 6"; cmd "osk changed"; cmd "osk focus 0 0"
 expect "... focus 0: it goes" "$(tf)" "text field left: keyboard hidden"
 expect "... shown once for focus 1 and changed" "$(($(grep -c 'text field focused' /tmp/swayd.log) - nf0))" "2"
+# a pen tap just before the focus (spec 006 FR-010): "glassine-osk show pen" (the flag file the
+# keyboard's --pen-flag takes: the writing paper in an empty field); a finger's: the keys.
+# The contacts come from the touch and pen devices (none here: testcontact sets the last one)
+ln -sf /o/usr/bin/glassine-osk /usr/bin/glassine-osk
+rm -f $XDG_RUNTIME_DIR/glassine-osk.pen
+cmd "testcontact pen"; cmd "osk focus 1 0"; sleep 0.5
+expect "a pen tap, then the focus: the keyboard as for a pen" "$(tf)" "text field focused: keyboard shown (a pen tap)"
+check "... glassine-osk show pen leaves the flag" "[ -e $XDG_RUNTIME_DIR/glassine-osk.pen ]"
+rm -f $XDG_RUNTIME_DIR/glassine-osk.pen
+cmd "testcontact pen"; cmd "osk focus 1 0"; sleep 0.5
+check "another field by a pen tap, the keyboard still up: shown again for the pen" \
+    "[ -e $XDG_RUNTIME_DIR/glassine-osk.pen ] && grep -q 'focused by a pen tap' /tmp/swayd.log"
+rm -f $XDG_RUNTIME_DIR/glassine-osk.pen
+cmd "osk focus 0 0"; cmd "testcontact pen"; cmd "testcontact finger"; cmd "osk focus 1 0"; sleep 0.5
+expect "a finger after the pen: the keys" "$(tf)" "text field focused: keyboard shown"
+check "... no flag" "[ ! -e $XDG_RUNTIME_DIR/glassine-osk.pen ]"
+cmd "osk focus 0 0"; sleep 0.3
+pkill -x wvkbd-mobintl; sleep 0.3
+# glassine-wvkbd passes --handwriting only to a keyboard that has it, with glassine-handwriting installed
+mkdir -p /tmp/stub
+printf '#!/bin/sh\ncase "$*" in --help) echo "$STUB_HELP"; exit 0 ;; esac\necho "$*" > /tmp/stub/args; exec sleep 6061\n' > /tmp/stub/wvkbd-glassine
+printf '#!/bin/sh\nexit 0\n' > /tmp/stub/glassine-handwriting
+chmod +x /tmp/stub/wvkbd-glassine /tmp/stub/glassine-handwriting
+wrapper_args() {                    # $1: the keyboard's --help, $2: 1 = glassine-handwriting installed
+    rm -f /tmp/stub/args
+    if [ "$2" = 1 ]; then [ -e /tmp/stub/off ] && mv /tmp/stub/off /tmp/stub/glassine-handwriting
+    else [ -e /tmp/stub/glassine-handwriting ] && mv /tmp/stub/glassine-handwriting /tmp/stub/off; fi
+    STUB_HELP="$1" PATH=/tmp/stub:$PATH sh /o/usr/bin/glassine-wvkbd & WP=$!
+    for i in $(seq 1 30); do [ -s /tmp/stub/args ] && break; sleep 0.1; done
+    kill $WP; pkill -f '^sleep 6061$'; wait $WP 2>/dev/null
+    cat /tmp/stub/args 2>/dev/null
+}
+A=$(wrapper_args "--predictor --handwriting --pen-flag" 1)
+check "glassine-wvkbd: the recognizer and the pen flag" "echo '$A' | grep -q -- \"--handwriting glassine-handwriting --pen-flag $XDG_RUNTIME_DIR/glassine-osk.pen\""
+A=$(wrapper_args "--predictor --handwriting --pen-flag" 0)
+check "... not without glassine-handwriting" "echo '$A' | grep -q -- --im && ! echo '$A' | grep -q -- --handwriting"
+A=$(wrapper_args "--predictor" 1)
+check "... not for a keyboard without --handwriting" "echo '$A' | grep -q -- --im && ! echo '$A' | grep -q -- --handwriting"
 echo "--- handle history"; grep -n "handle [0-9]: level\|no handles\|placeholder\|closed" /tmp/swayd.log | tail -40
 grep -iE "error|fail" /tmp/swayd.log | grep -v "FIFO write failed" | head -5
 [ $fail = 0 ] || { echo "--- swayd.log"; grep -n "placeholder\|kill" /tmp/swayd.log | head -20; tail -30 /tmp/swayd.log; }

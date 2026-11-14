@@ -1,9 +1,12 @@
 #!/bin/sh
 # The on-screen keyboard (the bar's keyboard button; glassine-shell's search):
 # glassine-osk [show|hide] no argument: toggle
+# glassine-osk show pen  a pen tapped the field (glassine-swayd): the keyboard's writing
+#                        paper instead of the keys if the field is empty (wvkbd --pen-flag)
 # wvkbd: the sway config starts it hidden and keeps it running; SIGUSR2 shows,
 # SIGUSR1 hides; the state is $XDG_RUNTIME_DIR/glassine-osk.shown (wvkbd can't be asked).
 s=${XDG_RUNTIME_DIR:-/tmp}/glassine-osk.shown
+[ "${1:-}" = show ] && [ "${2:-}" = pen ] && : > "${XDG_RUNTIME_DIR:-/tmp}/glassine-osk.pen"
 case "${1:-}" in
     show) sig=USR2 ;;
     hide) sig=USR1 ;;
