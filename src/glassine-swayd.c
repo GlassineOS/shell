@@ -2286,6 +2286,11 @@ int main(int argc, char **argv)
             ssize_t l;
             while ((l = recv(sfd, m, sizeof m - 1, 0)) > 0) {
                 m[l] = 0;
+                if (!strncmp(m, "osk ", 4)) {   /* the keyboard's focus reports: every keystroke
+                                                 * sends one; no tree read, no relayout here */
+                    command(m);
+                    continue;
+                }
                 if (read_tree()) command(m);
                 dirty = 1;
             }
