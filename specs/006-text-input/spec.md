@@ -60,9 +60,10 @@ word. The settings show that learning is on, turn it off, and erase what was lea
 
 ### Scenario 7 – Writing above the field (Priority: P2)
 
-**Given** a focused text field and the keyboard's handwriting mode, **When** the person
-writes with the pen, **Then** a writing area appears directly above (or below, near the
-screen edge) the field's cursor; the ink appears at pen latency; after a short pause the
+**Given** an empty text field, **When** the person taps it with the pen, **Then** a
+writing area opens at once just below the field's cursor (above it near the bottom
+edge), instead of the keys. The same happens from the keyboard's handwriting key in any
+field. **When** the person writes, **Then** the ink appears at pen latency; after a short pause the
 recognized text shows in the field as pending (underlined) text with up to three
 alternatives; continuing to write, tapping an alternative, or a confirm gesture commits
 it; the ink clears after it is committed.
@@ -111,12 +112,18 @@ suggestions and no handwriting popup, and nothing is learned there.
   setting (on by default) in the settings app's keyboard page.
 - **FR-009**: Field purpose selects the opening layer per Scenario 5; the
   auto-capitalization hint switches capitals after a sentence end on or off.
-- **FR-010**: Handwriting mode: a key on the keyboard switches between keys and
-  handwriting for the session. The writing surface is the input method's popup, which
-  the compositor places at the field's cursor; it is a fixed height and the full width of
-  the field's window. It announces itself as an ink area, so the pen draws directly.
-  Where accessibility information gives the field's size, the surface aligns to the field
-  instead.
+- **FR-010**: Handwriting mode: a pen tap into an empty text field opens the writing
+  surface directly; a key on the keyboard switches between keys and handwriting in any
+  field. A finger tap opens the keys as before. The writing surface is the input method's
+  popup, which the compositor places at the field's cursor; it is a fixed height and the
+  full width of the field's window. It announces itself as an ink area, so the pen draws
+  directly. Where accessibility information gives the field's size, the surface aligns to
+  the field instead.
+- **FR-010a**: The writing surface reads as a sheet of paper laid over the app: the
+  theme's paper colour, partly see-through over a light blur of what lies under it, so the
+  ink keeps its contrast on any background; a thin edge, one guide line to write on, and
+  two controls in a corner (switch to keys, put the paper away). No other decoration. The
+  design is the `shell.write` boards in GlassineOS/ui.
 - **FR-011**: Recognition runs in a separate, replaceable program behind a line-based
   contract (pen strokes with timing in, ranked text candidates out), on the device. It
   starts on demand and stops when handwriting mode has been unused for a while.
@@ -185,5 +192,3 @@ settings.
 
 - [NEEDS CLARIFICATION: the default recognizer — an open model trained by the project
   versus a licensed engine — and the languages it must cover first.]
-- [NEEDS CLARIFICATION: where handwriting mode is entered besides the keyboard key, e.g.
-  a pen tap into an empty field opening the writing surface directly.]
