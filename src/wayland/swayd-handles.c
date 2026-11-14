@@ -19,7 +19,10 @@
  * an input method (zwp_input_method_v2, no keyboard
  * grab, it never types) that sway activates when a text field (text-input-v3:
  * GTK, Firefox, Qt) gets the focus; hd_text_focus tells glassine-swayd. Terminals
- * (content purpose terminal: foot has it while focused) don't count. */
+ * (content purpose terminal: foot has it while focused) don't count. A keyboard that
+ * is the input method itself (wvkbd --im: one per seat) says "osk im": this one is
+ * given up (hd_im_release) and the keyboard reports the focus instead
+ * ("osk focus 1 PURPOSE", "osk focus 0", "osk changed": hd_text_report). */
 #define _GNU_SOURCE
 #include <cairo.h>
 #include <math.h>
@@ -458,21 +461,42 @@ static const struct wl_seat_listener seat_l = { seat_caps, seat_name };
 /* ---- the text-input focus (the keyboard's auto-show) ----------------------- */
 #define PURPOSE_TERMINAL 13             /* zwp_text_input_v3.content_purpose.terminal */
 static struct { int active, purpose; } im_pend;
-static int im_on;
+static int im_on, im_purpose;
 static void im_activate(void *d, struct zwp_input_method_v2 *m) { im_pend.active = 1; im_pend.purpose = 0; }
 static void im_deactivate(void *d, struct zwp_input_method_v2 *m) { im_pend.active = 0; }
 static void im_surrounding(void *d, struct zwp_input_method_v2 *m, const char *t, uint32_t c, uint32_t a) {}
 static void im_cause(void *d, struct zwp_input_method_v2 *m, uint32_t c) {}
 static void im_content(void *d, struct zwp_input_method_v2 *m, uint32_t hint, uint32_t purpose) { im_pend.purpose = purpose; }
-static void im_done(void *d, struct zwp_input_method_v2 *m)
+
+void hd_text_report(int active, int purpose)
 {
-    int on = im_pend.active && im_pend.purpose != PURPOSE_TERMINAL;
+    int on = active && purpose != PURPOSE_TERMINAL;
+    im_purpose = purpose;
     if (on == im_on) {
         if (on) hd_text_changed();
         return;
     }
     im_on = on;
     hd_text_focus(on);
+}
+
+void hd_text_report_changed(void)
+{
+    hd_text_report(im_on, im_purpose);
+}
+
+void hd_im_release(void)
+{
+    if (!im) return;
+    fprintf(stderr, "glassine-swayd: the keyboard is the input method: it reports the text focus\n");
+    zwp_input_method_v2_destroy(im);
+    im = NULL;
+    if (dpy) wl_display_flush(dpy);
+}
+
+static void im_done(void *d, struct zwp_input_method_v2 *m)
+{
+    hd_text_report(im_pend.active, im_pend.purpose);
 }
 static void im_unavailable(void *d, struct zwp_input_method_v2 *m)
 {

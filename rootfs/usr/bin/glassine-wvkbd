@@ -11,6 +11,7 @@
 # Layers (the ⌨ key cycles them): ~/.config/glassine/osk-layers (glassine-settings →
 # Keyboard), else /etc/glassine/osk-layers, default german,special (German QWERTZ
 # with umlauts, the fork's "german" layer); full = US. A change restarts it too.
+# A wvkbd-glassine with --predictor is the input method too (spec 006, see below).
 # Landscape (a screen wider than tall) uses the same layers, so it follows the keymap;
 # only full and special become their wide forms (landscape, landscapespecial).
 EXTRA=$*                                # e.g. -o (the harness logs the keys); no spaces
@@ -46,6 +47,12 @@ while swaymsg -t get_version >/dev/null 2>&1; do
             case $l in full) l=landscape ;; special) l=landscapespecial ;; esac
             LL=${LL:+$LL,}$l
         done
+        # the input method (spec 006): text committed to the field, the suggestion strip,
+        # glassine-predict; swayd keeps deciding when it shows ("osk focus" reports)
+        if wvkbd-glassine --help 2>&1 | grep -q -- --predictor; then
+            set -- "$@" --im --strip --notify "$R/glassine-swayd" --hide-cmd "glassine-osk hide"
+            command -v glassine-predict >/dev/null && set -- "$@" --predictor glassine-predict
+        fi
         wvkbd-glassine --hidden -H 300 -L 240 --no-popup -l "$L" --landscape-layers "$LL" "$@" $EXTRA &
     else
         wvkbd-mobintl --hidden -H 300 -R 0 --fn "Sans 18" --bg 111111 --fg ffffff --fg-sp eeeeee \
