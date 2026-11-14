@@ -4,7 +4,7 @@
 # ~/.config/glassine/kbd-layout de | us (glassine-settings > Keyboard); absent:
 # the on-screen keyboard's first language
 # (~/.config/glassine/osk-layers, /etc/glassine/osk-layers:
-# german -> de, else us; neither: de, as wvkbd)
+# german -> de, else us; neither: us, as glassine-wvkbd)
 # writes ~/.config/glassine/sway-keyboard.conf (keys.conf includes it: the layout
 # from sway's start) and, sway running, sets it at once. Only libinput
 # keyboards take it: wvkbd's virtual keyboard keeps its own keymap (sway never
@@ -21,7 +21,7 @@ case "$l" in
 esac
 case "$l" in
     [a-z][a-z]|[a-z][a-z][a-z]) case "$v" in ""|*[!a-z0-9_]*) v= ;; esac ;;
-    *) v=; o=german
+    *) v=; o=full
        if [ -r "$C/osk-layers" ]; then read -r o < "$C/osk-layers"
        elif [ -r /etc/glassine/osk-layers ]; then read -r o < /etc/glassine/osk-layers; fi
        case "$o" in german*) l=de ;; *) l=us ;; esac ;;
