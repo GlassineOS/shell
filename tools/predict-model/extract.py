@@ -2,6 +2,9 @@
 # The model corpus as plain text, one paragraph or sentence per line (see build.sh).
 # Every 200th line goes to OUT.test instead: held out of the model, for measuring it.
 #   extract.py wikipedia PARQUET OUT   the "text" column, paragraphs of 4 words or more
+#   extract.py tatoeba-all TAR.BZ2 OUT LANG [NAME...]
+#                                       the same from the all-languages export
+#                                       (sentences.csv), the sentences of LANG only
 #   extract.py tatoeba TSV.BZ2 OUT [NAME...]
 #                                       the sentence column of a Tatoeba per-language export,
 #                                       without sentences that use one of the NAMEs (the
@@ -46,17 +49,27 @@ with Split(out) as o:
                         continue
                     o.write(line + "\n")
                     n += 1
-    elif kind == "tatoeba":
-        with bz2.open(src, "rt", encoding="utf-8") as f:
-            for row in f:
-                parts = row.rstrip("\n").split("\t")
-                if len(parts) >= 3 and parts[2].strip():
-                    words = set(w.strip(".,!?;:'\"()") for w in parts[2].split())
-                    words |= set(w.split("'")[0] for w in words)
-                    if drop & words:
-                        continue
-                    o.write(parts[2].strip().replace("\r", " ") + "\n")
-                    n += 1
+    elif kind in ("tatoeba", "tatoeba-all"):
+        if kind == "tatoeba":
+            rows = bz2.open(src, "rt", encoding="utf-8")
+            lang = None
+        else:
+            import tarfile
+            tar = tarfile.open(src, "r:bz2")
+            member = tar.extractfile("sentences.csv")
+            import io
+            rows = io.TextIOWrapper(member, encoding="utf-8")
+            lang, drop = sys.argv[4], set(sys.argv[5:])
+        for row in rows:
+            parts = row.rstrip("\n").split("\t")
+            if len(parts) < 3 or not parts[2].strip() or (lang and parts[1] != lang):
+                continue
+            words = set(w.strip(".,!?;:'\"()\u201e\u201c\u00bb\u00ab") for w in parts[2].split())
+            words |= set(w.split("'")[0] for w in words)
+            if drop & words:
+                continue
+            o.write(parts[2].strip().replace("\r", " ") + "\n")
+            n += 1
     else:
         sys.exit("unknown corpus kind " + kind)
 print(f"{out}: {n} lines", file=sys.stderr)

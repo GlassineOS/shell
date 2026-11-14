@@ -5,10 +5,11 @@
 //
 //   glassine-predict                 serve: requests on stdin, replies on stdout, one
 //                                    line each (contract version 1)
-//   glassine-predict words list|removed [-l LANG] [-s TEXT]
-//   glassine-predict words remove|restore [-l LANG] WORD
+//   glassine-predict words list [-l LANG] [-s TEXT]
+//   glassine-predict words removed [-s TEXT]
+//   glassine-predict words remove|restore WORD
 //   glassine-predict words erase
-//   glassine-predict bench [-l] LANG TEXTFILE   (host measurements: latency and hit rates)
+//   glassine-predict bench [-l] LANG[,LANG...] TEXTFILE   (host measurements: latency and hit rates)
 //
 // The base model of a language is /usr/share/glassine/predict/LANG.gpm (or the
 // directory in $GLASSINE_PREDICT_MODELS), mapped read-only. The learned words are in
@@ -254,8 +255,8 @@ static int learned_write(void (*op)(struct store *, const char *, const char *),
 
 static void flush_pending(void) { if (pending.nw) learned_write(NULL, NULL, NULL); }
 
-static void op_remove(struct store *s, const char *l, const char *w) { store_remove(s, l, w); }
-static void op_restore(struct store *s, const char *l, const char *w) { store_restore(s, l, w); }
+static void op_remove(struct store *s, const char *l, const char *w) { (void)l; store_remove(s, w); }
+static void op_restore(struct store *s, const char *l, const char *w) { (void)l; store_restore(s, w); }
 
 /* $XDG_CONFIG_HOME/glassine/predict.conf, KEY = VALUE lines, read at each use: the value
  * of key (trimmed) in out, 1 when found; the last line with the key wins */
@@ -331,7 +332,7 @@ static double learned_total(const struct store *s, const char *lang, uint32_t to
 	return t;
 }
 
-static int is_removed(const char *lang, const char *key) { return store_removed(&learned, lang, key); }
+static int is_removed(const char *key) { return store_removed(&learned, key); }
 
 /* ---------------------------------------------------------------- fields */
 
@@ -386,7 +387,17 @@ static int field_resolve(int fl)
 
 /* ---------------------------------------------------------------- prediction */
 
-struct cand { int64_t id; const struct sword *lw; double score; char key[PT_WORD_MAX * 2 + 8]; };
+#define MAX_LANGS 4
+#define CTX_WORDS 6             /* words of context that say which language it is */
+
+struct cand {
+	int64_t id;             /* in its language's model, or -1 (a learned word only) */
+	const struct sword *lw;
+	double score;
+	int li;                 /* index of its language in the active list */
+	char key[PT_WORD_MAX * 2 + 8];
+	const char *disp;
+};
 
 static struct cand *cand_add(struct cand *c, int *n, int max, int64_t id, const struct sword *lw)
 {
@@ -396,7 +407,7 @@ static struct cand *cand_add(struct cand *c, int *n, int max, int64_t id, const 
 			return &c[i];
 		}
 	if (*n == max) return NULL;
-	c[*n] = (struct cand){ id, lw, 0, {0} };
+	c[*n] = (struct cand){ id, lw, 0, 0, {0}, NULL };
 	return &c[(*n)++];
 }
 
@@ -404,6 +415,7 @@ static int cand_cmp(const void *a, const void *b)
 {
 	const struct cand *x = a, *y = b;
 	if (x->score != y->score) return x->score > y->score ? -1 : 1;
+	if (x->li != y->li) return x->li - y->li;
 	return strcmp(x->key, y->key);
 }
 
@@ -421,76 +433,144 @@ static size_t put_case(const char *w, int mode, char *out)
 	return o;
 }
 
-/* before: the text before the word being typed (any length), word: the word so far.
- * Fills out[] with up to NCAND words, best first; returns how many. */
-static int predict(const char *lang, int flags, const char *before, size_t blen, const char *word, size_t wlen,
-		   char out[NCAND][PT_WORD_MAX * 2 + 8])
-{
-	if (!(flags & F_SUGGEST) || wlen > PT_WORD_MAX) return 0;
+/* The text around the cursor, cut into tokens once for every language. */
+struct ctx {
 	char text[CTX_TAIL + PT_WORD_MAX + 8];
-	size_t start = blen > CTX_TAIL ? blen - CTX_TAIL : 0, tl = 0;
+	size_t tl;
+	int partial;            /* the last word touches the end: it is being typed */
+	size_t pws, pwl;
+	int ck[2]; size_t cws[2], cwl[2];       /* the two tokens before it (0: the nearer) */
+	/* the words before it back to the sentence start, at most CTX_WORDS, older first;
+	 * prev_bos[i]: word i starts a sentence */
+	int nw; size_t ws[CTX_WORDS], wl[CTX_WORDS]; int prev_bos[CTX_WORDS];
+	char fp[PT_WORD_MAX * 2 + 8]; size_t fpl;
+};
+
+/* -1 when the word being typed isn't a word */
+static int ctx_parse(struct ctx *x, const char *before, size_t blen, const char *word, size_t wlen)
+{
+	if (wlen > PT_WORD_MAX) return -1;
+	size_t start = blen > CTX_TAIL ? blen - CTX_TAIL : 0;
 	int cut = start > 0;
-	if (cut) {      /* start after a space, never inside a word or a character */
+	if (cut)        /* start after a space, never inside a word or a character */
 		while (start < blen && before[start] != ' ' && before[start] != '\n') start++;
-	}
-	memcpy(text, before + start, blen - start); tl = blen - start;
-	memcpy(text + tl, word, wlen); tl += wlen;
+	memcpy(x->text, before + start, blen - start); x->tl = blen - start;
+	memcpy(x->text + x->tl, word, wlen); x->tl += wlen;
 
-	/* the tokens: the last word if it touches the end is the partial word */
-	size_t pos = 0, ws, wl, pws = 0, pwl = 0;
-	int kinds[3] = { PT_END, PT_END, PT_END }; size_t tws[3], twl[3]; int nt = 0;
+	enum { R = CTX_WORDS + 3 };
+	int kinds[R]; size_t tws[R], twl[R]; int nt = 0;
+	size_t pos = 0, ws, wl;
 	int k;
-	while ((k = pt_next(text, tl, &pos, &ws, &wl, 1)) != PT_END) {
-		kinds[0] = kinds[1]; tws[0] = tws[1]; twl[0] = twl[1];
-		kinds[1] = kinds[2]; tws[1] = tws[2]; twl[1] = twl[2];
-		kinds[2] = k; tws[2] = ws; twl[2] = wl;
+	x->nw = 0;
+	int bos = !cut;
+	while ((k = pt_next(x->text, x->tl, &pos, &ws, &wl, 1)) != PT_END) {
+		memmove(kinds, kinds + 1, sizeof kinds - sizeof *kinds);
+		memmove(tws, tws + 1, sizeof tws - sizeof *tws);
+		memmove(twl, twl + 1, sizeof twl - sizeof *twl);
+		kinds[R - 1] = k; tws[R - 1] = ws; twl[R - 1] = wl;
 		nt++;
+		/* the language window, rebuilt as we go: words since the last sentence end */
+		if (k == PT_SENT) { x->nw = 0; bos = 1; continue; }
+		if (k == PT_BREAK) { bos = 0; continue; }
+		if (x->nw == CTX_WORDS) {
+			memmove(x->ws, x->ws + 1, sizeof x->ws - sizeof *x->ws);
+			memmove(x->wl, x->wl + 1, sizeof x->wl - sizeof *x->wl);
+			memmove(x->prev_bos, x->prev_bos + 1, sizeof x->prev_bos - sizeof *x->prev_bos);
+			x->nw--;
+		}
+		x->ws[x->nw] = ws; x->wl[x->nw] = wl; x->prev_bos[x->nw] = bos; x->nw++;
+		bos = 0;
 	}
-	int partial = nt && kinds[2] == PT_WORD && tws[2] + twl[2] == tl;
-	if (!partial && wlen) return 0;          /* the word being typed isn't a word */
-	if (partial) { pws = tws[2]; pwl = twl[2]; }
-	/* context: the two tokens before the partial word */
-	int ck[2]; size_t cws[2], cwl[2];
-	int have = partial ? nt - 1 : nt;
+	x->partial = nt && kinds[R - 1] == PT_WORD && tws[R - 1] + twl[R - 1] == x->tl;
+	if (!x->partial && wlen) return -1;
+	x->pws = x->pwl = 0;
+	if (x->partial) { x->pws = tws[R - 1]; x->pwl = twl[R - 1]; if (x->nw) x->nw--; }
+	int have = x->partial ? nt - 1 : nt;
 	for (int j = 0; j < 2; j++) {
-		int idx = partial ? 1 - j : 2 - j;   /* j=0: the word right before */
-		if (have - j <= 0) { ck[j] = (cut ? PT_BREAK : PT_SENT); cws[j] = cwl[j] = 0; }
-		else { ck[j] = kinds[idx]; cws[j] = tws[idx]; cwl[j] = twl[idx]; }
+		int idx = (x->partial ? R - 2 : R - 1) - j;
+		if (have - j <= 0) { x->ck[j] = cut ? PT_BREAK : PT_SENT; x->cws[j] = x->cwl[j] = 0; }
+		else { x->ck[j] = kinds[idx]; x->cws[j] = tws[idx]; x->cwl[j] = twl[idx]; }
 	}
+	x->fpl = x->partial ? pt_fold_str(x->text + x->pws, x->pwl, x->fp) : (x->fp[0] = 0, 0);
+	return 0;
+}
 
+/* How well a language explains the words before the cursor: log2 of their
+ * probability (bigram where the model has it, OOV a fixed small one). */
+static double ctx_logp(const char *lang, const struct ctx *x)
+{
 	struct model *m = model_get(lang);
-	learned_refresh();
+	double lp = 0;
+	int64_t prev = -1;
+	for (int i = 0; i < x->nw; i++) {
+		char f[PT_WORD_MAX * 2 + 8];
+		pt_fold_str(x->text + x->ws[i], x->wl[i], f);
+		int64_t id = m ? model_find(m, f) : -1;
+		int64_t h = x->prev_bos[i] && m ? (int64_t)m->h->nvocab : prev;
+		double p;
+		if (id < 0) p = store_find(&learned, lang, f) ? exp2(-16) : exp2(-24);
+		else {
+			double pb = 0;
+			if (h >= 0)
+				for (uint32_t e = m->bi[h]; e < m->bi[h + 1]; e++)
+					if (GPM_ID(m->bisucc[e]) == (uint32_t)id) { pb = qp(GPM_Q(m->bisucc[e])); break; }
+			p = h >= 0 ? 0.8 * pb + 0.2 * qp(m->v[id].q) : qp(m->v[id].q);
+		}
+		lp += log2(p);
+		prev = id;
+	}
+	return lp;
+}
+
+/* The share each active language gets: by ctx_logp, the first language ahead on a
+ * tie, none below 2 %. */
+static void lang_weights(const char *const *langs, int nl, const struct ctx *x, double *w)
+{
+	double lp[MAX_LANGS], best = -1e300, sum = 0;
+	for (int i = 0; i < nl; i++) {
+		lp[i] = ctx_logp(langs[i], x) - 0.1 * i;
+		if (lp[i] > best) best = lp[i];
+	}
+	for (int i = 0; i < nl; i++) sum += (w[i] = exp2(lp[i] - best));
+	for (int i = 0; i < nl; i++) { w[i] /= sum; if (w[i] < 0.02) w[i] = 0.02; }
+	sum = 0;
+	for (int i = 0; i < nl; i++) sum += w[i];
+	for (int i = 0; i < nl; i++) w[i] /= sum;
+}
+
+/* The candidates of one language with their probability: appended to c[]. */
+static void lang_cands(const char *lang, int li, const struct ctx *x, struct cand *c, int *nc, int cap)
+{
+	struct model *m = model_get(lang);
 	const struct store *ls = &learned;
 	uint32_t today = store_today();
-
-	char fp[PT_WORD_MAX * 2 + 8];
-	size_t fpl = partial ? pt_fold_str(text + pws, pwl, fp) : (fp[0] = 0, 0);
+	int partial = x->partial;
+	struct cand mine[96];
+	int n = 0;
 
 	int64_t h[2] = { -1, -1 };
 	if (m)
 		for (int j = 0; j < 2; j++) {
-			if (ck[j] == PT_SENT) h[j] = m->h->nvocab;
-			else if (ck[j] == PT_WORD) {
+			if (x->ck[j] == PT_SENT) h[j] = m->h->nvocab;
+			else if (x->ck[j] == PT_WORD) {
 				char f[PT_WORD_MAX * 2 + 8];
-				pt_fold_str(text + cws[j], cwl[j], f);
+				pt_fold_str(x->text + x->cws[j], x->cwl[j], f);
 				h[j] = model_find(m, f);
 			}
 			if (h[j] < 0) break;
 		}
 	if (h[0] < 0) h[1] = -1;
 
-	struct cand c[96];
-	int nc = 0;
 	uint32_t lo = 0, hi = 0;
 	const uint32_t *bs = NULL, *be = NULL, *ts = NULL, *te = NULL;
 	if (m) {
-		if (partial) model_range(m, fp, &lo, &hi); else { lo = 0; hi = m->h->nvocab; }
+		if (partial) model_range(m, x->fp, &lo, &hi); else { lo = 0; hi = m->h->nvocab; }
 		if (h[0] >= 0) { bs = m->bisucc + m->bi[h[0]]; be = m->bisucc + m->bi[h[0] + 1]; }
 		uint32_t tend;
 		const struct gpm_tri *t = h[1] >= 0 ? model_tri(m, (uint32_t)h[1], (uint32_t)h[0], &tend) : NULL;
 		if (t) { ts = m->trisucc + t->start; te = m->trisucc + tend; }
-		for (const uint32_t *e = ts; e && e < te; e++) if (GPM_ID(*e) >= lo && GPM_ID(*e) < hi) cand_add(c, &nc, 40, GPM_ID(*e), NULL);
-		for (const uint32_t *e = bs; e && e < be; e++) if (GPM_ID(*e) >= lo && GPM_ID(*e) < hi) cand_add(c, &nc, 60, GPM_ID(*e), NULL);
+		for (const uint32_t *e = ts; e && e < te; e++) if (GPM_ID(*e) >= lo && GPM_ID(*e) < hi) cand_add(mine, &n, 40, GPM_ID(*e), NULL);
+		for (const uint32_t *e = bs; e && e < be; e++) if (GPM_ID(*e) >= lo && GPM_ID(*e) < hi) cand_add(mine, &n, 60, GPM_ID(*e), NULL);
 		if (partial) {
 			/* the likeliest words with this beginning */
 			uint32_t best[8]; int nb = 0;
@@ -501,17 +581,17 @@ static int predict(const char *lang, int flags, const char *before, size_t blen,
 				while (at > 0 && m->v[best[at - 1]].q > q) { best[at] = best[at - 1]; at--; }
 				best[at] = id;
 			}
-			for (int i = 0; i < nb; i++) cand_add(c, &nc, 72, best[i], NULL);
+			for (int i = 0; i < nb; i++) cand_add(mine, &n, 72, best[i], NULL);
 		} else
-			for (uint32_t i = 0; i < m->h->ntop; i++) cand_add(c, &nc, 72, GPM_ID(m->top[i]), NULL);
+			for (uint32_t i = 0; i < m->h->ntop; i++) cand_add(mine, &n, 72, GPM_ID(m->top[i]), NULL);
 	}
-	/* learned words with this beginning (only while a word is being typed) */
+	/* learned words with this beginning (only while a word is being typed): the most
+	 * used few */
 	double ltot = partial ? learned_total(ls, lang, today) : 0;
 	if (partial) {
-		/* the most used few with this beginning */
 		const struct sword *best[8]; double bw[8]; int nb = 0;
-		for (size_t i = store_prefix(ls, lang, fp); i < ls->nw && !strcmp(ls->w[i].lang, lang) &&
-			     !strncmp(ls->w[i].key, fp, fpl); i++) {
+		for (size_t i = store_prefix(ls, lang, x->fp); i < ls->nw && !strcmp(ls->w[i].lang, lang) &&
+			     !strncmp(ls->w[i].key, x->fp, x->fpl); i++) {
 			double wt = store_weight(&ls->w[i], today);
 			if (nb == 8 && wt <= bw[7]) continue;
 			int at = nb < 8 ? nb++ : 7;
@@ -521,50 +601,115 @@ static int predict(const char *lang, int flags, const char *before, size_t blen,
 		for (int i = 0; i < nb; i++) {
 			int64_t id = m ? model_find(m, best[i]->key) : -1;
 			if (id < 0 && best[i]->count < LEARNED_MIN) continue;
-			cand_add(c, &nc, 96, id, best[i]);
+			cand_add(mine, &n, 96, id, best[i]);
 		}
 	}
-	/* learned use of the base model's candidates */
-	for (int i = 0; i < nc; i++)
-		if (c[i].id >= 0 && !c[i].lw) c[i].lw = store_find(ls, lang, mkey(m, (uint32_t)c[i].id));
+	for (int i = 0; i < n; i++)
+		if (mine[i].id >= 0 && !mine[i].lw) mine[i].lw = store_find(ls, lang, mkey(m, (uint32_t)mine[i].id));
 
 	double l3 = 0.55, l2 = 0.30, l1 = 0.15;
 	if (!ts) { l3 = 0; if (bs) { l2 = 0.8; l1 = 0.2; } else { l2 = 0; l1 = 1; } }
-	for (int i = 0; i < nc; i++) {
+	for (int i = 0; i < n && *nc < cap; i++) {
+		struct cand *y = &mine[i];
 		double p = 0;
-		if (c[i].id >= 0) {
-			uint32_t id = (uint32_t)c[i].id;
+		if (y->id >= 0) {
+			uint32_t id = (uint32_t)y->id;
 			double pt = 0, pb = 0;
 			for (const uint32_t *e = ts; e && e < te; e++) if (GPM_ID(*e) == id) { pt = qp(GPM_Q(*e)); break; }
 			for (const uint32_t *e = bs; e && e < be; e++) if (GPM_ID(*e) == id) { pb = qp(GPM_Q(*e)); break; }
 			p = l3 * pt + l2 * pb + l1 * qp(m->v[id].q);
-			snprintf(c[i].key, sizeof c[i].key, "%s", mkey(m, id));
-		} else snprintf(c[i].key, sizeof c[i].key, "%s", c[i].lw->key);
+			snprintf(y->key, sizeof y->key, "%s", mkey(m, id));
+			y->disp = m->str + m->v[id].disp;       /* base words: the model's spelling */
+		} else {
+			snprintf(y->key, sizeof y->key, "%s", y->lw->key);
+			y->disp = y->lw->word;
+		}
 		/* the person's use lifts completions; next words come from the context alone */
-		if (c[i].lw && partial) p += 0.5 * store_weight(c[i].lw, today) / (ltot + 20.0);
-		c[i].score = is_removed(lang, c[i].key) ? -1 : p;
+		if (y->lw && partial) p += 0.5 * store_weight(y->lw, today) / (ltot + 20.0);
+		if (is_removed(y->key)) continue;
+		y->score = p;
+		y->li = li;
+		c[(*nc)++] = *y;
 	}
-	/* best NCAND, ties by key */
+}
+
+/* before: the text before the word being typed (any length), word: the word so far,
+ * langs: the active languages in order. Fills out[] and outl[] (the language index of
+ * each) with up to NCAND words, best first; returns how many. */
+static int predict(const char *const *langs, int nl, int flags, const char *before, size_t blen, const char *word,
+		   size_t wlen, char out[NCAND][PT_WORD_MAX * 2 + 8], int outl[NCAND])
+{
+	if (!(flags & F_SUGGEST)) return 0;
+	static struct ctx x;
+	if (ctx_parse(&x, before, blen, word, wlen)) return 0;
+	learned_refresh();
+	double w[MAX_LANGS];
+	lang_weights(langs, nl, &x, w);
+	struct cand c[96 * MAX_LANGS];
+	int nc = 0;
+	for (int i = 0; i < nl; i++) {
+		int from = nc;
+		lang_cands(langs[i], i, &x, c, &nc, 96 * MAX_LANGS);
+		for (int j = from; j < nc; j++) c[j].score *= w[i];
+	}
+	/* one entry per word: the languages' shares add up, the larger one names it */
+	for (int i = 0; i < nc; i++) {
+		if (c[i].score < 0) continue;
+		for (int j = i + 1; j < nc; j++)
+			if (c[j].score >= 0 && !strcmp(c[i].key, c[j].key)) {
+				if (c[j].score > c[i].score) { double s0 = c[i].score; c[i] = c[j]; c[i].score += s0; }
+				else c[i].score += c[j].score;
+				c[j].score = -1;
+			}
+	}
 	qsort(c, (size_t)nc, sizeof *c, cand_cmp);
 	int n = 0;
 	while (n < nc && n < NCAND && c[n].score >= 0) n++;
 	/* the case to show */
 	int mode = 0;
-	if (partial) {
+	if (x.partial) {
 		uint32_t c0; int letters = 0, uppers = 0;
-		pt_u8dec((const unsigned char *)text + pws, pwl, &c0);
-		for (size_t i = 0; i < pwl;) {
-			uint32_t d; i += pt_u8dec((const unsigned char *)text + pws + i, pwl - i, &d);
+		pt_u8dec((const unsigned char *)x.text + x.pws, x.pwl, &c0);
+		for (size_t i = 0; i < x.pwl;) {
+			uint32_t d; i += pt_u8dec((const unsigned char *)x.text + x.pws + i, x.pwl - i, &d);
 			if (pt_is_letter(d)) { letters++; uppers += pt_is_upper(d); }
 		}
 		if (pt_is_upper(c0)) mode = letters >= 2 && uppers == letters ? 2 : 1;
-	} else if ((flags & F_CAPS) && ck[0] == PT_SENT) mode = 1;
+	} else if ((flags & F_CAPS) && x.ck[0] == PT_SENT) mode = 1;
 	for (int i = 0; i < n; i++) {
-		const struct cand *x = &c[i];
-		const char *w = x->id >= 0 ? m->str + m->v[x->id].disp : x->lw->word;   /* base words: the model's spelling */
-		put_case(w, mode, out[i]);
+		put_case(c[i].disp, mode, out[i]);
+		outl[i] = c[i].li;
 	}
 	return n;
+}
+
+/* The language a finished word is learned in (docs/predictor.md, "Which language
+ * learns"): the picked suggestion's language; else the only active language whose
+ * model or learned words know it; else the one that best explains the words before
+ * it; else the first. Returns the index in langs. */
+static int learn_lang(const char *const *langs, int nl, const char *picked, const char *before, size_t blen,
+		      const char *word)
+{
+	for (int i = 0; i < nl; i++) if (picked && *picked && !strcmp(picked, langs[i])) return i;
+	char key[PT_WORD_MAX * 2 + 8];
+	pt_fold_str(word, strlen(word), key);
+	int knows = -1, nknow = 0;
+	for (int i = 0; i < nl; i++) {
+		struct model *m = model_get(langs[i]);
+		if ((m && model_find(m, key) >= 0) || store_find(&learned, langs[i], key)) { if (knows < 0) knows = i; nknow++; }
+	}
+	if (nknow == 1) return knows;
+	static struct ctx x;
+	if (nl == 1 || ctx_parse(&x, before, blen, "", 0) || x.nw == 0) return nknow ? knows : 0;
+	int best = 0;
+	double bl = -1e300;
+	for (int i = 0; i < nl; i++) {
+		if (nknow && !((model_get(langs[i]) && model_find(model_get(langs[i]), key) >= 0) || store_find(&learned, langs[i], key)))
+			continue;      /* several know it: the best of those */
+		double l = ctx_logp(langs[i], &x);
+		if (l > bl) { bl = l; best = i; }
+	}
+	return best;
 }
 
 /* ---------------------------------------------------------------- the contract */
@@ -647,71 +792,123 @@ static double pending_age_ms(void)
 	return now_ms() - (pending_since.tv_sec * 1000.0 + pending_since.tv_nsec / 1e6);
 }
 
+static int proto = 1;            /* the contract version the client asked for (hello) */
+
+/* "en,de" -> langs[] (pointers into buf); -1 when a tag is bad, a tag repeats or there
+ * are more than MAX_LANGS */
+static int split_langs(const char *list, char *buf, size_t n, const char **langs)
+{
+	size_t l0 = strlen(list);
+	if (l0 >= n || !l0 || list[0] == ',' || list[l0 - 1] == ',' || strstr(list, ",,")) return -1;
+	strcpy(buf, list);
+	int nl = 0;
+	char *save, *p;
+	for (p = strtok_r(buf, ",", &save); p; p = strtok_r(NULL, ",", &save)) {
+		while (*p == ' ') p++;
+		size_t l = strlen(p);
+		while (l && p[l - 1] == ' ') p[--l] = 0;
+		if (nl == MAX_LANGS || !store_valid_lang(p, 0)) return -1;
+		for (int i = 0; i < nl; i++) if (!strcmp(langs[i], p)) return -1;
+		langs[nl++] = p;
+	}
+	return nl ? nl : -1;
+}
+
+/* The active languages: `languages` in predict.conf when it is set and valid, else the
+ * request's list. */
+static int active_langs(const char *req, char *buf, size_t n, const char **langs)
+{
+	char v[256];
+	if (conf_get("languages", v, sizeof v)) {
+		int nl = split_langs(v, buf, n, langs);
+		if (nl > 0) return nl;
+	}
+	return *req ? split_langs(req, buf, n, langs) : -1;
+}
+
 static void handle(struct req *r, int superseded)
 {
 	const char *verb = r->f[0], *id = r->nf > 1 ? r->f[1] : "-";
-	static const struct { const char *verb; int nf; } verbs[] = {
-		{ "hello", 3 }, { "predict", 6 }, { "learn", 5 }, { "remove", 4 }, { "restore", 4 } };
+	static const struct { const char *verb; int nf, nf2; } verbs[] = {
+		{ "hello", 3, 3 }, { "predict", 6, 6 }, { "learn", 5, 7 }, { "remove", 4, 4 }, { "restore", 4, 4 } };
 	size_t v;
 	for (v = 0; v < sizeof verbs / sizeof *verbs && strcmp(verb, verbs[v].verb); v++) ;
 	if (!valid_id(id)) { reply("error", "-", "bad-id", NULL); return; }
 	if (v == sizeof verbs / sizeof *verbs) { reply("error", id, "unknown-verb", NULL); return; }
-	if (r->nf != verbs[v].nf) { reply("error", id, "bad-line", NULL); return; }
+	if (r->nf != verbs[v].nf && r->nf != verbs[v].nf2) { reply("error", id, "bad-line", NULL); return; }
 	for (int i = 2; i < r->nf; i++)
 		if (unescape(r->f[i], &r->len[i]) || strlen(r->f[i]) != r->len[i]) { reply("error", id, "bad-escape", NULL); return; }
 
-	if (v == 0) {           /* hello ID VERSION */
-		reply("hello", id, "1", NULL);
+	if (v == 0) {           /* hello ID VERSION: the client's newest; the answer is ours */
+		char *end;
+		long want = strtol(r->f[2], &end, 10);
+		if (*end || want < 1) { reply("error", id, "bad-line", NULL); return; }
+		proto = want >= 2 ? 2 : 1;
+		reply("hello", id, proto == 2 ? "2" : "1", NULL);
 		return;
 	}
-	const char *lang = r->f[2];
-	if (!store_valid_lang(lang, v >= 3)) { reply("error", id, "bad-lang", NULL); return; }
+	char lbuf[256];
+	const char *langs[MAX_LANGS];
+	int nl = 0;
+	if (v <= 2) {
+		nl = active_langs(r->f[2], lbuf, sizeof lbuf, langs);
+		if (nl < 0) { reply("error", id, "bad-lang", NULL); return; }
+	} else if (strcmp(r->f[2], "*") && split_langs(r->f[2], lbuf, sizeof lbuf, langs) < 0) {
+		reply("error", id, "bad-lang", NULL);
+		return;
+	}
 
-	if (v == 1) {           /* predict ID LANG FIELD BEFORE WORD */
+	if (v == 1) {           /* predict ID LANGS FIELD BEFORE WORD */
 		int fl = field_flags(r->f[3]);
 		if (fl < 0) { reply("error", id, "bad-field", NULL); return; }
 		fl = field_resolve(fl);
 		if (superseded) { reply("drop", id, NULL, NULL); return; }
 		char out[NCAND][PT_WORD_MAX * 2 + 8];
-		int n = fl ? predict(lang, fl, r->f[4], r->len[4], r->f[5], r->len[5], out) : 0;
+		int outl[NCAND];
+		int n = fl ? predict(langs, nl, fl, r->f[4], r->len[4], r->f[5], r->len[5], out, outl) : 0;
 		fputs("predict", stdout);
 		out_field(id);
-		for (int i = 0; i < n; i++) out_field(out[i]);
+		for (int i = 0; i < n; i++) {
+			out_field(out[i]);
+			if (proto >= 2) out_field(langs[outl[i]]);
+		}
 		putchar('\n');
 		return;
 	}
-	if (v == 2) {           /* learn ID LANG FIELD WORD */
+	if (v == 2) {           /* learn ID LANGS FIELD WORD | learn ID LANGS FIELD BEFORE WORD PICKED */
 		int fl = field_flags(r->f[3]);
 		if (fl < 0) { reply("error", id, "bad-field", NULL); return; }
 		fl = field_resolve(fl);
-		const char *w = r->f[4];
-		if (!(fl & F_LEARN) || r->len[4] < 2 || !store_valid_word(w) || !learning_on()) { reply("learn", id, "skip", NULL); return; }
+		int full = r->nf == 7;
+		const char *w = full ? r->f[5] : r->f[4], *picked = full ? r->f[6] : "";
+		size_t wl = strlen(w);
+		if (*picked && !store_valid_lang(picked, 0)) { reply("error", id, "bad-lang", NULL); return; }
+		if (!(fl & F_LEARN) || wl < 2 || !store_valid_word(w) || !learning_on()) { reply("learn", id, "skip", NULL); return; }
 		learned_refresh();
 		char key[PT_WORD_MAX * 2 + 8];
-		pt_fold_str(w, strlen(w), key);
-		if (!have_store_path || learned_unreadable || store_removed(&learned, lang, key)) { reply("learn", id, "skip", NULL); return; }
+		pt_fold_str(w, wl, key);
+		if (!have_store_path || learned_unreadable || store_removed(&learned, key)) { reply("learn", id, "skip", NULL); return; }
+		const char *lang = langs[learn_lang(langs, nl, picked, full ? r->f[4] : "", full ? r->len[4] : 0, w)];
 		if (!pending.nw) clock_gettime(CLOCK_MONOTONIC, &pending_since);
 		store_learn(&pending, lang, w, 1, store_today());
 		store_learn(&learned, lang, w, 1, store_today());
 		learned_total_used(lang);
-		reply("learn", id, "ok", NULL);
+		reply("learn", id, "ok", proto >= 2 ? lang : NULL);
 		return;
 	}
-	/* remove / restore ID LANG WORD: written at once */
+	/* remove / restore ID LANGS WORD: in every language, written at once */
 	const char *w = r->f[3];
 	if (!store_valid_word(w)) { reply("error", id, "bad-word", NULL); return; }
 	learned_refresh();
 	if (!have_store_path || learned_unreadable) { reply("error", id, "store", NULL); return; }
 	if (v == 3) {
-		if (learned_write(op_remove, lang, w)) { reply("error", id, "store", NULL); return; }
+		if (learned_write(op_remove, "*", w)) { reply("error", id, "store", NULL); return; }
 		reply("remove", id, "ok", NULL);
 	} else {
 		char key[PT_WORD_MAX * 2 + 8];
 		pt_fold_str(w, strlen(w), key);
-		int had = 0;
-		for (size_t i = 0; i < learned.nx; i++)
-			if (!strcmp(learned.x[i].key, key) && (!strcmp(lang, "*") || !strcmp(learned.x[i].lang, lang))) had = 1;
-		if (had && learned_write(op_restore, lang, w)) { reply("error", id, "store", NULL); return; }
+		int had = store_removed(&learned, key);
+		if (had && learned_write(op_restore, "*", w)) { reply("error", id, "store", NULL); return; }
 		reply("restore", id, had ? "ok" : "none", NULL);
 	}
 }
@@ -798,10 +995,11 @@ static int serve(void)
 static int usage(void)
 {
 	fputs("usage: glassine-predict\n"
-	      "       glassine-predict words list|removed [-l LANG] [-s TEXT]\n"
-	      "       glassine-predict words remove|restore [-l LANG] WORD\n"
+	      "       glassine-predict words list [-l LANG] [-s TEXT]\n"
+	      "       glassine-predict words removed [-s TEXT]\n"
+	      "       glassine-predict words remove|restore WORD\n"
 	      "       glassine-predict words erase\n"
-	      "       glassine-predict bench [-l] LANG TEXTFILE\n", stderr);
+	      "       glassine-predict bench [-l] LANG[,LANG...] TEXTFILE\n", stderr);
 	return 2;
 }
 
@@ -830,8 +1028,8 @@ static int words(int argc, char **argv)
 	int listing = !strcmp(cmd, "list") || !strcmp(cmd, "removed");
 	int changing = !strcmp(cmd, "remove") || !strcmp(cmd, "restore");
 	if (!listing && !changing && strcmp(cmd, "erase")) return usage();
-	if ((changing != (word != NULL)) || (search && !listing) || (lang && !strcmp(cmd, "erase"))) return usage();
-	if (lang && !store_valid_lang(lang, changing)) { fputs("glassine-predict: bad language\n", stderr); return 2; }
+	if ((changing != (word != NULL)) || (search && !listing) || (lang && strcmp(cmd, "list"))) return usage();
+	if (lang && !store_valid_lang(lang, 0)) { fputs("glassine-predict: bad language\n", stderr); return 2; }
 	if (word && !store_valid_word(word)) { fputs("glassine-predict: not a word\n", stderr); return 2; }
 	char dir[4096];
 	if (store_dir(dir, sizeof dir)) { fputs("glassine-predict: no home directory\n", stderr); return 1; }
@@ -852,16 +1050,15 @@ static int words(int argc, char **argv)
 			free(ix);
 		} else
 			for (size_t i = 0; i < s.nx; i++)
-				if ((!lang || !strcmp(s.x[i].lang, lang) || !strcmp(s.x[i].lang, "*")) && (!*fs || strstr(s.x[i].key, fs)))
-					printf("%s\t%s\n", s.x[i].lang, s.x[i].word);
+				if (!*fs || strstr(s.x[i].key, fs)) printf("%s\n", s.x[i].word);
 		store_free(&s);
 		return fflush(stdout) ? 1 : 0;
 	}
 	int lk = store_lock(dir);
 	if (lk < 0) { fputs("glassine-predict: can't lock the learned words\n", stderr); return 1; }
 	if (store_load(&s, dir)) { close(lk); fputs("glassine-predict: the learned words file can't be read\n", stderr); return 1; }
-	if (!strcmp(cmd, "remove")) store_remove(&s, lang ? lang : "*", word);
-	else if (!strcmp(cmd, "restore")) store_restore(&s, lang ? lang : "*", word);
+	if (!strcmp(cmd, "remove")) store_remove(&s, word);
+	else if (!strcmp(cmd, "restore")) store_restore(&s, word);
 	else store_erase(&s);
 	int r = store_save(&s, dir);
 	store_free(&s);
@@ -878,16 +1075,21 @@ static int dcmp(const void *a, const void *b) { double x = *(const double *)a, y
  * often the next word is among the three (before its first letter, after one, after two).
  * The person's store is never used; with learn, each typed word is learned in memory as
  * the keyboard would, starting from nothing. */
-static int bench(const char *lang, const char *file, int learn)
+static int bench(const char *list, const char *file, int learn)
 {
+	char lbuf[256];
+	const char *langs[MAX_LANGS];
+	int nl = split_langs(list, lbuf, sizeof lbuf, langs);
+	if (nl < 0) return usage();
 	FILE *f = fopen(file, "r");
 	no_store = 1;           /* the base model alone */
-	if (!f || !model_get(lang)) { fputs("glassine-predict: bench needs the text and the model\n", stderr); return 1; }
+	if (!f || !model_get(langs[0])) { fputs("glassine-predict: bench needs the text and the model\n", stderr); return 1; }
 	size_t cap = 1 << 20, n = 0;
 	double *t = malloc(cap * sizeof *t);
 	long hit[3] = { 0 }, tries[3] = { 0 }, saved = 0, typed = 0;
 	char *line = NULL; size_t lc = 0; ssize_t ll;
 	char out[NCAND][PT_WORD_MAX * 2 + 8];
+	int outl[NCAND];
 	int lines = 0;
 	while ((ll = getline(&line, &lc, f)) > 0 && lines < 20000) {
 		lines++;
@@ -903,7 +1105,7 @@ static int bench(const char *lang, const char *file, int learn)
 			for (size_t p = 0; p <= wl && p < 3 + wl; p++) {
 				if (p && (line[ws + p - 1] & 0xC0) == 0x80) continue;
 				double t0 = now_ms();
-				int c = predict(lang, F_SUGGEST, line, ws, line + ws, p, out);
+				int c = predict(langs, nl, F_SUGGEST, line, ws, line + ws, p, out, outl);
 				double dt = now_ms() - t0;
 				if (n == cap) t = realloc(t, (cap *= 2) * sizeof *t);
 				t[n++] = dt;
@@ -919,6 +1121,7 @@ static int bench(const char *lang, const char *file, int learn)
 			if (learn && wl >= 2) {
 				char wd[PT_WORD_MAX + 1];
 				memcpy(wd, line + ws, wl); wd[wl] = 0;
+				const char *lang = langs[learn_lang(langs, nl, NULL, line, ws, wd)];
 				store_learn(&learned, lang, wd, 1, store_today());
 				learned_total_used(lang);
 			}
@@ -931,7 +1134,7 @@ static int bench(const char *lang, const char *file, int learn)
 	double worst = 0;
 	for (int i = 0; i < 1000; i++) {
 		double t0 = now_ms();
-		predict(lang, F_SUGGEST, big, sizeof big, "t", 1, out);
+		predict(langs, nl, F_SUGGEST, big, sizeof big, "t", 1, out, outl);
 		double dt = now_ms() - t0;
 		if (dt > worst) worst = dt;
 	}

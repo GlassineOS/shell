@@ -1,0 +1,13 @@
+# The German base model (glassine-predict, docs/predictor.md). Read by build.sh; the
+# format is described in en.sources.
+options -v 40000 -b 12 -B 3 -t 6 -T 4 -P 24
+source wikipedia dewiki-03.parquet 7b2dcfa2db420deab41bf5b9068d2caf0ff01222699219f7a72dc7018c3a331e https://huggingface.co/datasets/wikimedia/wikipedia/resolve/b04c8d1ceb2f5cd4588862100d08de323dccfbaa/20231101.de/train-00003-of-00020.parquet
+source tatoeba-all tatoeba-sentences.tar.bz2 88195994564c3363e4feac76837c7fd8564fcce124f77440980845ab3825a8e4 https://web.archive.org/web/20260323224434id_/https://downloads.tatoeba.org/exports/sentences.tar.bz2 deu Tom Toms Maria Marias
+licence Die Worthäufigkeiten in dieser Datei stammen aus einem Teil der deutschsprachigen
+licence Wikipedia / The word counts in this file are derived from part of the German
+licence Wikipedia (one of the 20 parts of the wikimedia/wikipedia dataset, CC BY-SA 3.0 and
+licence GFDL, by the Wikipedia contributors, https://de.wikipedia.org) and from German
+licence sentences of the Tatoeba project (CC BY 2.0 FR, by the Tatoeba contributors,
+licence https://tatoeba.org). This model file is licensed CC BY-SA 3.0
+licence (https://creativecommons.org/licenses/by-sa/3.0/). Built with GlassineOS/shell
+licence tools/predict-model/build.sh from de.sources.
