@@ -92,6 +92,8 @@
  * osk im the keyboard is the input method (wvkbd --im): swayd gives its
  * own up and takes the focus from the keyboard:
  * osk focus 1 PURPOSE | osk focus 0 | osk changed
+ * (a pen tap just before a focus: "glassine-osk show pen", the
+ * keyboard's writing paper in an empty field; see pen_tapped)
  *
  * glassine-swayd [-v]
  * glassine-swayd COMMAND ARGS... send a command (above) to the running one
@@ -1366,13 +1368,110 @@ static int kbd_scan(json_object *inputs, const char *devices, char *out, size_t 
 
 static int kbd_attached, osk_auto_shown;
 
+/* ---- pen or finger (spec 006 FR-010) ----------------------------------------------------
+ * A pen tap into an empty text field opens the keyboard's writing paper instead of the keys:
+ * "glassine-osk show pen". The text-input focus doesn't say what tapped the field, so the
+ * touch and pen devices stay open (read, never grabbed) with an event mask that lets only
+ * their contacts through (BTN_TOUCH; no motion: no wakeup while writing or hovering): the
+ * last contact, from a device with BTN_TOOL_PEN or not, decides. No mask (an old kernel):
+ * the devices are closed again and every show is a finger's. */
+#define CONTACT_DEVS 6
+#define PEN_TAP_MS 1500                 /* a pen contact that long before the focus: its tap */
+static int contact_fd[CONTACT_DEVS], contact_pen[CONTACT_DEVS], ncontact;
+static long pen_at, finger_at;
+
+static long mono_ms(void);
+
+static void contact_close(void)
+{
+    while (ncontact) close(contact_fd[--ncontact]);
+}
+
+/* only EV_KEY BTN_TOUCH (EV_SYN stays: the kernel drops the empty reports) */
+static int contact_mask(int fd)
+{
+    unsigned char keys[KEY_MAX / 8 + 1] = { 0 };
+    keys[BTN_TOUCH / 8] |= 1 << (BTN_TOUCH % 8);
+    struct input_mask m = { EV_KEY, sizeof keys, (uintptr_t)keys };
+    if (ioctl(fd, EVIOCSMASK, &m) < 0) return 0;
+    static const unsigned types[] = { EV_ABS, EV_REL, EV_MSC, EV_SW };
+    for (unsigned i = 0; i < sizeof types / sizeof *types; i++) {
+        struct input_mask z = { types[i], 0, 0 };
+        if (ioctl(fd, EVIOCSMASK, &z) < 0) return 0;
+    }
+    return 1;
+}
+
+static void contact_open(void)
+{
+    contact_close();
+    DIR *d = opendir("/dev/input");
+    struct dirent *e;
+    while (d && (e = readdir(d)) && ncontact < CONTACT_DEVS) {
+        if (strncmp(e->d_name, "event", 5)) continue;
+        char path[300];
+        snprintf(path, sizeof path, "/dev/input/%s", e->d_name);
+        int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+        if (fd < 0) continue;
+        unsigned long keys[KEY_MAX / (8 * sizeof(long)) + 1] = { 0 };
+#define HAS(k) ((keys[(k) / (8 * sizeof(long))] >> ((k) % (8 * sizeof(long)))) & 1)
+        if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof keys), keys) < 0 || !HAS(BTN_TOUCH)) { close(fd); continue; }
+        if (!contact_mask(fd)) {
+            close(fd);
+            LOG("pen or finger: %s takes no event mask: every show is a finger's", path);
+            break;
+        }
+        contact_pen[ncontact] = HAS(BTN_TOOL_PEN);
+#undef HAS
+        contact_fd[ncontact++] = fd;
+    }
+    if (d) closedir(d);
+    int pens = 0;
+    for (int i = 0; i < ncontact; i++) pens += contact_pen[i];
+    LOG("pen or finger: %d pen and %d touch device%s", pens, ncontact - pens, ncontact - pens == 1 ? "" : "s");
+    if (!pens) contact_close();        /* no pen: nothing to tell apart */
+}
+
+static void contact_read(int i)
+{
+    struct input_event ev[16];
+    ssize_t l;
+    while ((l = read(contact_fd[i], ev, sizeof ev)) > 0)
+        for (size_t k = 0; k < (size_t)l / sizeof *ev; k++)
+            if (ev[k].type == EV_KEY && ev[k].code == BTN_TOUCH && ev[k].value == 1)
+                *(contact_pen[i] ? &pen_at : &finger_at) = mono_ms();
+}
+
+/* the last contact was a pen's, just now (taken: once per tap) */
+static int pen_tapped(void)
+{
+    int r = pen_at && pen_at >= finger_at && mono_ms() - pen_at < PEN_TAP_MS;
+    pen_at = 0;
+    return r;
+}
+
+static void osk_run(const char *what, const char *how)
+{
+    char *av[] = { "/usr/bin/glassine-osk", (char *)what, (char *)how, NULL };
+    pid_t pid;
+    if (posix_spawn(&pid, av[0], NULL, NULL, av, environ)) LOG("glassine-osk: can't run");
+}
+
 static void osk_set(int on)
 {
     osk_auto_shown = on;
-    LOG("text field %s: keyboard %s", on ? "focused" : "left", on ? "shown" : "hidden");
-    char *av[] = { "/usr/bin/glassine-osk", on ? "show" : "hide", NULL };
-    pid_t pid;
-    if (posix_spawn(&pid, av[0], NULL, NULL, av, environ)) LOG("glassine-osk: can't run");
+    int pen = on && pen_tapped();
+    LOG("text field %s: keyboard %s%s", on ? "focused" : "left", on ? "shown" : "hidden", pen ? " (a pen tap)" : "");
+    osk_run(on ? "show" : "hide", pen ? "pen" : NULL);
+}
+
+/* another field focused while the keyboard stays: a pen tap shows it again (the paper
+ * if that field is empty) */
+static void osk_refocus(int purpose)
+{
+    if (purpose == 13 || kbd_attached || !pen_tapped()) return;   /* 13: a terminal */
+    LOG("text field focused by a pen tap: keyboard shown (a pen tap)");
+    osk_run("show", "pen");
 }
 
 static void kbd_update(void)
@@ -2078,7 +2177,16 @@ static void command(char *m)
     }
     /* the keyboard as the input method (wvkbd --im --notify): it has the seat's one */
     if (!strcmp(m, "osk im")) { hd_im_release(); return; }
-    if (sscanf(m, "osk focus %d %ld", &lv, &n) == 2) { hd_text_report(lv == 1, (int)n); return; }
+    if (sscanf(m, "osk focus %d %ld", &lv, &n) == 2) {
+        int shown = osk_auto_shown;
+        hd_text_report(lv == 1, (int)n);
+        if (lv == 1 && shown && osk_auto_shown) osk_refocus((int)n);   /* the same show, a new field */
+        return;
+    }
+    if (sscanf(m, "testcontact %7s", dir) == 1) {   /* (tests) the last contact */
+        if (getenv("GLASSINE_SWAYD_TEST")) *(!strcmp(dir, "pen") ? &pen_at : &finger_at) = mono_ms();
+        return;
+    }
     if (!strcmp(m, "osk focus 0")) { hd_text_report(0, 0); return; }
     if (!strcmp(m, "osk changed")) { hd_text_report_changed(); return; }
     if (sscanf(m, "scrmove %ld %d", &n, &lv) == 2) { scr_move(n, lv); return; }
@@ -2235,16 +2343,19 @@ int main(int argc, char **argv)
     settle_state();
     home_send(1);
     kbd_update();
+    contact_open();
     LOG("running%s", hd_fd >= 0 ? " (drag handles)" : "");
     while (!quit) {
         hd_flush();
-        struct pollfd pf[4 + OSK_TAP_DEVS] = { { ev_fd, POLLIN, 0 }, { sfd, POLLIN, 0 }, { hd_fd, POLLIN, 0 }, { ino, POLLIN, 0 } };
-        int nt = ntap;
+        struct pollfd pf[4 + OSK_TAP_DEVS + CONTACT_DEVS] = { { ev_fd, POLLIN, 0 }, { sfd, POLLIN, 0 }, { hd_fd, POLLIN, 0 }, { ino, POLLIN, 0 } };
+        int nt = ntap, nc = ncontact;
         for (int i = 0; i < nt; i++) pf[4 + i] = (struct pollfd){ tap_fd[i], POLLIN, 0 };
+        for (int i = 0; i < nc; i++) pf[4 + nt + i] = (struct pollfd){ contact_fd[i], POLLIN, 0 };
         int area_due, tw = tap_wait(), aw = area_wait(&area_due);
         int wait = tw < 0 ? aw : aw < 0 || tw < aw ? tw : aw;
         if (area_due) wait = 0;
-        if (poll(pf, 4 + nt, wait) < 0) { if (errno == EINTR) continue; break; }
+        if (poll(pf, 4 + nt + nc, wait) < 0) { if (errno == EINTR) continue; break; }
+        for (int i = 0; i < nc; i++) if (pf[4 + nt + i].revents & POLLIN) contact_read(i);
         for (int i = 0; i < nt; i++) if (pf[4 + i].revents & POLLIN) tap_read(i);
         tap_wait();
         if (pf[2].revents & (POLLIN | POLLHUP | POLLERR)) {
@@ -2274,7 +2385,7 @@ int main(int argc, char **argv)
                 free(m);
                 const char *ch = j ? sj_str(j, "change") : NULL;
                 if (t == SIPC_EV_INPUT) {      /* a device came or went: no layout change */
-                    if (ch && (!strcmp(ch, "added") || !strcmp(ch, "removed"))) kbd_update();
+                    if (ch && (!strcmp(ch, "added") || !strcmp(ch, "removed"))) { kbd_update(); contact_open(); }
                 } else if (ch && strcmp(ch, "title") && strcmp(ch, "mark") && strcmp(ch, "urgent")) dirty = 1;
                 if (t == SIPC_EV_OUTPUT) area_arm();   /* turned: the layer surfaces lay themselves out after */
                 json_object_put(j);
