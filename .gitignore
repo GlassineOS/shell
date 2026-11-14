@@ -8,3 +8,7 @@ __pycache__/
 !/specs/*/spec.md
 /glassine-sleep-pill
 /libglassine-ink.so
+/glassine-predict
+/glassine-predict-build
+/.cache/
+/predict-models/
