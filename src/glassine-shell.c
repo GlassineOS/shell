@@ -1330,7 +1330,10 @@ static const struct { const char *what, *name, *sub, *ic; } PWR[6] = {
 #define PWR_ROWS 4                      /* the rows; then "Restart into" */
 #define DEPLOY_CONF "/etc/glassine/deploy.conf"
 /* hibernation is set up here: the tool, and its swap file on userdata
- * (GlassineOS/boot: <USERDATA_MNT>/<USERDATA_PREFIX>/swap/hibernate) */
+ * (GlassineOS/boot: <USERDATA_MNT>/<USERDATA_PREFIX>/swap/hibernate).
+ * The shell runs as the user, who may not be allowed into the swap directory
+ * (root only) or the userdata media directory: then the file can't be checked
+ * and the row stays; only a file that is known to be missing hides it. */
 static int pwr_hib_ok(void)
 {
     if (access("/usr/sbin/glassine-hibernate", X_OK)) return 0;
@@ -1349,7 +1352,8 @@ static int pwr_hib_ok(void)
     if (f) fclose(f);
     snprintf(p, sizeof p, "%s/%s/swap/hibernate", mnt, pre);
     struct stat sb;
-    return stat(p, &sb) == 0 && S_ISREG(sb.st_mode);
+    if (stat(p, &sb) == 0) return S_ISREG(sb.st_mode);
+    return errno == EACCES;
 }
 #define ROT_CONF "/etc/glassine/rotation"    /* auto | lock N (glassine-rotd) */
 #define ROT_RUN "/run/glassine-rotation"     /* the turn now */
