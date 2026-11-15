@@ -90,6 +90,19 @@ paper offers the text and two alternatives along its top edge; writing on, tappi
 alternative, switching to keys or putting the paper away commits it; the ink clears
 after it is committed.
 
+**Given** the keys showing in a field that offers handwriting, **When** the person brings
+the pen near the screen anywhere but over the keys, **Then** the paper opens in place of
+the keys; a pen that comes to hover over the keys taps them as before, and the paper
+never goes back to the keys by itself. **While** the paper is open, a hand resting on the
+screen changes nothing: only the paper's controls, the keys and the shell's top bar take
+a finger, and the pen works everywhere.
+
+**Given** text pending from handwriting, **When** the person taps the paper's Backspace,
+**Then** the pending text loses its last character (the ink stays, the pending text is
+the edited one); with no pending text it deletes the character before the cursor as the
+keys' Backspace does, and held, it repeats. **When** the person taps discard instead,
+**Then** the pending text and its ink go and nothing is written into the field.
+
 ### Scenario 8 – Editing with the pen (Priority: P3)
 
 **Given** handwriting mode and text before the cursor, **When** the person strikes
@@ -222,11 +235,22 @@ suggestions and no handwriting popup, and nothing is learned there.
 - **FR-010a**: The writing surface reads as a sheet of paper laid over the app: the
   theme's paper colour, partly see-through over a light blur of what lies under it, so the
   ink keeps its contrast on any background; a thin edge, one guide line to write on, and
-  two controls in a corner (switch to keys, put the paper away); while text is pending,
-  a row along the top edge with the read text and its alternatives and a correction
-  control. Edge, chips and type follow the theme's voice; the app under the paper keeps
+  three controls in a corner (Backspace, switch to keys, put the paper away); while text
+  is pending, a row along the top edge with the read text and its alternatives, a
+  correction control and a discard control. Edge, chips and type follow the theme's voice; the app under the paper keeps
   its own look. No other decoration. The design is the `shell.write` boards in
   GlassineOS/ui.
+- **FR-010b**: Pen near: with the keys showing in a field where the paper is offered
+  (not a private field, handwriting not turned off), the pen coming into range opens the
+  paper, unless the pen is over the keys at that moment; there it is taken as about to tap
+  a key and the keys stay. The paper doesn't return to the keys while the pen hovers or
+  writes, or at all without the person's action. Telling the pen's range costs no
+  processing while the pen moves (only coming into range and leaving it are seen).
+- **FR-010c**: Touch while the paper is open: a finger or palm on the screen reaches
+  neither the app under the paper nor anything else, moves no focus and starts no
+  gesture, until it lifts; only the input method's own surfaces (the paper's controls,
+  the keys) and the shell's top bar take touch. The pen is unaffected. Turning pen palm
+  rejection off turns this off too.
 - **FR-011**: Recognition is the handwriting recognizer (`GlassineOS/handwriting` spec 001), a separate program
   on the device that the keyboard uses through its interface (strokes and context in,
   ranked candidates out, gestures reported); the keyboard never waits on it.
@@ -236,6 +260,13 @@ suggestions and no handwriting popup, and nothing is learned there.
   paper's top edge (the best in the middle). Writing further, switching to keys or
   putting the paper away commits the best candidate; tapping an alternative commits that
   one. During a correction (Scenario 8a) the pending text follows the edit.
+- **FR-012a**: The paper's Backspace and discard (Scenario 7): Backspace takes the
+  pending text's last character first (the ink stays; when the last one goes, the pending
+  text and its ink go), during a correction the edit's, and otherwise the character
+  before the cursor as the keys' Backspace; held, it repeats as the key does. An edited
+  pending text commits as edited and is not a lesson. Discard, shown with pending text,
+  drops the pending text and the ink it was read from without writing anything into the
+  field; the paper stays open. Both work with a finger and with the pen.
 - **FR-013**: Gestures per Scenario 8 are recognized from the strokes before text
   recognition and need surrounding text for deletion; without it, strike-through deletes
   by sending Backspace for the last committed word's length.
@@ -288,10 +319,12 @@ replaces exactly the partial word, characters outside the keymap arrive, private
 show and store nothing, purpose picks the layer, an app without text input gets plain
 keys, a missing or stalled predictor leaves typing working; handwriting by replaying
 recorded strokes into the writing surface: placement at the cursor, pending text,
-commit, gestures; a stand-in recognizer for the flow.
+commit, gestures, the paper's Backspace and discard, the pen coming near over the keys
+and elsewhere; a stand-in recognizer for the flow.
 
 Hardware: supervised: typing and suggestions in GTK, Firefox and Chromium; handwriting
-latency and recognition of a few short sentences; the learned store erased from the
+latency and recognition of a few short sentences; a hand resting on the screen while
+writing changes nothing; the learned store erased from the
 settings.
 
 ## Out of scope

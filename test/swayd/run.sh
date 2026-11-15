@@ -602,7 +602,17 @@ rm -f $XDG_RUNTIME_DIR/glassine-osk.pen
 cmd "osk focus 0 0"; cmd "testcontact pen"; cmd "testcontact finger"; cmd "osk focus 1 0"; sleep 0.5
 expect "a finger after the pen: the keys" "$(tf)" "text field focused: keyboard shown"
 check "... no flag" "[ ! -e $XDG_RUNTIME_DIR/glassine-osk.pen ]"
-cmd "osk focus 0 0"; sleep 0.3
+# the pen coming into range (FR-010b): "glassine-osk near" only while the keyboard is shown
+# (SIGWINCH, which a keyboard without it ignores)
+nn0=$(grep -c 'pen near: the keyboard is told' /tmp/swayd.log)
+cmd "osk focus 0 0"; sleep 0.5
+rm -f $XDG_RUNTIME_DIR/glassine-osk.shown
+cmd "testcontact near"; sleep 0.3
+expect "the pen near, the keyboard hidden: nothing" "$(($(grep -c 'pen near: the keyboard is told' /tmp/swayd.log) - nn0))" "0"
+: > $XDG_RUNTIME_DIR/glassine-osk.shown
+cmd "testcontact near"; sleep 0.5
+expect "the pen near, the keyboard shown: told" "$(($(grep -c 'pen near: the keyboard is told' /tmp/swayd.log) - nn0))" "1"
+rm -f $XDG_RUNTIME_DIR/glassine-osk.shown
 pkill -x wvkbd-mobintl; sleep 0.3
 # glassine-wvkbd passes --handwriting only to a keyboard that has it, with glassine-handwriting installed
 mkdir -p /tmp/stub
