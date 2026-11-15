@@ -76,6 +76,26 @@ PROFS = [("saver", "Power saver"), ("balanced", "Balanced"), ("performance", "Pe
 PROF_SUB = {"saver": "Slower memory, no touch boost. Least drain, heavy apps may stutter",
             "balanced": "Memory follows the processor: fast when used, slow while reading",
             "performance": "Memory always at full speed. Fastest, drains quickest"}
+HIB_STEPS = [(60, "1 h"), (360, "6 h"), (1440, "1 day"), (4320, "3 days"), (10080, "1 week"), (0, "Never")]
+
+
+def hib_label(n):
+    """minutes -> whole days, else whole hours, else minutes"""
+    if n % 1440 == 0:
+        return "1 day" if n == 1440 else "%d days" % (n // 1440)
+    if n % 60 == 0:
+        return "%d h" % (n // 60)
+    return "%d min" % n
+
+
+def hib_steps(cur):
+    """HIB_STEPS, with a value set by hand as one more step at its place by minutes (Never stays last)"""
+    if cur <= 0 or cur in dict(HIB_STEPS):
+        return HIB_STEPS
+    steps = [s for s in HIB_STEPS if 0 < s[0] < cur] + [(cur, hib_label(cur))]
+    return steps + [s for s in HIB_STEPS if s[0] > cur] + [HIB_STEPS[-1]]
+
+
 PKEYS = [("suspend", "Sleep", "The page stays on screen, a press wakes it"), ("ignore", "Nothing", "The key is ignored")]
 # Gestures: the actions a swipe can run ("#" = a group head on the pick page)
 GA = [("nothing", "Nothing", "The swipe is ignored"), ("refresh", "Full refresh", "Flashes the panel to clear ghosting"),
@@ -573,6 +593,11 @@ def build(ui, be):
         add(B.Stepper("Wi-Fi off after", "While asleep",
                       [(0, "At once"), (5, "5 min"), (15, "15 min"), (30, "30 min"), (60, "1 h"), (-1, "Never")],
                       be.wifi_off, lambda v: be.set_power("wifi_off", v)))
+        if be.hib_ok:                       # (hibernation set up: backend.hibernate_ready)
+            add(B.Stepper("Hibernate after", "While asleep on battery", hib_steps(be.hib_after),
+                          be.hib_after, lambda v: be.set_power("hib_after", v)))
+            add(B.Note("When the device has slept on battery this long, it saves your session and turns off. "
+                       "The power key resumes it."))
 
     elif p == "keyboard":
         title = "Keyboard"
