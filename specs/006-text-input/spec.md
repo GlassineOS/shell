@@ -262,10 +262,15 @@ suggestions and no handwriting popup, and nothing is learned there.
   one. During a correction (Scenario 8a) the pending text follows the edit. A committed
   text gets a space after it, except in an email field and in a web-address field whose
   text, with the committed text, looks like an address (it has a `.`, `/`, `:` or `@`, or
-  starts with a scheme such as `http` or with `www`); there a search of plain words gets
-  its space like anywhere else. A text that starts with `.`, `/`, `:` or `@`, committed
-  right after the space the paper put after a search in a web-address field, takes that
-  space back (`example`, then `.com`: `example.com`).
+  starts with a scheme such as `http` or with `www`; text the committed text replaces,
+  such as the selected address, doesn't count); there a search of plain words gets its
+  space like anywhere else. A text that starts with a letter or digit, committed right
+  after a letter, a digit or punctuation that ends something (as in Scenario 2), gets a
+  space before it too, in prose and name fields and in a web-address field's search;
+  never after a space, an opening bracket or quote, a dash or a slash. A text that starts
+  with `.`, `/`, `:` or `@`, committed right after the space the paper put after a search
+  in a web-address field with nothing edited since, takes that space back (`example`,
+  then `.com`: `example.com`).
 - **FR-012a**: The paper's Backspace and discard (Scenario 7): Backspace takes the
   pending text's last character first (the ink stays; when the last one goes, the pending
   text and its ink go), during a correction the edit's, and otherwise the character
