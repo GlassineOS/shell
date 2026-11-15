@@ -59,6 +59,10 @@ for t in ${THEMES:-white editorial stationery}; do
     GLASSINE_DEMO_KB=missing python3 $S --demo --render /out/shots/$t-keyboard-missing.png --page "keyboard#3" --theme $t 2>/out/err.txt || { echo "FAIL $t keyboard missing"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-sheet-erase-learned.png --page keyboard --theme $t --sheet erase-learned 2>/out/err.txt || { echo "FAIL $t sheet erase-learned"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-sheet-forget-words.png --page kb-words --theme $t --sheet forget-words 2>/out/err.txt || { echo "FAIL $t sheet forget-words"; cat /out/err.txt; fail=1; }
+    # Power & sleep (spec 007): Hibernate after at a value set by hand, in the left half; without hibernation
+    GLASSINE_DEMO_HIB=90 python3 $S --demo --render /out/shots/$t-column-power-hib-90.png --page "power#3" --theme $t --size $(size column) 2>/out/err.txt || { echo "FAIL $t power hib 90"; cat /out/err.txt; fail=1; }
+    python3 $S --demo --render /out/shots/$t-power-timers.png --page "power#3" --theme $t 2>/out/err.txt || { echo "FAIL $t power#3"; cat /out/err.txt; fail=1; }
+    GLASSINE_DEMO_HIB=off python3 $S --demo --render /out/shots/$t-power-no-hib.png --page "power#3" --theme $t 2>/out/err.txt || { echo "FAIL $t power no hib"; cat /out/err.txt; fail=1; }
     # the e-ink page with another dither pattern: its pattern row
     GLASSINE_DEMO_DOTS=bayer python3 $S --demo --render /out/shots/$t-eink-dots.png --page "eink#1" --theme $t 2>/out/err.txt || { echo "FAIL $t eink-dots"; cat /out/err.txt; fail=1; }
     # an app's own dither pattern (the demo's Stellarium: dizzy)
@@ -82,6 +86,7 @@ want=$(grep -c '^## ' $P/rootfs/usr/share/glassine/sway/keys.conf)
 python3 /t/tab.py $P || fail=1
 python3 /t/files.py $P || fail=1
 python3 /t/homeconf.py $P || fail=1
+TMPDIR=/tmp python3 /t/power.py $P || fail=1
 TMPDIR=/tmp python3 /t/kb_typing.py $P || fail=1
 # Settings opened on the page Home asks for (glassine-shell launch glassine-settings new updates)
 for t in ${THEMES:-white}; do
