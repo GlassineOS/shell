@@ -3,7 +3,8 @@
   Demo   the design's sample data (host renders, tests: glassine-settings --demo)
   Real   the device: NetworkManager (nmcli), BlueZ (D-Bus, with a pairing
          agent), PipeWire (wpctl), /etc/glassine/power.conf (glassine-powerd; its managed
-         light schedule in /run/glassine-light), the power mode (glassine-ddr),
+         light schedule in /run/glassine-light; hibernate_after_min where hibernation
+         is set up: hibernate_ready()), the power mode (glassine-ddr),
          /etc/glassine/eink.conf (glassine-epdd-desktop), /etc/glassine/bgprio.conf (glassine-bgprio's
          freeze rules, via glassine-settings-root), the apps' .desktop files, the
          front light nodes, glassine-shell's theme, the keyboard files, the time
@@ -17,6 +18,7 @@ import json
 import math
 import os
 import re
+import stat
 import subprocess
 import threading
 import time
@@ -29,6 +31,9 @@ from . import predict       # Keyboard > Typing: predict.conf, the languages, th
 HOME = os.environ.get("HOME", "/home/user")
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 POWER_CONF = "/etc/glassine/power.conf"
+HIBERNATE = "/usr/sbin/glassine-hibernate"      # GlassineOS/boot
+DEPLOY_CONF = "/etc/glassine/deploy.conf"       # its HIBERNATE_SIZE_MB, USERDATA_MNT, USERDATA_PREFIX
+HIB_DEFAULT = 4320                              # glassine-powerd's hibernate_after_min without the key
 EINK_CONF = "/etc/glassine/eink.conf"
 EPDD_CLASSES = "/run/glassine-epdd-desktop.classes"     # the window classes glassine-epdd-desktop has seen since it started
 SEEN_CLASSES = HOME + "/.cache/glassine/epdd-classes"   # those, across boots
@@ -385,6 +390,7 @@ class Base:
         self.batt = {"pct": -1, "status": "", "left": "", "health": ""}
         self.batt_at = ""
         self.pkey, self.cover, self.sleep, self.wifi_off = "suspend", True, 10, 0
+        self.hib_ok, self.hib_after = False, HIB_DEFAULT     # hibernation set up; minutes asleep before it (0 = never)
         # keyboard, appearance, time
         self.osk, self.osk_auto, self.theme = "us", True, "white"
         self.kbd = ""                           # hardware keyboard layout: "" (as the OSK) | a KBD_LAYOUTS code
@@ -705,6 +711,9 @@ class Demo(Base):
         self.batt = {"pct": 69, "status": "Discharging · about 11 h left", "health": "Health 94 %"}
         self.batt_at = "20:11"
         self.pkey, self.cover, self.sleep, self.wifi_off = "suspend", True, 5, 15
+        # (test.sh: GLASSINE_DEMO_HIB=off: no hibernation, =N: hibernate_after_min=N)
+        hib = os.environ.get("GLASSINE_DEMO_HIB", "")
+        self.hib_ok, self.hib_after = hib != "off", hib_minutes(hib if hib != "off" else "")
         self.zone, self.synced = ("Europe", "Berlin"), "today at 19:02"
         self.space = [("Userdata", 18.2e9, 52e9), ("System", 6.1e9, 8e9)]
         self.folders = [("Books", 4.1e9), ("Downloads", 2.7e9), (".cache", 1.9e9), ("Music", 1.2e9), ("Maps", 0.82e9)]
@@ -921,6 +930,51 @@ def read_int(path, default=0):
         return int(read(path, str(default)))
     except ValueError:
         return default
+
+
+def hib_minutes(v):
+    """power.conf's hibernate_after_min as glassine-powerd reads it (atoi of the first
+    word): missing or empty = HIB_DEFAULT, 0 or less or not a number = 0 (never)"""
+    v = (v or "").strip()
+    if not v:
+        return HIB_DEFAULT
+    m = re.match(r"[+-]?\d+", v.split()[0])
+    n = int(m.group()) if m else 0
+    return n if n > 0 else 0
+
+
+def hibernate_ready(hib=HIBERNATE, deploy=DEPLOY_CONF):
+    """hibernation set up, as glassine-shell's Power popup decides it (pwr_hib_ok): the
+    helper executable, deploy.conf's HIBERNATE_SIZE_MB not 0, and the swap file a regular
+    file; a stat refused with EACCES counts as there (the directory is root's)"""
+    if not os.access(hib, os.X_OK):
+        return False
+    mnt, pre = "/run/glassine/userdata", "media/glassine"
+    try:
+        with open(deploy) as f:
+            text = f.read()
+    except OSError:
+        text = ""
+    for l in text.splitlines():
+        if l.startswith("#") or "=" not in l:
+            continue
+        k, _, v = l.partition("=")
+        if v[:1] in ("'", '"'):
+            v = v[1:]
+            if v and v[-1] in ("'", '"'):
+                v = v[:-1]
+        if k == "HIBERNATE_SIZE_MB" and v == "0":
+            return False
+        if k == "USERDATA_MNT" and v:
+            mnt = v
+        if k == "USERDATA_PREFIX" and v:
+            pre = v
+    try:
+        return stat.S_ISREG(os.stat("%s/%s/swap/hibernate" % (mnt, pre)).st_mode)
+    except PermissionError:
+        return True
+    except OSError:
+        return False
 
 
 CORE_PKGS = ("foot", "thunar", "nautilus", "gnome-software", "glassine-settings", "glassine-settings")
@@ -1164,6 +1218,7 @@ class Real(Base):
         self.cover = pw.get("cover", "suspend") != "ignore"
         self.sleep = int(pw.get("idle_sleep_min", "10") or 10)
         self.wifi_off = int(pw.get("wifi_off_after_min", "0") or 0)
+        self.hib_ok, self.hib_after = hibernate_ready(), hib_minutes(pw.get("hibernate_after_min"))
         br, ct = int(pw.get("light_br", "0") or 0), int(pw.get("light_ct", "12") or 12)
         self.light = round(br * 100 / self.br_max / 10) * 10 if self.br_max else 0
         self.warm = round(ct * 100 / self.ct_max / 10) * 10 if self.ct_max else 0
@@ -1866,7 +1921,8 @@ class Real(Base):
     def set_power(self, key, val):
         setattr(self, key, val)
         k, v = {"pkey": ("power_key", val), "cover": ("cover", "suspend" if val else "ignore"),
-                "sleep": ("idle_sleep_min", val), "wifi_off": ("wifi_off_after_min", val)}[key]
+                "sleep": ("idle_sleep_min", val), "wifi_off": ("wifi_off_after_min", val),
+                "hib_after": ("hibernate_after_min", val)}[key]
         self._try(lambda: self.power.set(k, v))
 
     # -- keyboard (glassine-wvkbd / glassine-swayd read these)
