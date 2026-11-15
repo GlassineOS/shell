@@ -55,6 +55,15 @@ if GLASSINE_EPD_CONF=$T/nosize.conf $P -t white $T/p.pam 2>/dev/null; then bad "
 if GLASSINE_EPD_CONF=$T/epd.conf $P -t white $T/nodir/p.pam 2>/dev/null; then bad "unwritable: exit 0"; else ok "unwritable output: exit != 0"; fi
 if $P 2>/dev/null; then bad "no OUT: exit 0"; else ok "no OUT: usage"; fi
 
+# hibernation: the same pill with its own words; an unknown mode is a usage error
+for v in white editorial stationery; do
+    rm -f $T/p.pam
+    GLASSINE_EPD_CONF=$T/epd.conf $P -m hibernate -t $v -r 0 -s "Since 20:11" -p /out/$v-hibernate.png $T/p.pam >/dev/null &&
+        python3 /r/test/sleep-pill/check.py $T/p.pam 1404 1872 0 && ok "$v, hibernate" || bad "$v, hibernate"
+done
+cmp -s /out/white-0.png /out/white-hibernate.png && bad "hibernate draws the sleep pill" || ok "hibernate's pill differs from sleep's"
+if GLASSINE_EPD_CONF=$T/epd.conf $P -m nap -t white $T/p.pam 2>/dev/null; then bad "-m nap: exit 0"; else ok "-m nap: usage"; fi
+
 # the default time text: "Since HH:MM" now (the text itself is in the pixels; only the run is checked)
 GLASSINE_EPD_CONF=$T/epd.conf $P -t white $T/p.pam >/dev/null && ok "default time text" || bad "default time text"
 

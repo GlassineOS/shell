@@ -109,8 +109,30 @@ for th in $THEMES; do
         key Escape
     done
     sm -q "workspace number 2"; sleep 0.5
+    tap bar qs; tap pop qs-power; shot $P-power; key Escape; key Escape
 done
 $B/glassine-shell theme white; sleep 1
+
+# ---- the Power popup: Hibernate only where hibernation is set up -----------------
+hib_on() {      # a stand-in glassine-hibernate and its swap file (deploy.conf's paths)
+    mkdir -p /etc/glassine /tmp/hib-ud/media/glassine/swap
+    printf '#!/bin/sh\nexit 0\n' > /usr/sbin/glassine-hibernate && chmod 755 /usr/sbin/glassine-hibernate
+    printf 'USERDATA_MNT=/tmp/hib-ud\nHIBERNATE_SIZE_MB=1536\n' > /etc/glassine/deploy.conf
+    : > /tmp/hib-ud/media/glassine/swap/hibernate
+}
+rm -f /usr/sbin/glassine-hibernate
+tap bar qs; tap pop qs-power
+expect "Power without hibernation: 3 rows + 2 restart targets, no Hibernate" "$(nh pop pwr-act) $(nh pop pwr-act 1)" "5 0"
+key Escape; key Escape
+hib_on
+tap bar qs; tap pop qs-power; shot white-$O-power-hibernate
+expect "Power with hibernation set up: Hibernate (row 1) shown" "$(nh pop pwr-act) $(nh pop pwr-act 1)" "6 1"
+key Escape; key Escape
+sed -i 's/^HIBERNATE_SIZE_MB=.*/HIBERNATE_SIZE_MB=0/' /etc/glassine/deploy.conf
+tap bar qs; tap pop qs-power
+expect "HIBERNATE_SIZE_MB=0: no Hibernate" "$(nh pop pwr-act 1)" "0"
+key Escape; key Escape
+rm -rf /usr/sbin/glassine-hibernate /etc/glassine/deploy.conf /tmp/hib-ud
 
 # ---- checks that change nothing --------------------------------------------------
 sm -q "workspace number 2"; sleep 0.8
