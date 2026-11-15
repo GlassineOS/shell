@@ -3,9 +3,16 @@
 # glassine-osk [show|hide] no argument: toggle
 # glassine-osk show pen  a pen tapped the field (glassine-swayd): the keyboard's writing
 #                        paper instead of the keys if the field is empty (wvkbd --pen-flag)
+# glassine-osk near     the pen came into range (glassine-swayd): with the keys shown,
+#                        the keyboard's writing paper unless the pen hovers over the keys
 # wvkbd: the sway config starts it hidden and keeps it running; SIGUSR2 shows,
-# SIGUSR1 hides; the state is $XDG_RUNTIME_DIR/glassine-osk.shown (wvkbd can't be asked).
+# SIGUSR1 hides, SIGWINCH is "near" (ignored by a keyboard without it); the state is
+# $XDG_RUNTIME_DIR/glassine-osk.shown (wvkbd can't be asked).
 s=${XDG_RUNTIME_DIR:-/tmp}/glassine-osk.shown
+if [ "${1:-}" = near ]; then
+    [ -e "$s" ] && pkill -WINCH -x 'wvkbd-(glassine|mobintl)'
+    exit 0
+fi
 [ "${1:-}" = show ] && [ "${2:-}" = pen ] && : > "${XDG_RUNTIME_DIR:-/tmp}/glassine-osk.pen"
 case "${1:-}" in
     show) sig=USR2 ;;
