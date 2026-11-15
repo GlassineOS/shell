@@ -18,7 +18,11 @@
  * cropped to the pill, with its place as a comment line "# at X Y" (logical
  * px). Written atomically (OUT.tmp, rename).
  *
- * usage: glassine-sleep-pill [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H] [-p PNG] OUT
+ * Hibernation (-m hibernate): the same pill, saying the device is off with the
+ * session kept ("Hibernating", "Press the power key to resume").
+ *
+ * usage: glassine-sleep-pill [-m MODE] [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H] [-p PNG] OUT
+ *   -m   sleep (default) | hibernate
  *   -t   white | editorial | stationery (default: $HOME's, then the desktop user's
  *        ~/.config/glassine-shell/theme, then white)
  *   -r   transform 0/90/180/270 (default: /run/glassine-rotation, else 0)
@@ -40,6 +44,7 @@
 #include <glassine-ui.h>
 
 static const UiVoice *T;
+static const char *title = "Sleeping", *hint_text = "Press the power key to wake";
 
 static int read_word(const char *path, char *out, size_t n)
 {
@@ -114,8 +119,8 @@ static double pill(UiGc *g, double vw, double vh, const char *since)
      * 1.15), the hint in dateFont, sub colour (line 1.35); the time 12 px, sub */
     UiFont head = ui_font_px(&T->headFont, 20), hint = T->dateFont, tf = ui_font_px(&T->dateFont, 12);
     double th, hh2, sh;
-    ui_text_w(g, &head, "Sleeping", &th);
-    ui_text_w(g, &hint, "Press the power key to wake", &hh2);
+    ui_text_w(g, &head, title, &th);
+    ui_text_w(g, &hint, hint_text, &hh2);
     double sw = ui_text_w(g, &tf, since, &sh);
     double w = fmin(420, vw - 48), blk = th + 3 + hh2, h = 14 + fmax(48, blk) + 14;
     double x = (vw - w) / 2, y = vh - 40 - h;
@@ -127,8 +132,8 @@ static double pill(UiGc *g, double vw, double vh, const char *since)
     ui_stroke_rrect(g, x0 + 0.75, cy - 24 + 0.75, 46.5, 46.5, 23.25, 1.5, T->ink, 0);
     moon(g, x0 + 24, cy, 26, 1.6, T->ink);
     double tx = x0 + 48 + 16, tw = x + w - 28 - sw - 16 - tx;
-    ui_text(g, &head, "Sleeping", tx, cy - blk / 2, 0, tw, T->ink, NULL);
-    ui_text(g, &hint, "Press the power key to wake", tx, cy - blk / 2 + th + 3, 0, tw, T->sub, NULL);
+    ui_text(g, &head, title, tx, cy - blk / 2, 0, tw, T->ink, NULL);
+    ui_text(g, &hint, hint_text, tx, cy - blk / 2 + th + 3, 0, tw, T->sub, NULL);
     ui_text(g, &tf, since, x + w - 28, cy - sh / 2, 2, 0, T->sub, NULL);
     return h;
 }
@@ -158,8 +163,12 @@ int main(int argc, char **argv)
 {
     const char *tname = NULL, *since = NULL, *png = NULL;
     int rot = -1, W = 0, H = 0, o;
-    while ((o = getopt(argc, argv, "t:r:s:W:H:p:")) != -1)
+    while ((o = getopt(argc, argv, "m:t:r:s:W:H:p:")) != -1)
         switch (o) {
+        case 'm':
+            if (!strcmp(optarg, "hibernate")) { title = "Hibernating"; hint_text = "Press the power key to resume"; }
+            else if (strcmp(optarg, "sleep")) goto usage;
+            break;
         case 't': tname = optarg; break;
         case 'r': rot = atoi(optarg); break;
         case 's': since = optarg; break;
@@ -170,7 +179,7 @@ int main(int argc, char **argv)
         }
     if (optind != argc - 1) {
 usage:
-        fprintf(stderr, "usage: glassine-sleep-pill [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H] [-p PNG] OUT\n");
+        fprintf(stderr, "usage: glassine-sleep-pill [-m MODE] [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H] [-p PNG] OUT\n");
         return 2;
     }
     const char *out = argv[optind];

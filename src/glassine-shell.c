@@ -232,6 +232,9 @@ static const char *act_name(int a)
     switch (a) {
     case A_BAR_HOME: return "home";
     case A_BAR_OV: return "screen";
+    case A_BAR_QS: return "qs";
+    case A_QS_PWR: return "qs-power";
+    case A_P_ACT: return "pwr-act";
     case A_OV_X: return "ov-close";
     case A_OV_CANCEL: return "ov-cancel";
     case A_OV_PICK: return "ov-pick";
@@ -1314,13 +1317,40 @@ static void card_frame(Gc *g, double x, double y, double w, double h)
 
 /* ---- quick settings ---------------------------------------------------------- */
 /* the Power popup: A_P_ACT's arg indexes these */
-static const struct { const char *what, *name, *sub, *ic; } PWR[5] = {
+static const struct { const char *what, *name, *sub, *ic; } PWR[6] = {
     { "sleep", "Sleep", "Keeps the page on screen, wakes in a second", "weather-clear-night-symbolic" },
+    { "hibernate", "Hibernate", "Off without closing apps, the power key resumes", "media-playback-pause-symbolic" },
     { "reboot", "Restart", NULL, "system-reboot-symbolic" },     /* sub: the apps it closes */
     { "poweroff", "Power off", "The last page stays on the panel", "system-shutdown-symbolic" },
     { "android", "Android", "Second system", "phone-symbolic" },
     { "recovery", "TWRP", "Recovery, for updates", "applications-engineering-symbolic" },
 };
+#define PWR_HIB 1                       /* the row shown only where hibernation is set up */
+#define PWR_OFF 3                       /* the row drawn in the power-off style */
+#define PWR_ROWS 4                      /* the rows; then "Restart into" */
+#define DEPLOY_CONF "/etc/glassine/deploy.conf"
+/* hibernation is set up here: the tool, and its swap file on userdata
+ * (GlassineOS/boot: <USERDATA_MNT>/<USERDATA_PREFIX>/swap/hibernate) */
+static int pwr_hib_ok(void)
+{
+    if (access("/usr/sbin/glassine-hibernate", X_OK)) return 0;
+    char mnt[256] = "/run/glassine/userdata", pre[256] = "media/glassine", l[512], p[600];
+    FILE *f = fopen(DEPLOY_CONF, "r");
+    while (f && fgets(l, sizeof l, f)) {
+        l[strcspn(l, "\r\n")] = 0;
+        char *v = strchr(l, '=');
+        if (*l == '#' || !v) continue;
+        *v++ = 0;
+        if (*v == '\'' || *v == '"') { v++; if (*v && strchr("'\"", v[strlen(v) - 1])) v[strlen(v) - 1] = 0; }
+        if (!strcmp(l, "HIBERNATE_SIZE_MB") && !strcmp(v, "0")) { fclose(f); return 0; }
+        if (!strcmp(l, "USERDATA_MNT") && *v) snprintf(mnt, sizeof mnt, "%s", v);
+        if (!strcmp(l, "USERDATA_PREFIX") && *v) snprintf(pre, sizeof pre, "%s", v);
+    }
+    if (f) fclose(f);
+    snprintf(p, sizeof p, "%s/%s/swap/hibernate", mnt, pre);
+    struct stat sb;
+    return stat(p, &sb) == 0 && S_ISREG(sb.st_mode);
+}
 #define ROT_CONF "/etc/glassine/rotation"    /* auto | lock N (glassine-rotd) */
 #define ROT_RUN "/run/glassine-rotation"     /* the turn now */
 static const char *const ROT_NAME[4] = { "Upright", "Turned right", "Upside down", "Turned left" };
@@ -1562,6 +1592,8 @@ static void view_power(Gc *g)
     const double W = 440, X = (LW - W) / 2, Y = LW > LH ? BH + 24 : 110, PX = 26, CW = W - 2 * PX;
     double th, mh, lh;
     const char *msg = "Open apps will be closed for restart and power off";
+    int rows[PWR_ROWS], nr = 0, hib = pwr_hib_ok();
+    for (int i = 0; i < PWR_ROWS; i++) if (i != PWR_HIB || hib) rows[nr++] = i;
     ui_text_w(g, &T->headFont, "Power", &th);
     double mw = ui_text_w(g, &T->dateFont, msg, &mh);
     (void)mw;
@@ -1569,14 +1601,15 @@ static void view_power(Gc *g)
     char closes[160];
     pwr_closes(closes, sizeof closes);
     TFont sf = ui_font_px(&T->dateFont, 12), nf = ui_font_px(&T->nameFont, 15);
-    double rowH[3], h_rows = 0;
-    for (int i = 0; i < 3; i++) {
+    double rowH[PWR_ROWS], h_rows = 0;
+    for (int r = 0; r < nr; r++) {
+        const int i = rows[r];
         double nh, sh;
         ui_text_w(g, &T->nameFont, PWR[i].name, &nh);
         ui_text_w(g, &T->dateFont, PWR[i].sub ? PWR[i].sub : closes, &sh);
         double c = 6 + nh + 4 + sh + 6;
-        rowH[i] = c > 68 ? c : 68;
-        h_rows += rowH[i];
+        rowH[r] = c > 68 ? c : 68;
+        h_rows += rowH[r];
     }
     double hh = th + 2 + mh + 10 + T->headRuleW;
     double H = 20 + hh + 18 + h_rows + 18 + lh + 8 + 64 + 18 + 48 + 22;
@@ -1586,10 +1619,11 @@ static void view_power(Gc *g)
     ui_text(g, &T->dateFont, msg, x0, y + th + 2, 0, CW, T->sub, NULL);
     ui_hline(g, x0, y + hh - T->headRuleW, CW, T->headRuleW, T->headRuleC, 0);
     y += hh + 18;
-    for (int i = 0; i < 3; i++) {
-        double rh = rowH[i], cy = y + rh / 2, nh, sh;
-        const Box *b = i == 2 ? &T->pwr : &T->btn;
-        col fg = i == 2 ? T->pwrFg : T->ink;
+    for (int r = 0; r < nr; r++) {
+        const int i = rows[r];
+        double rh = rowH[r], cy = y + rh / 2, nh, sh;
+        const Box *b = i == PWR_OFF ? &T->pwr : &T->btn;
+        col fg = i == PWR_OFF ? T->pwrFg : T->ink;
         ui_box(g, x0, cy - 24, 48, 48, b);
         ui_icon(g, PWR[i].ic, 24, x0 + 24, cy, fg);
         const char *sub = PWR[i].sub ? PWR[i].sub : closes;
@@ -1607,7 +1641,7 @@ static void view_power(Gc *g)
     y += lh + 8;
     double cw = (CW - 10) / 2;
     for (int k = 0; k < 2; k++) {
-        const int i = 3 + k;
+        const int i = PWR_ROWS + k;
         double bx = x0 + k * (cw + 10), nh, sh;
         ui_box(g, bx, y, cw, 64, &T->btn);
         ui_icon(g, PWR[i].ic, 22, bx + 12 + 11, y + 32, T->ink);
