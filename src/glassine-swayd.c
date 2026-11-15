@@ -1374,7 +1374,10 @@ static int kbd_attached, osk_auto_shown;
  * touch and pen devices stay open (read, never grabbed) with an event mask that lets only
  * their contacts through (BTN_TOUCH; no motion: no wakeup while writing or hovering): the
  * last contact, from a device with BTN_TOOL_PEN or not, decides. No mask (an old kernel):
- * the devices are closed again and every show is a finger's. */
+ * the devices are closed again and every show is a finger's.
+ * The pen's BTN_TOOL_PEN comes through too (coming into range and leaving it, nothing
+ * while it moves): coming into range while the keyboard is shown is "glassine-osk near",
+ * on which the keyboard opens its paper unless the pen hovers over its keys (FR-010b). */
 #define CONTACT_DEVS 6
 #define PEN_TAP_MS 1500                 /* a pen contact that long before the focus: its tap */
 static int contact_fd[CONTACT_DEVS], contact_pen[CONTACT_DEVS], ncontact;
@@ -1392,6 +1395,7 @@ static int contact_mask(int fd)
 {
     unsigned char keys[KEY_MAX / 8 + 1] = { 0 };
     keys[BTN_TOUCH / 8] |= 1 << (BTN_TOUCH % 8);
+    keys[BTN_TOOL_PEN / 8] |= 1 << (BTN_TOOL_PEN % 8);
     struct input_mask m = { EV_KEY, sizeof keys, (uintptr_t)keys };
     if (ioctl(fd, EVIOCSMASK, &m) < 0) return 0;
     static const unsigned types[] = { EV_ABS, EV_REL, EV_MSC, EV_SW };
@@ -1432,14 +1436,29 @@ static void contact_open(void)
     if (!pens) contact_close();        /* no pen: nothing to tell apart */
 }
 
+static void osk_run(const char *what, const char *how);
+
+/* the pen came into range: with the keyboard shown, it may open its paper */
+static void pen_near(void)
+{
+    const char *rt = getenv("XDG_RUNTIME_DIR");
+    char path[300];
+    snprintf(path, sizeof path, "%s/glassine-osk.shown", rt && *rt ? rt : "/tmp");
+    if (access(path, F_OK)) return;
+    LOG("pen near: the keyboard is told");
+    osk_run("near", NULL);
+}
+
 static void contact_read(int i)
 {
     struct input_event ev[16];
     ssize_t l;
     while ((l = read(contact_fd[i], ev, sizeof ev)) > 0)
-        for (size_t k = 0; k < (size_t)l / sizeof *ev; k++)
-            if (ev[k].type == EV_KEY && ev[k].code == BTN_TOUCH && ev[k].value == 1)
-                *(contact_pen[i] ? &pen_at : &finger_at) = mono_ms();
+        for (size_t k = 0; k < (size_t)l / sizeof *ev; k++) {
+            if (ev[k].type != EV_KEY || ev[k].value != 1) continue;
+            if (ev[k].code == BTN_TOUCH) *(contact_pen[i] ? &pen_at : &finger_at) = mono_ms();
+            else if (ev[k].code == BTN_TOOL_PEN && contact_pen[i]) pen_near();
+        }
 }
 
 /* the last contact was a pen's, just now (taken: once per tap) */
@@ -2184,7 +2203,9 @@ static void command(char *m)
         return;
     }
     if (sscanf(m, "testcontact %7s", dir) == 1) {   /* (tests) the last contact */
-        if (getenv("GLASSINE_SWAYD_TEST")) *(!strcmp(dir, "pen") ? &pen_at : &finger_at) = mono_ms();
+        if (!getenv("GLASSINE_SWAYD_TEST")) return;
+        if (!strcmp(dir, "near")) pen_near();
+        else *(!strcmp(dir, "pen") ? &pen_at : &finger_at) = mono_ms();
         return;
     }
     if (!strcmp(m, "osk focus 0")) { hd_text_report(0, 0); return; }
