@@ -85,6 +85,7 @@ void be_snap_fresh(void);               /* before the overview opens: the visibl
 int be_sheet_window(WinId w);           /* can get the window sheet: an app window or a dialog */
 void be_activate(WinId w);
 void be_close(WinId w);
+void be_thaw(WinId w);               /* glassine-bgprio thaws its app (frozen while hidden) */
 void be_restore(WinId w);               /* a minimized window (sway's scratchpad) back, tiled, here */
 void be_goto_desk(long d);
 void be_set_desk(WinId w, long d);      /* no switch */
