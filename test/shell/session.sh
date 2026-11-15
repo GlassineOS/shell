@@ -277,6 +277,19 @@ tap bar screen
 tap pop ov-pick - $TERM_
 mark; tap pop ov-put; sent "move: an arrow: place (the moving app beside another)" "place $TERM_ "
 key Escape; sleep 0.5
+# a launch of an app with a window thaws it first (a frozen copy never answers a
+# second start's D-Bus hand-off): a stand-in glassine-bgprio socket logs the datagrams
+rm -f /run/glassine-bgprio.sock /tmp/thaw.log
+python3 -c 'import socket
+s=socket.socket(socket.AF_UNIX,socket.SOCK_DGRAM); s.bind("/run/glassine-bgprio.sock")
+while True: open("/tmp/thaw.log","a").write(s.recv(64).decode()+"\n")' &
+TP=$!; sleep 0.5
+$B/glassine-shell launch quiet new; sleep 1
+expect "launch of an app without a window: no thaw" "$(cat /tmp/thaw.log 2>/dev/null | wc -l)" "0"
+$B/glassine-shell launch notes here; sleep 1
+expect "launch of an app with a window: its window thawed first" "$(grep -c "^thaw $NOTES$" /tmp/thaw.log 2>/dev/null)" "1"
+kill $TP; rm -f /run/glassine-bgprio.sock /tmp/thaw.log
+key Escape; sleep 0.5
 mark; $B/glassine-shell launch quiet new; sleep 1; sent "launch ID new: next new before the app" "next new"
 mark; $B/glassine-shell launch quiet here; sleep 1; sent "launch ID here: next here" "next here"
 mark; $B/glassine-shell launch extra new; sleep 3

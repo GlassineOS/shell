@@ -2758,6 +2758,11 @@ static void launch_where(App *a, const char *where, const char *arg)
      * "next" alone (FR-047; it stays armed for 10 s and would take another app's window) */
     char **argv = launch_argv(a, arg);
     if (!argv) return;
+    /* its running copy may be frozen (hidden for long): many apps hand a second
+     * start to the running one over D-Bus (GApplication without SingleMainWindow
+     * too), and a frozen one never answers, so the start hangs. Thaw it first */
+    be_read_desktop();
+    for (int k = 0; k < ncl; k++) if (app_of(cl[k].w) == a) be_thaw(cl[k].w);
     /* runs once and is open (FR-049): the new process hands its argv to the running one
      * and exits, so no "next" and no placeholder (it would hold an empty screen): run
      * it all the same, then go to the window it has */

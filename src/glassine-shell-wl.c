@@ -911,9 +911,10 @@ void be_title(WinId w, char *out, size_t len)
 
 int be_sheet_window(WinId w) { return w != 0; }        /* active is a view or nothing */
 void be_activate(WinId w) { swaycmd("[con_id=%lu] focus", w); }
-/* a frozen app (glassine-bgprio freezes long-hidden ones) sees a close only once
- * thawed: ask bgprio first (a datagram) */
-void be_close(WinId w)
+/* a frozen app (glassine-bgprio freezes long-hidden ones) answers nothing (a close,
+ * a second launch's D-Bus hand-off) until thawed: ask bgprio (a datagram), give it
+ * a moment */
+void be_thaw(WinId w)
 {
     struct sockaddr_un a = { .sun_family = AF_UNIX };
     snprintf(a.sun_path, sizeof a.sun_path, "/run/glassine-bgprio.sock");
@@ -925,6 +926,10 @@ void be_close(WinId w)
         nanosleep(&ts, NULL);
     }
     if (fd >= 0) close(fd);
+}
+void be_close(WinId w)
+{
+    be_thaw(w);
     swaycmd("[con_id=%lu] kill", w);
 }
 /* minimized = sway's scratchpad (the three-finger swipe down): shown here,
