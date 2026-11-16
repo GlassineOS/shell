@@ -474,8 +474,7 @@ PR.hw_erase = HW_ERASE0
 open(STATE + ".hw.w", "w").write("2\n")
 ui.sheet_erase_learned()
 ui.sheet.ok()
-be.read_typing()
-check("the erase: the recognizer's samples erase, the person's store only", (open(STATE + ".hw.log").read().splitlines()[-2:],
+check("the erase: the recognizer's samples erase, the person's store only; counted again", (open(STATE + ".hw.log").read().splitlines()[-2:],
       be.kb_hw_n, be.kb_hw_writers), (["samples erase", "samples stats"], 0, 2))
 open(STUB + "/glassine-handwriting", "w").write("#!/bin/sh\nexit 1\n")
 be.read_typing()
