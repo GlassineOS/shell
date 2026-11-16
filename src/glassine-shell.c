@@ -26,8 +26,10 @@
  * four, /etc/glassine/rotation via glassine-settings-root, glassine-rotd turns
  * the screen). On a landscape screen two columns.
  * power (the button next to the settings gear) sleep, restart, power
- * off, restart into the other system or recovery: one tap (the
- * popup is the confirmation)
+ * off, restart into the other system, recovery or the start menu
+ * (only where the board's loader takes the request: glassine-loader-mark
+ * can-request menu, GlassineOS/boot): one tap (the popup is the
+ * confirmation)
  * resizing while a glassine-swayd handle is dragged: only the bar moves (drawn
  * by glassine-swayd / glassine-epdd-desktop) and, for rows, the 1/3 1/2 2/3 snap
  * marks
@@ -692,6 +694,7 @@ static struct {
     /* bar */
     int batt, charging, wifi_lvl;
     char clock[12];
+    int pwr_menu;                       /* the loader takes a start menu request (Power › Restart into) */
 } st = { .opening = -1, .ov_page = -1, .focus = -1 };
 enum { V_IDLE, V_QS, V_WS, V_NOTIF, V_DIV, V_PWR };
 
@@ -867,6 +870,16 @@ static void query_wifi(void) { run("nmcli radio wifi", wifi_done); }
 static void query_vol(void) { run("pactl get-sink-volume @DEFAULT_SINK@; pactl get-sink-mute @DEFAULT_SINK@", vol_done); }
 static void bt_done(const char *o) { (void)o; st.bt_busy = 0; st.bt = bt_on(); render_pop(); }
 static void wifi_set_done(const char *o) { (void)o; query_wifi(); }
+/* the start menu target: asked of the board once at start and again as Power opens
+ * (a package update may change it); repainted only when the answer changed */
+static void pwr_menu_done(const char *o)
+{
+    int v = o && !strncmp(o, "yes", 3);
+    if (v == st.pwr_menu) return;
+    st.pwr_menu = v;
+    if (st.view == V_PWR) render_pop();
+}
+static void query_pwr_menu(void) { run("glassine-loader-mark can-request menu >/dev/null 2>&1 && echo yes", pwr_menu_done); }
 static void vol_set_done(const char *o) { (void)o; query_vol(); }
 
 static void tz_follow(void);
@@ -1317,17 +1330,19 @@ static void card_frame(Gc *g, double x, double y, double w, double h)
 
 /* ---- quick settings ---------------------------------------------------------- */
 /* the Power popup: A_P_ACT's arg indexes these */
-static const struct { const char *what, *name, *sub, *ic; } PWR[6] = {
+static const struct { const char *what, *name, *sub, *ic; } PWR[7] = {
     { "sleep", "Sleep", "Keeps the page on screen, wakes in a second", "weather-clear-night-symbolic" },
     { "hibernate", "Hibernate", "Off without closing apps, the power key resumes", "media-playback-pause-symbolic" },
     { "reboot", "Restart", NULL, "system-reboot-symbolic" },     /* sub: the apps it closes */
     { "poweroff", "Power off", "The last page stays on the panel", "system-shutdown-symbolic" },
     { "android", "Android", "Second system", "phone-symbolic" },
     { "recovery", "TWRP", "Recovery, for updates", "applications-engineering-symbolic" },
+    { "menu", "Start menu", "Choose what starts", "view-list-bullet-symbolic" },
 };
 #define PWR_HIB 1                       /* the row shown only where hibernation is set up */
 #define PWR_OFF 3                       /* the row drawn in the power-off style */
 #define PWR_ROWS 4                      /* the rows; then "Restart into" */
+#define PWR_MENU 6                      /* the target shown only where the loader takes it (st.pwr_menu) */
 #define DEPLOY_CONF "/etc/glassine/deploy.conf"
 /* hibernation is set up here: the tool, and its swap file on userdata
  * (GlassineOS/boot: <USERDATA_MNT>/<USERDATA_PREFIX>/swap/hibernate).
@@ -1615,8 +1630,12 @@ static void view_power(Gc *g)
         rowH[r] = c > 68 ? c : 68;
         h_rows += rowH[r];
     }
+    int tg[3], nt = 0;                  /* "Restart into": two columns, a third target on a row of its own */
+    tg[nt++] = PWR_ROWS; tg[nt++] = PWR_ROWS + 1;
+    if (st.pwr_menu) tg[nt++] = PWR_MENU;
+    const int trows = (nt + 1) / 2;
     double hh = th + 2 + mh + 10 + T->headRuleW;
-    double H = 20 + hh + 18 + h_rows + 18 + lh + 8 + 64 + 18 + 48 + 22;
+    double H = 20 + hh + 18 + h_rows + 18 + lh + 8 + trows * 64 + (trows - 1) * 10 + 18 + 48 + 22;
     card_frame(g, X, Y, W, H);
     double x0 = X + PX, y = Y + 20;
     ui_text(g, &T->headFont, "Power", x0, y, 0, CW, T->ink, NULL);
@@ -1644,9 +1663,10 @@ static void view_power(Gc *g)
     lbl(g, "Restart into", x0, y, 0, T->lblC, NULL);
     y += lh + 8;
     double cw = (CW - 10) / 2;
-    for (int k = 0; k < 2; k++) {
-        const int i = PWR_ROWS + k;
-        double bx = x0 + k * (cw + 10), nh, sh;
+    for (int k = 0; k < nt; k++) {
+        const int i = tg[k];
+        double bx = x0 + (k % 2) * (cw + 10), nh, sh;
+        if (k && k % 2 == 0) y += 64 + 10;
         ui_box(g, bx, y, cw, 64, &T->btn);
         ui_icon(g, PWR[i].ic, 22, bx + 12 + 11, y + 32, T->ink);
         ui_text_w(g, &nf, PWR[i].name, &nh);
@@ -2454,6 +2474,7 @@ static void set_view(int v)
         query_wifi();
         query_vol();
     }
+    if (v == V_PWR) query_pwr_menu();
     if (v == V_WS || v == V_DIV) be_read_desktop();
     LOG("view %d", v);
     render_bar();
@@ -3382,6 +3403,7 @@ int main(int argc, char **argv)
     render_bar();
     LOG("bar %.0f ms", now_ms() - t0);
     load_apps();
+    query_pwr_menu();
     notify_init(notices_changed);
 
     /* warm the caches (fonts of all popups, icons): the first tap is as fast as any */

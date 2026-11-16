@@ -133,6 +133,17 @@ tap bar qs; tap pop qs-power
 expect "HIBERNATE_SIZE_MB=0: no Hibernate" "$(nh pop pwr-act 1)" "0"
 key Escape; key Escape
 rm -rf /usr/sbin/glassine-hibernate /etc/glassine/deploy.conf /tmp/hib-ud
+# ---- the Start menu target: only where the board's loader takes the request ----------
+printf '#!/bin/sh\n[ "$1 $2" = "can-request menu" ]\n' > /usr/sbin/glassine-loader-mark && chmod 755 /usr/sbin/glassine-loader-mark
+tap bar qs; tap pop qs-power; sleep 1
+expect "Power where the loader takes a menu request: Start menu (target 6) shown, 6 targets in all" "$(nh pop pwr-act 6) $(nh pop pwr-act)" "1 6"
+shot white-$O-power-menu
+key Escape; key Escape
+printf '#!/bin/sh\nexit 3\n' > /usr/sbin/glassine-loader-mark
+tap bar qs; tap pop qs-power; sleep 1
+expect "Power where the loader takes none (can-request 3): no Start menu" "$(nh pop pwr-act 6)" "0"
+key Escape; key Escape
+rm -f /usr/sbin/glassine-loader-mark
 
 # ---- checks that change nothing --------------------------------------------------
 sm -q "workspace number 2"; sleep 0.8
