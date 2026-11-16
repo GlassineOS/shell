@@ -403,6 +403,7 @@ class Base:
         self.kb_sugg, self.kb_hw, self.kb_learn, self.kb_addr = True, True, True, "suggest"
         self.kb_langs, self.kb_models = None, {}
         self.kb_words, self.kb_gone, self.kb_err, self.kb_hw_n = None, [], None, None
+        self.kb_hw_writers = 0                  # guest writers' stores of the handwriting samples app
         self.kb_dir, self.kb_dir_there, self.kb_opener = None, False, False
         self.own_ws = True
         self.rot_auto, self.rot_lock, self.rot_now = True, 0, 0     # glassine-rotd (degrees, content turned clockwise)
@@ -529,12 +530,15 @@ class Base:
             self.error("Could not open the folder", "No program to open it was found.")
 
     def kb_erase(self):
-        """the learned words, the removed list and the handwriting samples"""
+        """the learned words, the removed list and the person's handwriting samples"""
         def both():
             try:
                 predict.erase()
             finally:
-                predict.hw_erase()
+                try:
+                    predict.hw_erase()
+                finally:
+                    self.kb_hw_n, self.kb_hw_writers = predict.hw_stats() or (None, 0)
         self._kb_words_op("Could not erase what was learned", both)
 
     def _try(self, fn):
@@ -1960,7 +1964,7 @@ class Real(Base):
         self.kb_addr = predict.addresses(c.get("addresses"))
         self.kb_langs = predict.parse_langs(c.get("languages"))
         self.kb_models = predict.installed()
-        self.kb_hw_n = predict.hw_samples()
+        self.kb_hw_n, self.kb_hw_writers = predict.hw_stats() or (None, 0)
 
     def _kb_save(self, changes):
         predict.write_conf(changes)
