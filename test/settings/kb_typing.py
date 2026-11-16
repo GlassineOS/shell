@@ -160,7 +160,7 @@ check("the address choice and the switches written", (c["addresses"], c["suggest
 check("... the comment still there", open(CONF).read().startswith("# keep me\n"), True)
 be.read_typing()
 check("... and read back", (be.kb_sugg, be.kb_hw, be.kb_learn, be.kb_addr), (True, True, True, "learn"))
-check("handwriting samples: no recognizer yet", be.kb_hw_n, None)
+check("handwriting samples: no recognizer on PATH", (be.kb_hw_n, be.kb_hw_writers), (None, 0))
 
 # -- languages as packages (glassine-predict-model-LANG), the Packages flow (demo data) ------
 check("model packages: the language from the name, not the parent or a -doc",
@@ -411,6 +411,7 @@ check("no xdg-open: nothing opens folders", PR.folder_opener(), False)
 os.environ["PATH"] = STUB + ":" + PATH0
 
 hw = []
+HW_ERASE0 = PR.hw_erase
 PR.hw_erase = lambda: hw.append(1)
 ui = A.UI(be, lambda: None)
 ui.page = "kb-words"
@@ -443,6 +444,44 @@ check("the keyboard page's link to the Words page", item and item.sub, "None yet
 os.unlink(STATE + ".erased")
 be.kb_read_words()
 check("... with words: how many, how many removed", first("keyboard#3", "Item", "Learned words").sub, "3 words · 2 removed")
+
+# the handwriting recognizer's samples stats (contract 1.3): the person's samples, and a
+# note while the handwriting samples app keeps guest writers' stores beside them
+open(STUB + "/glassine-handwriting", "w").write("""#!/bin/sh
+S=%s
+echo "$*" >> $S.hw.log
+case "$*" in
+"samples stats") printf 'learning\\ton\\nsamples\\t%%s\\nclient\\torg.example\\t3\\ndonation\\t0\\nwriters\\t%%s\\n' \\
+    "$(cat $S.hw.n 2>/dev/null || echo 5)" "$(cat $S.hw.w 2>/dev/null || echo 2)" ;;
+"samples erase") echo 0 > $S.hw.n; echo erased ;;
+*) exit 2 ;;
+esac
+""" % STATE)
+os.chmod(STUB + "/glassine-handwriting", 0o755)
+WNOTE = "Handwriting of %d other writer%s is kept in the Handwriting samples app, and removed there."
+be.read_typing()
+check("handwriting: the person's samples and the writers counted", (be.kb_hw_n, be.kb_hw_writers), (5, 2))
+check("... the erase row counts the person's samples", first("keyboard#3", "Item", "Erase what was learned").sub,
+      "3 words · 5 handwriting samples · 2 removed")
+check("... and the page says the other writers' samples stay", first("keyboard#3", "Note", WNOTE % (2, "s")) is not None, True)
+open(STATE + ".hw.w", "w").write("1\n")
+be.read_typing()
+check("... one writer", first("keyboard#3", "Note", WNOTE % (1, "")) is not None, True)
+open(STATE + ".hw.w", "w").write("0\n")
+be.read_typing()
+check("... no writers: no note", [b for b in page("keyboard#3") if type(b).__name__ == "Note" and "other writer" in b.label], [])
+PR.hw_erase = HW_ERASE0
+open(STATE + ".hw.w", "w").write("2\n")
+ui.sheet_erase_learned()
+ui.sheet.ok()
+be.read_typing()
+check("the erase: the recognizer's samples erase, the person's store only", (open(STATE + ".hw.log").read().splitlines()[-2:],
+      be.kb_hw_n, be.kb_hw_writers), (["samples erase", "samples stats"], 0, 2))
+open(STUB + "/glassine-handwriting", "w").write("#!/bin/sh\nexit 1\n")
+be.read_typing()
+check("a failing recognizer: no handwriting counts, no note", (be.kb_hw_n, be.kb_hw_writers), (None, 0))
+os.unlink(STUB + "/glassine-handwriting")
+be.read_typing()
 
 # missing glassine-predict: the pages render, the actions say why
 os.environ["PATH"] = T + "/empty"
