@@ -2,7 +2,8 @@
 # Root half of glassine-power (allowed for the desktop user via /etc/doas.d/glassine.conf).
 # A power-off or restart from the menu is user-started: it may switch a staged
 # deployment (GlassineOS/boot glassine-switch-hook; absent on the plain layout).
-# Anyone: sleep, hibernate, poweroff, reboot, android, recovery (no prompt).
+# Anyone: sleep, hibernate, poweroff, reboot, android, recovery, menu (no prompt: like the
+# recovery, the loader's start menu offers only this machine's own systems and recovery).
 user_shutdown() { command -v glassine-switch-hook >/dev/null && glassine-switch-hook --user-shutdown; return 0; }
 case "$1" in
 	poweroff) : > /run/glassine-poweroff; user_shutdown; exec poweroff ;;   # glassine-splash shows the power-off screen
@@ -18,5 +19,9 @@ case "$1" in
 		/usr/sbin/glassine-slot set-active "$s" --successful || exit
 		exec reboot ;;
 	recovery) exec /usr/sbin/glassine-reboot-clean recovery ;;   # p9 (TWRP or a mainline test image); its "Reboot" comes back here
-	*) echo "usage: $0 sleep|hibernate|poweroff|reboot|android|recovery" >&2; exit 2 ;;
+	menu)     # the loader's start menu at the next start (GlassineOS/boot: request=menu in the
+	          # loader record, then a plain reboot; as recovery, no staged switch); exit 3 where the
+	          # loader takes no such request, nothing written
+		exec /usr/sbin/glassine-reboot-clean menu ;;
+	*) echo "usage: $0 sleep|hibernate|poweroff|reboot|android|recovery|menu" >&2; exit 2 ;;
 esac
