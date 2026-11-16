@@ -804,6 +804,10 @@ def typing_section(ui, be, add):
     some = bool(nw or ng or nh)
     add(B.Item("Erase what was learned", " · ".join(what) if some else "Nothing learned", act="Erase",
                act_fn=ui.sheet_erase_learned if some and not be.kb_err else None, act_off=not some or bool(be.kb_err)))
+    if be.kb_hw_writers:                # spec 006 FR-008: guest writers' samples stay in their app
+        n = be.kb_hw_writers
+        add(B.Note("Handwriting of %d other writer%s is kept in the Handwriting samples app, and removed there."
+                   % (n, "" if n == 1 else "s")))
 
 
 def words_section(ui, be, add):

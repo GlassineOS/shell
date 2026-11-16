@@ -24,8 +24,8 @@ FR-006 to FR-008a; docs/predictor.md).
                  languages to add are those the package indexes have (packages.py's data,
                  the same the Packages page shows), installed through its change flow.
   handwriting    the samples belong to the handwriting recognizer (GlassineOS/handwriting
-                 spec 001, FR-010), which doesn't exist yet: hw_samples() and hw_erase()
-                 are the place to call it.
+                 spec 001, FR-010): hw_stats() counts the person's samples and the guest
+                 writers kept beside them, hw_erase() erases the person's samples only.
 
 No GLib here: the host tests use it as it is.
 """
@@ -400,12 +400,36 @@ def erase():
 
 # -- handwriting samples (the recognizer, GlassineOS/handwriting spec 001) -------------------
 
-def hw_samples():
-    """the number of handwriting samples kept for this person, None while there is no
-    recognizer to ask"""
-    return None
+HW_CMD = "glassine-handwriting"     # the recognizer, found on PATH
+
+
+def hw_stats():
+    """the person's handwriting samples and the guest writers' stores the handwriting
+    samples app keeps beside them (the recognizer's `samples stats`, its contract 1.3:
+    `samples N`, `writers N`): (samples, writers); None when there is no recognizer to ask"""
+    try:
+        p = subprocess.run((HW_CMD, "samples", "stats"), capture_output=True, text=True, timeout=15)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if p.returncode != 0:
+        return None
+    got = {}
+    for line in p.stdout.splitlines():
+        f = line.split("\t")
+        if len(f) == 2 and f[0] in ("samples", "writers") and f[1].isdigit():
+            got[f[0]] = int(f[1])
+    return (got["samples"], got.get("writers", 0)) if "samples" in got else None
 
 
 def hw_erase():
-    """erase the handwriting samples and adaptation (the recognizer's own erase): nothing
-    to do while there is no recognizer"""
+    """erase the person's handwriting samples and adaptation (the recognizer's own erase;
+    the guest writers' stores stay): nothing to do without a recognizer"""
+    try:
+        p = subprocess.run((HW_CMD, "samples", "erase"), capture_output=True, text=True, timeout=60)
+    except FileNotFoundError:
+        return
+    except (OSError, subprocess.SubprocessError) as e:
+        raise Failed(str(e))
+    if p.returncode != 0:
+        msg = (p.stderr.strip().splitlines() or [""])[-1]
+        raise Failed(msg or "glassine-handwriting samples erase stopped with status %d." % p.returncode)
