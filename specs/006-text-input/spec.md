@@ -200,7 +200,9 @@ suggestions and no handwriting popup, and nothing is learned there.
   app's keyboard page has: suggestions on or off, learning on or off (on by default),
   handwriting on or off, the suggestion languages (FR-006), the choice for email and
   web addresses (FR-007a), the learned words (FR-008a), and one action that erases what was learned (words and handwriting
-  samples).
+  samples). That action and the handwriting counts cover the person's own samples only;
+  when the handwriting samples app keeps guest writers' samples (`GlassineOS/handwriting`
+  spec 002 FR-024), the page says that they are kept there and are removed in that app.
 - **FR-008a**: Removing words. Holding a word in the strip turns the strip into a
   question in the same row (remove the word, or keep it); no popup. A removed word is
   never suggested again and isn't learned again, whether it was learned or comes from
@@ -306,6 +308,7 @@ suggestions and no handwriting popup, and nothing is learned there.
 | AT-SPI field extents (optional, FR-010) | consumed (the accessibility bus) | — | — |
 | Predictor line contract (FR-005, FR-006) | owned (shell) | 2 | `docs/predictor.md` |
 | Handwriting recognizer interface (FR-011, FR-013a) | consumed (`GlassineOS/handwriting`) | 1 | handwriting spec 001 |
+| Count of guest writers' stores, for the settings note (FR-008) | consumed (`GlassineOS/handwriting`, `samples stats` `writers N`) | 1.3 | handwriting spec 001 FR-021 |
 | Learned words store: list, remove, put back, erase; a plain text file the person may edit | owned (shell); the settings app and the keyboard use it | 1 | FR-008, FR-008a |
 | Keyboard input-method mode and handwriting key | consumed (GlassineOS/wvkbd) | — | — |
 
