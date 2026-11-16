@@ -139,6 +139,13 @@ tap bar qs; tap pop qs-power; sleep 1
 expect "Power where the loader takes a menu request: Start menu (target 6) shown, 6 targets in all" "$(nh pop pwr-act 6) $(nh pop pwr-act)" "1 6"
 shot white-$O-power-menu
 key Escape; key Escape
+hib_on
+tap bar qs; tap pop qs-power; sleep 1
+OH=$(swaymsg -t get_outputs -r | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["rect"]["height"])')
+expect "Power with hibernation and the Start menu: 7 targets, the card inside the screen" "$(nh pop pwr-act) $(awk -v h=$OH '$1 == "pwr-cancel" { print ($5 + $7 + 22 <= h) ? "in" : "out" }' $HITS/pop)" "7 in"
+shot white-$O-power-hibernate-menu
+key Escape; key Escape
+rm -rf /usr/sbin/glassine-hibernate /etc/glassine/deploy.conf /tmp/hib-ud
 printf '#!/bin/sh\nexit 3\n' > /usr/sbin/glassine-loader-mark
 tap bar qs; tap pop qs-power; sleep 1
 expect "Power where the loader takes none (can-request 3): no Start menu" "$(nh pop pwr-act 6)" "0"
