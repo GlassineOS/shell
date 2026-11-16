@@ -535,7 +535,10 @@ class Base:
             try:
                 predict.erase()
             finally:
-                predict.hw_erase()
+                try:
+                    predict.hw_erase()
+                finally:
+                    self.kb_hw_n, self.kb_hw_writers = predict.hw_stats() or (None, 0)
         self._kb_words_op("Could not erase what was learned", both)
 
     def _try(self, fn):
