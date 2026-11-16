@@ -2,7 +2,7 @@
 
 The desktop around the apps on an e-ink device running sway:
 
-- **`glassine-shell`:** the bar (Home button, screen button), Overview, divider mode, quick settings, power view and notifications, drawn natively. Its requests and the verbs it sends to `glassine-swayd` are listed at the top of `src/glassine-shell.c`.
+- **`glassine-shell`:** the bar (Home button, screen button), Overview, divider mode, quick settings, power view (its "Restart into" offers the loader's start menu where GlassineOS/boot's `glassine-loader-mark can-request menu` says the board's loader takes the request) and notifications, drawn natively. Its requests and the verbs it sends to `glassine-swayd` are listed at the top of `src/glassine-shell.c`.
 - **`glassine-swayd`:** the window model over sway's IPC: tiles, drag handles, dividers and when the on-screen keyboard shows.
 - **`glassine-settings`:** the touch settings app (Python, GTK3, cairo), with its root helper.
 - **`glassine-setup`:** the first-run setup, with its root helper.

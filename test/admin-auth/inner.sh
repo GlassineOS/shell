@@ -27,6 +27,10 @@ ok "kid: rotation, apk-update, apk-ack work" "as kid $R rotation 90 && [ \"\$(ca
 ok "android without slots.conf: refused (3), no slot write" "as kid $P android; [ \$? = 3 ] && ! ran set-active"
 mkdir -p /etc/glassine; printf '# the second system\nANDROID_SLOT=a\n' > /etc/glassine/slots.conf; cp /usr/sbin/glassine /usr/sbin/reboot
 ok "kid: android and recovery need no password" "as kid $P android && as kid $P recovery && ran 'set-active a --successful' && ran recovery"
+ok "kid: menu needs no password, the start menu request through glassine-reboot-clean" "as kid $P menu && grep -qx menu /tmp/ran"
+printf '#!/bin/sh\necho "$*" >> /tmp/ran\nexit 3\n' > /usr/sbin/glassine-reboot-clean
+ok "menu where the loader takes no request: 3, as glassine-reboot-clean says" "as kid $P menu; [ \$? = 3 ]"
+cp /usr/sbin/glassine /usr/sbin/glassine-reboot-clean
 echo 'ANDROID_SLOT=a;x' > /etc/glassine/slots.conf
 ok "android: a malformed slot is refused" "as kid $P android; [ \$? = 3 ]"
 printf '#!/bin/sh\nexit 1\n' > /usr/sbin/glassine-slot; echo ANDROID_SLOT=b > /etc/glassine/slots.conf; : > /tmp/ran
