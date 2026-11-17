@@ -237,6 +237,7 @@ static const char *act_name(int a)
     case A_BAR_QS: return "qs";
     case A_QS_PWR: return "qs-power";
     case A_P_ACT: return "pwr-act";
+    case A_P_CANCEL: return "pwr-cancel";
     case A_OV_X: return "ov-close";
     case A_OV_CANCEL: return "ov-cancel";
     case A_OV_PICK: return "ov-pick";
@@ -879,7 +880,7 @@ static void pwr_menu_done(const char *o)
     st.pwr_menu = v;
     if (st.view == V_PWR) render_pop();
 }
-static void query_pwr_menu(void) { run("glassine-loader-mark can-request menu >/dev/null 2>&1 && echo yes", pwr_menu_done); }
+static void query_pwr_menu(void) { run("/usr/sbin/glassine-loader-mark can-request menu >/dev/null 2>&1 && echo yes", pwr_menu_done); }
 static void vol_set_done(const char *o) { (void)o; query_vol(); }
 
 static void tz_follow(void);
@@ -1608,7 +1609,8 @@ static void pwr_closes(char *out, size_t len)
 /* ---- power ------------------------------------------------- */
 static void view_power(Gc *g)
 {
-    const double W = 440, X = (LW - W) / 2, Y = LW > LH ? BH + 24 : 110, PX = 26, CW = W - 2 * PX;
+    const double W = 440, X = (LW - W) / 2, PX = 26, CW = W - 2 * PX;
+    double Y = LW > LH ? BH + 24 : 110;
     double th, mh, lh;
     const char *msg = "Open apps will be closed for restart and power off";
     int rows[PWR_ROWS], nr = 0, hib = pwr_hib_ok();
@@ -1636,6 +1638,7 @@ static void view_power(Gc *g)
     const int trows = (nt + 1) / 2;
     double hh = th + 2 + mh + 10 + T->headRuleW;
     double H = 20 + hh + 18 + h_rows + 18 + lh + 8 + trows * 64 + (trows - 1) * 10 + 18 + 48 + 22;
+    if (Y + H > LH - 8) Y = LH - H - 8 > BH + 4 ? LH - H - 8 : BH + 4;   /* a landscape screen: up to the bar */
     card_frame(g, X, Y, W, H);
     double x0 = X + PX, y = Y + 20;
     ui_text(g, &T->headFont, "Power", x0, y, 0, CW, T->ink, NULL);
