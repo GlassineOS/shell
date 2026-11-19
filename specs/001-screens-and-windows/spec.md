@@ -19,8 +19,8 @@ shell shows and hides it and what happens to a screen with no apps.
 
 **Given** three screens, the second with Notes and Files side by side,
 **When** I look at the top bar,
-**Then** its centre shows "2/3" in a small screen frame followed by the Notes and Files icons in reading
-order, and it does not change when I tap from Notes into Files.
+**Then** next to the Home button it shows "2/3" in a small screen frame followed by the Notes and Files icons in
+reading order, and that does not change when I tap from Notes into Files; the title beside it does.
 
 ### Scenario 2 – Manage screens in Overview (Priority: P1)
 
@@ -35,7 +35,7 @@ its apps, or move it later. Tapping a preview goes to that screen.
 **Given** Overview is open,
 **When** I tap an app's icon,
 **Then** switching screens pauses, previews fade, every app's icon appears inside its screen, arrows beside
-apps offer the sides the moving app can take, and Close app, Full screen (or Exit full screen) and New
+apps offer the sides the moving app can take, and Close app, Immersive (or Leave immersive) and New
 screen sit in a half-circle around the moving app's icon, pointing out of the screen.
 Tapping an arrow places the app; tapping another app's icon picks that app; tapping the moving app's icon,
 the header's undo button or Escape cancels.
@@ -70,7 +70,7 @@ and the first app opened fills the screen.
 ### Scenario 7 – Go Home and back (Priority: P1)
 
 **When** I tap the bar's Home button (leftmost) or swipe four fingers up,
-**Then** Home appears full screen over the current screen with the bar above it; tapping Home again, Escape
+**Then** Home appears over the whole current screen with the bar above it; tapping Home again, Escape
 or opening an app hides it. Over a screen with no apps Home is shown without asking (FR-040).
 
 ## Requirements
@@ -95,8 +95,8 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
 - **FR-011**: Around each preview are four icon slots, two per side, one per quarter (top-left, bottom-left on
   the left; top-right, bottom-right on the right). A window's icon (48 px) sits in the first quarter it covers
   in reading order, so an app alone on its screen sits top left.
-- **FR-012**: A full-screen app's icon has a heavy ring, its preview shows only that app, and the screen's title
-  reads "<App> full screen · <others> hidden".
+- **FR-012**: An immersive app's icon has a heavy ring, its preview shows only that app, and the screen's title
+  reads "<App> immersive · <others> hidden".
 - **FR-013**: Under each preview: move earlier, close screen (with all its apps; unavailable for the last
   screen), move later; the arrows are faint at the ends. Moving a screen keeps the page on it. Hidden while an
   app is moving.
@@ -107,18 +107,21 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
   sides that split the whole half; 4 apps none (the screen dims, its title says no room). On the moving app's
   own screen the same rules apply to the screen without the moving app, and arrows that would change nothing
   are left out; an app alone on its screen gets none.
-- **FR-016**: The moving app's actions (Close app; Full screen or Exit full screen; New screen; the last two only
-  when its screen has more than one window) form a half-circle around its icon that points out of the screen:
-  for a window narrower than the screen, Close on the side facing the nearest edge with Full screen above and
-  New screen below; for a full-width half, Close toward the top or bottom edge with Full screen left and New
+- **FR-016**: The moving app's actions (Close app; Immersive or Leave immersive; New screen, only when its screen
+  has more than one window) form a half-circle around its icon that points out of the screen:
+  for a window narrower than the screen, Close on the side facing the nearest edge with Immersive above and
+  New screen below; for a full-width half, Close toward the top or bottom edge with Immersive left and New
   screen right. A spot within 46 px of another icon, arrow or action, or leaving the preview by more than 8 px,
   moves to the first free spot around the icon. Action buttons are solid and 44 px; arrows are dashed.
 - **FR-017**: Tapping another app's icon picks that app instead; tapping the moving app's own icon, the header's
   × (shown as ↶ while moving) or Escape cancels.
 - **FR-018**: The screen an app leaves closes its gap: a split half that loses a window becomes whole again, and
   a screen left empty is removed (except FR-040).
-- **FR-019**: Full screen shows the app over its whole screen while the other windows stay tiled underneath,
-  hidden; Exit full screen brings them back. New screen puts the app on a new screen right after its own.
+- **FR-019**: Immersive shows the app over the whole panel, the bar included, whether it is alone on its screen or
+  not; the screen's other windows stay tiled underneath, hidden. Leave immersive brings the bar and the other
+  windows back. An app that asks for full screen itself (its own full-screen control) is immersive the same way, and
+  leaves it the same way. There is no full screen that keeps the bar. New screen puts the app on a new screen right
+  after its own.
 
 **Dividers**
 - **FR-020**: Every split has its own divider (a 20 px bar with a grip): the main divider between the halves and
@@ -144,14 +147,33 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
   that says Home means the home app.
 - **FR-030**: Home is shown over the whole current screen, under the bar, when the Home button is tapped, the Home gesture
   runs (four fingers up), or the current screen has no apps (the session starts on an empty screen, or its last
-  app closes). The bar stays above it. Home, like a full screen app (FR-019), covers the work area as it is: when that
-  changes (the screen turns, the on-screen keyboard comes or goes), it follows.
+  app closes). The bar stays above it. Home covers the work area as it is: when that changes (the screen turns, the on-screen
+  keyboard comes or goes), it follows. Home shown while an app on the screen is immersive ends that first (FR-019).
 - **FR-031**: Home hides when an app opens, when the Home button is tapped again, or on Escape.
 - **FR-040**: Whenever the current screen has no apps (the session starts on an empty screen, its last app closes,
   or the view lands on an empty screen), that screen stays, empty, under Home. Opening an app from Home fills it.
   Leaving Home any other way removes it. When it is the only screen, Home stays until an app opens (Escape and
   the Home button do nothing then).
 - **FR-041**: Previous screen and Next screen are the gestures' names for switching screens.
+
+**Gestures and immersive apps**
+- **FR-060**: Edge swipes: a finger that lands within 24 px (logical) of one of the panel's four edges and moves
+  straight inward by the swipe distance runs that edge's action. Each edge (top, bottom, left, right; as the
+  screen is turned) has its own action in the gesture setting, from the same list as the finger swipes. An edge
+  set to Nothing leaves its touches to the apps as they are; on an edge with an action, the app under the finger
+  gets the touch at once and a cancel when the swipe is recognised. Defaults: top = Show bar, the others Nothing.
+- **FR-061**: Show bar: while an app on the current screen is immersive, the bar comes up above it, without ending
+  immersive. It goes again 5 s after the last touch on the bar; a popup opened from it keeps it up until the popup
+  closes. With no immersive app the action does nothing.
+- **FR-062**: An immersive app can always be left without the bar: the finger swipes and edge swipes keep working
+  over it (Leave immersive, Minimize, Home, Overview, Show bar). When the gesture setting sets none of the swipes
+  or edges to one of these, the top edge works as Show bar all the same.
+- **FR-064**: Over an immersive app the on-screen keyboard, the bar's popups and the app's own dialogs (FR-055)
+  still show, above it; a tap outside a popup closes it as on any screen.
+- **FR-065**: Overview previews an immersive app's screen from its content, as any other screen (FR-010).
+- **FR-063**: Each app has a preferred mode, a setting on its page in Settings > Apps: Tiled (the default) or
+  Immersive. An app set to Immersive opens its windows immersive (not its dialogs, FR-055). Changing the setting
+  changes how its next windows open, not the open ones.
 
 **Launching apps**
 - **FR-045**: Home and the other apps open an app through the shell with the app's desktop id, where it goes (`new`:
@@ -176,13 +198,13 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
 
 **Dialogs**
 - **FR-055**: An app's dialogs (its floating windows; they belong to the app by its process, whatever their app id) are
-  always on the screen of one of its windows. When a window moves to another screen (opened onto a full screen or
+  always on the screen of one of its windows. When a window moves to another screen (opened onto an immersive app's screen or
   onto a new screen, New screen, Overview's arrows), the app's dialogs on the screen it leaves go
   with it. A dialog on a screen with none of its app's windows (it opened after its window moved away) goes to the
   screen of the window that moved last, else the focused one, else the newest. The view does not change for a dialog.
 - **FR-056**: A dialog that opens partly outside the work area (under the bar or the on-screen keyboard) is placed in
   the middle of the work area, made no larger than it. Only when it opens: a dialog moved afterwards stays where it is
-  put. Home and a full screen app are not dialogs.
+  put. Home and an immersive app are not dialogs.
 
 **General**
 - **FR-050**: Every control here is reachable with Tab and pressed with Enter or Space; Escape closes the top
@@ -195,7 +217,7 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
 
 | Contract | Owned / consumed | Version | Spec location |
 |---|---|---|---|
-| Window-model commands (the shell to the window model: place, swap, swap within a half, crossing, direction, full screen, new screen, move and close screens) | owned | 2 | this repository, README "Runtime interfaces" |
+| Window-model commands (the shell to the window model: place, swap, swap within a half, crossing, direction, immersive, new screen, move and close screens) | owned | 3 | this repository, README "Runtime interfaces" |
 | Divider list (the window model to the shell: each divider's place, kind main/inner and half) | owned | 2 | this repository, README "Runtime interfaces" |
 | The home-app rule (which app, show, hide, fill the empty screen) | owned | 1 | this spec; consumed by `GlassineOS/home` |
 | Launching apps (desktop id, where, an optional file or Settings page, apps that run once: FR-045 to FR-049) | owned | 2 | this spec and README "Runtime interfaces"; consumed by `GlassineOS/home` |
@@ -212,13 +234,16 @@ Device-neutral. No device risk: nothing flashes or touches boot, recovery or use
   (a new screen for a new window, New screen, the arrows) with the dialog opened before or after it moves: the
   dialog is on the window's screen; a dialog opened taller than the work area under a top bar is inside it, one that
   fits is left where it opened, one moved under the bar stays there.
-- Host: Home and a full screen app follow the work area when the on-screen keyboard (wvkbd) comes and goes.
+- Host: Home follows the work area when the on-screen keyboard (wvkbd) comes and goes.
 - Host: the home app is started again after any exit while the session runs, and not once sway or the Wayland display
   is gone.
 - Host: the shell and the window model together on headless sway: divider mode from the window model's own divider
   list, swaps reaching the window model, Home shown and hidden from the bar, the empty screen, a launch landing on a new
   screen and its argument reaching the app.
 - Host: renders of the bar, Overview (browse and move, portrait and landscape) and divider mode in all three voices.
+- Host: an edge swipe on each edge runs its action and cancels the app's touch; an edge set to Nothing reaches the app
+  untouched; Show bar raises the bar over an immersive app and it goes again 5 s later; Home over an immersive app
+  ends immersive; an app set to Immersive opens immersive.
 - Hardware (supervised): taps on the screen button, Overview, a move, divider mode and a drag on the device.
 
 ## Out of scope
@@ -229,7 +254,7 @@ Device-neutral. No device risk: nothing flashes or touches boot, recovery or use
 ## Success criteria
 
 - **SC-001**: Every action in the spec's action table (open on a new screen / this screen, go to screen, move,
-  full screen, close app, close screen, reorder, swap, direction) takes at most two taps from a screen.
+  immersive, close app, close screen, reorder, swap, direction) takes at most two taps from a screen.
 - **SC-002**: A move, swap, crossing flip or line drag causes exactly one panel update of the screen when it
   takes effect.
 - **SC-003**: Opening Overview or divider mode updates only the panel area it covers.
