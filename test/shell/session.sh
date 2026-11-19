@@ -199,12 +199,12 @@ key Tab; key Return
 expect "keyboard: Tab, Enter on the first target (close) closes Overview" "$(view)" "0"
 tap bar screen
 tap pop ov-pick - $TERM_
-expect "move: picking an app alone: Close only around it" "$(nh pop ov-closeapp) $(nh pop ov-full) $(nh pop ov-new)" "1 0 0"
+expect "move: picking an app alone: Close and Immersive around it, no New screen" "$(nh pop ov-closeapp) $(nh pop ov-full) $(nh pop ov-new)" "1 1 0"
 expect "move: its arrows: 4 beside the two halves of screen 2, 2 beside screen 3's whole half, none on 4 or its own" "$(nh pop ov-put)" "6"
 expect "move: the header's x is undo while moving" "$(nh pop ov-cancel - 0)$(nh pop ov-close)" "10"
 tap pop ov-pick - $NOTES
 expect "move: tapping another app picks it" "$(nh pop ov-cancel - $NOTES)" "1"
-expect "move: Notes (2 on its screen): Close, Full screen, New screen" "$(nh pop ov-closeapp) $(nh pop ov-full) $(nh pop ov-new)" "1 1 1"
+expect "move: Notes (2 on its screen): Close, Immersive, New screen" "$(nh pop ov-closeapp) $(nh pop ov-full) $(nh pop ov-new)" "1 1 1"
 expect "move: arrows: 3 on its own screen (the no-op left out), 4 on screen 1, 2 on screen 3" "$(nh pop ov-put)" "9"
 expect "move: no screen buttons while moving" "$(nh pop scr-close)" "0"
 tap pop ov-cancel - $NOTES
@@ -293,7 +293,64 @@ tap bar screen
 tap pop ov-pick - $NOTES
 mark; tap pop ov-new - $NOTES; sent "move: New screen: newscreen" "newscreen $NOTES 0"
 tap pop ov-pick - $READER
-mark; tap pop ov-full - $READER; sent "move: Full screen: full" "full $READER"
+mark; tap pop ov-full - $READER; sent "move: Immersive: full" "full $READER"
+key Escape; sleep 0.5
+# immersive (spec 001 FR-019, FR-061, FR-064, FR-012, FR-065): Reader in sway's fullscreen over
+# the bar on screen 3; the bar comes up over it on `bar show` for 5 s after its last touch
+fs() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+def w(n):
+    if n.get("shell") and n.get("fullscreen_mode"): print(n["app_id"])
+    for c in n.get("nodes",[])+n.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin))'; }
+logn() { grep -c "$1" $L; }
+sm -q "workspace number 1"; sleep 0.8
+mark; $B/glassine-shell bar show; sleep 0.8
+expect "bar show without an immersive app: nothing" "$(logn 'no immersive app on this screen') $(logn 'the bar on the overlay layer')" "1 0"
+sm -q "[con_id=$((0x$READER))] focus"; sleep 1        # (its screen: the moves above renumbered them)
+RS=$(swaymsg -t get_workspaces -r | python3 -c 'import json,sys; w=sorted(json.load(sys.stdin),key=lambda x:x["num"]); print([i+1 for i,x in enumerate(w) if x["focused"]][0])')
+NS=$(logn 'snap: [0-9]* windows')
+expect "immersive: Reader in sway's fullscreen" "$(fs)" "reader"
+QS=$(python3 $T/hit.py $HITS/bar qs)
+NV=$(logn 'view 1'); ptr tap $QS; sleep 1
+expect "immersive: the bar is under it (a tap there opens nothing)" "$(logn 'view 1')" "$NV"
+$B/glassine-shell bar show; sleep 0.8
+expect "bar show: the bar on the overlay layer, above the immersive app" "$(logn 'the bar on the overlay layer')" "1"
+expect "... its title and close button are the immersive window's" "$(python3 $T/hit.py --all $HITS/bar close | cut -d' ' -f2)" "$READER"
+shot white-$O-immersive-bar 0.5
+ptr tap $QS; sleep 1
+expect "... the raised bar takes a tap: quick settings" "$(view)" "1"
+expect "... the popup's backdrop over the immersive app: on the overlay layer" "$(grep 'backdrop on the' $L | tail -1 | sed 's/.*backdrop on the //')" "overlay layer"
+sleep 5
+expect "... a popup opened from it keeps the bar up (5 s gone)" "$(logn 'back under the immersive app')" "0"
+tap pop qs-power
+expect "... the popup is above its backdrop: its targets work (Power)" "$(view)" "5"
+# a point of the app outside the popup (its targets' box)
+OUTP=$(python3 - $HITS/pop $LW $LH <<'PY'
+import sys
+b=[list(map(float,l.split()[3:])) for l in open(sys.argv[1]) if len(l.split())==7]
+x0=min(r[0] for r in b); y0=min(r[1] for r in b); x1=max(r[0]+r[2] for r in b); y1=max(r[1]+r[3] for r in b)
+W,H=float(sys.argv[2]),float(sys.argv[3])
+for x,y in ((20,H-20),(W-20,H-20),(20,80),(W/2,H-20)):
+    if not (x0-10<=x<=x1+10 and y0-10<=y<=y1+10): print("%d %d"%(x,y)); break
+PY
+)
+ptr tap $OUTP; sleep 1
+expect "... a tap outside the popup over the immersive app closes it" "$(view)" "0"
+expect "... and the bar goes with it (its 5 s are over)" "$(logn 'back under the immersive app')" "1"
+NV=$(logn 'view 1'); ptr tap $QS; sleep 1
+expect "... the bar under it again: a tap there opens nothing" "$(logn 'view 1')" "$NV"
+$B/glassine-shell bar show; sleep 6.5
+expect "bar show, not touched: back under after 5 s" "$(logn 'back under the immersive app')" "2"
+$B/glassine-shell toggle overview; sleep 1
+expect "Overview over the immersive app (the gesture)" "$(view)" "2"
+expect "Overview: the immersive screen has stills of its own (FR-065)" "$([ "$(logn 'snap: [0-9]* windows')" -gt "$NS" ] && echo yes)" "yes"
+expect "Overview: its title \"<App> immersive · <others> hidden\", the heavy ring (FR-012)" "$(grep "overview: screen $RS: " $L | tail -1 | sed "s/.*overview: screen $RS: //" | grep -cE '^Reader immersive · (Calendar · Mail|Mail · Calendar) hidden \(ring\)$')" "1"
+tap pop ov-pick - $READER
+expect "Overview: the immersive app's action is Leave immersive" "$(nh pop ov-full 1 $READER) $(grep "Reader's action" $L | tail -1 | sed 's/.*action //')" "1 Leave immersive"
+mark; tap pop ov-full 1 $READER; sent "Overview: Leave immersive: full" "full $READER"
+sleep 1
+expect "... Reader leaves immersive" "$(fs)" ""
 key Escape; sleep 0.5
 tap bar screen
 tap pop ov-pick - $TERM_
@@ -392,7 +449,7 @@ mark; tap pop scr-close $((C - 1)); sent "close the last screen: scrclose" "scrc
 key Escape
 
 # glassine-swayd down (its restart loop leaves stock sway in charge): a screen of 4 columns
-# of 4 windows and a window marked full, 17 in all, in the bar and in Overview
+# of 4 windows and a floating one, 17 in all, in the bar and in Overview
 kill $SWAYDPID; sleep 0.5
 sm -q "workspace number 9"; sleep 0.3
 for c in 1 2 3 4; do sm -q "exec foot -a col$c sleep 600"; sleep 0.8; done
@@ -401,7 +458,7 @@ for c in 1 2 3 4; do
     for r in 2 3 4; do sm -q "exec foot -a c$c$r sleep 600"; sleep 0.8; done
 done
 sm -q "exec foot -a c17 sleep 600"; sleep 1.2
-sm -q "[app_id=c17] floating enable, mark --add _glassine_full"; sleep 1
+sm -q "[app_id=c17] floating enable"; sleep 1
 expect "17 windows on one screen: 16 tiled" "$(tree count | awk '{ print $NF }')" "16"
 tap bar screen
 expect "17 windows on one screen: the bar and Overview draw them, the shell still runs" "$(view) $(kill -0 $SHELLPID 2>/dev/null && echo runs)" "2 runs"

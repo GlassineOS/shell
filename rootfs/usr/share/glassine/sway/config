@@ -10,6 +10,10 @@ gaps inner 20
 gaps outer -20
 smart_gaps on
 focus_follows_mouse no
+# an immersive app (sway's fullscreen, spec 001 FR-019): the dialogs transient for it show
+# above it (sway's default, said here: glassine-swayd counts on it); a dialog of the app
+# that is not transient for it would be hidden, so glassine-swayd ends immersive then (FR-064)
+popup_during_fullscreen smart
 # an app that asks for its window (started again from the drawer while it
 # runs: Chromium, GNOME apps hand over to the running copy) gets it, on its
 # own workspace; sway's default only marked it urgent there

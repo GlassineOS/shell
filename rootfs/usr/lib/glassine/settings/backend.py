@@ -73,9 +73,14 @@ APP_RENDER = HOME + "/.config/glassine/app-render.conf"   # glassine-app-render:
 APP_RENDER_CMD = "/usr/bin/glassine-app-render"
 APP_RENDERS = ("gpu", "short", "l3", "cpu")
 ROT_RUN = "/run/glassine-rotation"                     # glassine-rotd: the output's transform now # glassine-session-sway: GLES sway died, pixman since
-# Gestures: what a swipe of 3 or 4 fingers does; the sway session
-# (0002-glassine-touch-gestures.patch) reads this file at each swipe: "FINGERS DIR ACTION"
+# Gestures: what a swipe of 3 or 4 fingers or from an edge does; the sway session
+# (0002-glassine-touch-gestures.patch) reads this file at each swipe: "FINGERS DIR ACTION",
+# "2 tap ACTION" and "edge top|bottom|left|right ACTION"
 GESTURES = HOME + "/.config/glassine/gestures"
+# an app's preferred mode (spec 001 FR-063): glassine-swayd reads it at each new window,
+# "DESKTOP_ID immersive" per line; an app without a line opens tiled
+APP_MODES = HOME + "/.config/glassine/app-modes"
+APP_MODE_VALUES = ("tiled", "immersive")
 # the sway session's keyboard shortcuts : its "## " labels, listed on
 # the Keyboard page; next to this package (/usr/share/glassine/sway; the demo:
 # the overlay's copy, so the list can't drift from the bindings)
@@ -111,18 +116,24 @@ def sway_shortcuts(path=KEYS_CONF):
             label = None
     return out
 GESTURE_DIRS = ("up", "down", "left", "right")
+GESTURE_EDGES = ("top", "bottom", "left", "right")
+# fullscreen / unfullscreen: immersive on / off (spec 001 FR-019); show-bar: the bar over an
+# immersive app for a few seconds (FR-061)
 GESTURE_ACTIONS = ("nothing", "refresh", "screen-next", "screen-prev", "move-next", "move-prev", "overview", "home",
                    "minimize", "fullscreen", "unfullscreen", "swap", "close", "quick", "notices",
-                   "page-up", "page-down")
+                   "page-up", "page-down", "show-bar")
 # ids of older files: read as the new ones, never written (README "Runtime interfaces"):
-# maximize = full screen (it was hard to tell apart in a tiling WM), the launcher
+# maximize = fullscreen = immersive (it was hard to tell apart in a tiling WM), the launcher
 # became Home, workspaces became screens
 GESTURE_OLD = {"maximize": "fullscreen", "launcher": "home", "ws-next": "screen-next", "ws-prev": "screen-prev"}
-# 3 fingers: screens left/right, full screen/minimize up/down; 4 fingers up: Home
+# 3 fingers: screens left/right, immersive/minimize up/down; 4 fingers up: Home
 # (spec 001 FR-030; it was Overview), down a full refresh, left/right move the window
+# the edges (FR-060): top = Show bar, the others nothing (their touches stay the apps')
 GESTURE_DEFAULT = {(3, "up"): "fullscreen", (3, "down"): "minimize", (3, "left"): "screen-next", (3, "right"): "screen-prev",
                    (4, "up"): "home", (4, "down"): "refresh", (4, "left"): "move-next", (4, "right"): "move-prev",
-                   (2, "tap"): "right-click"}
+                   (2, "tap"): "right-click",
+                   ("edge", "top"): "show-bar", ("edge", "bottom"): "nothing", ("edge", "left"): "nothing",
+                   ("edge", "right"): "nothing"}
 # a two-finger tap : a right click (sway has no long press = right click), or a swipe action
 TAP_ACTIONS = ("right-click",) + GESTURE_ACTIONS
 
@@ -139,6 +150,8 @@ def read_gestures(path=GESTURES):
                     g[(int(p[0]), p[1])] = p[2]
                 elif len(p) == 3 and p[0] == "2" and p[1] == "tap" and p[2] in TAP_ACTIONS:
                     g[(2, "tap")] = p[2]
+                elif len(p) == 3 and p[0] == "edge" and p[1] in GESTURE_EDGES and p[2] in GESTURE_ACTIONS:
+                    g[("edge", p[1])] = p[2]
     except OSError:
         pass
     return g
@@ -148,11 +161,40 @@ def write_gestures(g, path=GESTURES):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w") as f:
-        f.write("# glassine-settings > Gestures: FINGERS DIRECTION ACTION (the sway session reads it at each swipe)\n")
+        f.write("# glassine-settings > Gestures: FINGERS DIRECTION ACTION, edge EDGE ACTION (the sway session reads it at each swipe)\n")
         f.write("2 tap %s\n" % g.get((2, "tap"), "right-click"))
         for n in (3, 4):
             for d in GESTURE_DIRS:
                 f.write("%d %s %s\n" % (n, d, g.get((n, d), "nothing")))
+        for e in GESTURE_EDGES:
+            f.write("edge %s %s\n" % (e, g.get(("edge", e), GESTURE_DEFAULT[("edge", e)])))
+    os.replace(tmp, path)
+
+
+def read_app_modes(path=APP_MODES):
+    """the apps that open immersive (FR-063): {desktop id: "immersive"} (tiled = no line)"""
+    r = {}
+    for l in read(path).splitlines():
+        t = l.split("#")[0].split()
+        if len(t) == 2 and t[1] == "immersive":
+            r[t[0]] = t[1]
+    return r
+
+
+def write_app_mode(aid, mode, path=APP_MODES):
+    """the app's line in app-modes: "ID immersive", or none for tiled; other lines (comments
+    too) kept as they are"""
+    keep = [l for l in read(path).splitlines() if (l.split("#")[0].split() or [""])[0] != aid]
+    if mode == "immersive":
+        keep.append("%s immersive" % aid)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    if not any(l.split("#")[0].strip() for l in keep):
+        if os.path.exists(path):
+            os.unlink(path)
+        return
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        f.write("\n".join(keep) + "\n")
     os.replace(tmp, path)
 
 
@@ -417,7 +459,7 @@ class Base:
 
     def customised(self, a):
         return (a["fluid"] is not None or a.get("always") or a.get("pages") or a["freeze"] != "auto" or bool(a.get("dither"))
-                or a.get("render", "gpu") != "gpu")
+                or a.get("render", "gpu") != "gpu" or a.get("mode", "tiled") != "tiled")
 
     def favs(self):
         """Home's favourites (home.conf; without it the shell's old list, as Home imports it)"""
@@ -556,6 +598,8 @@ class Base:
         a = self.app(aid)
         if a and a.get("render", "gpu") != "gpu":
             self.set_app_render(aid, "gpu")
+        if a and a.get("mode", "tiled") != "tiled":
+            self.set_app_mode(aid, "tiled")
 
     # the desktop GPU switch (both backends; open_apps is theirs)
     def arm_desk(self):
@@ -700,7 +744,8 @@ class Demo(Base):
         fav = ("KOReader", "Firefox ESR", "Notes", "Terminal", "Calendar", "Chess", "Files", "Mail")
         self.apps = [dict(id=n, name=n, icon=i, match=n.lower(), ident=n.lower(), proc=n.lower(), fluid=ov.get(n), always=n == "OpenMW", pages=n == "KOReader",
                           dither={"Stellarium": "dizzy", "KOReader": "bayer"}.get(n), freeze=frz.get(n, "auto"), fav=n in fav, desk=True,
-                          render=ren.get(n, "gpu"), fp="system" if DEMO_ORG[n][0] == "flatpak" else "")
+                          render=ren.get(n, "gpu"), mode="immersive" if n == "KOReader" else "tiled",
+                          fp="system" if DEMO_ORG[n][0] == "flatpak" else "")
                      for n, i in [("Firefox ESR", "public"), ("KOReader", "menu_book"), ("Terminal", "terminal"),
                                   ("Stellarium", "nights_stay"), ("Marble", "language"), ("Software", "storefront"),
                                   ("Notes", "edit_note"), ("SAGA", "terrain"), ("Gnumeric", "table_chart"),
@@ -861,6 +906,7 @@ class Demo(Base):
     def set_gesture(self, n, d, act): self.gestures[(n, d)] = act; self.changed()
     def set_app_freeze(self, aid, v): self.app(aid)["freeze"] = v; self.changed()
     def set_app_render(self, aid, v): self.app(aid)["render"] = v; self.changed()
+    def set_app_mode(self, aid, v): self.app(aid)["mode"] = v; self.changed()
     def set_fav(self, aid, on): self.app(aid)["fav"] = on; self.changed()
     def set_gpu_panel(self, on): self.gpu_panel = on; self.changed()
     def set_gpu_desk(self, on): self.gpu_desk, self.gpu_fallback, self.desk_armed = on, "", 0; self.changed()
@@ -1317,9 +1363,10 @@ class Real(Base):
                 apps.append(dict(id="eink:" + m, name=m[:1].upper() + m[1:], icon="apps", match=m, ident=m, proc=m[:15],
                                  fav=False, desk=False))
         kvs = dict(profs)
-        ren = read_app_render()
+        ren, modes = read_app_render(), read_app_modes()
         for a in apps:
             a["render"] = ren.get(a["id"], "gpu")
+            a["mode"] = modes.get(a["id"], "tiled")
             kv = kvs.get(a["match"], {})
             a["fluid"] = paint_fluid(kv["paint"]) if "paint" in kv else None
             a["always"] = kv.get("motion") == "always"
@@ -1864,6 +1911,8 @@ class Real(Base):
     def set_gesture(self, n, d, act):
         if act not in (TAP_ACTIONS if (n, d) == (2, "tap") else GESTURE_ACTIONS):
             return
+        if n == "edge" and d not in GESTURE_EDGES:
+            return
         self.gestures[(n, d)] = act
         self._try(lambda: write_gestures(self.gestures))
 
@@ -1874,6 +1923,15 @@ class Real(Base):
         a["freeze"] = v
         self.changed()
         self.bg(self._root, "freeze", a["proc"], v)
+
+    def set_app_mode(self, aid, v):
+        """how the app's next windows open (FR-063): app-modes, which glassine-swayd reads at
+        each new window; the open ones stay as they are"""
+        a = self.app(aid)
+        if not a or not a.get("desk") or v not in APP_MODE_VALUES:
+            return
+        a["mode"] = v
+        self._try(lambda: write_app_mode(aid, v))
 
     def set_app_render(self, aid, v):
         """the app's render profile: glassine-app-render writes the wrapped launchers
