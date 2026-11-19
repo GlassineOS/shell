@@ -106,9 +106,10 @@ GA = [("nothing", "Nothing", "The swipe is ignored"), ("refresh", "Full refresh"
       ("move-prev", "Window to previous screen", "Moves the window under your fingers and follows it"),
       ("overview", "Overview", "Opens the screen switcher"),
       ("#", "Window", ""),
-      ("minimize", "Minimize window", "Hides it until you reopen it. A full-screen window leaves full screen first"),
-      ("fullscreen", "Enter full screen", "The window fills its screen; the top bar stays"),
-      ("unfullscreen", "Leave full screen", "Brings the other windows of the screen back"),
+      ("minimize", "Minimize window", "Hides it until you reopen it. An immersive window leaves immersive first"),
+      ("fullscreen", "Immersive", "The window covers the whole screen, the top bar too"),
+      ("unfullscreen", "Leave immersive", "Brings the top bar and the other windows of the screen back"),
+      ("show-bar", "Show bar", "The top bar over an immersive app for a few seconds"),
       ("swap", "Swap tiled windows", "Trades places with its neighbour"),
       ("close", "Close app", "Closes the window under your fingers"),
       ("#", "Keys", ""),
@@ -123,6 +124,13 @@ GT = [("right-click", "Right click", "Opens the menu an app shows on a mouse rig
      [(a, n, "The tap is ignored" if a == "nothing" else s) for a, n, s in GA]
 GA_NAME["right-click"] = "Right click"
 GDIRS = [("up", "Up", "swipe_up"), ("down", "Down", "swipe_down"), ("left", "Left", "swipe_left"), ("right", "Right", "swipe_right")]
+# the edge swipes (spec 001 FR-060): a finger from that edge inward; the icon the way it moves
+GEDGES = [("top", "Top edge", "swipe_down"), ("bottom", "Bottom edge", "swipe_up"),
+          ("left", "Left edge", "swipe_right"), ("right", "Right edge", "swipe_left")]
+# an app's preferred mode (FR-063)
+APP_MODES = [("tiled", "Tiled"), ("immersive", "Immersive")]
+APP_MODE_SUB = {"tiled": "Its windows open in a tile of the screen, under the top bar",
+                "immersive": "Its windows open over the whole screen, the top bar too; its dialogs stay as they are"}
 
 
 def top_of(page):
@@ -204,7 +212,7 @@ def app_own(ui, a, key, differs):
 def app_changes(ui, a):
     """how many of an app's settings are its own"""
     return sum((a["fluid"] is not None, app_content(a) != "normal", bool(a.get("dither")),
-                a.get("render", "gpu") != "gpu", a["freeze"] != "auto"))
+                a.get("render", "gpu") != "gpu", a["freeze"] != "auto", a.get("mode", "tiled") != "tiled"))
 
 
 def app_summary(ui, a):
@@ -533,6 +541,10 @@ def build(ui, be):
                 if on:
                     add(B.Segments("Draws with", RENDER_SUB[r], RENDERS, r, lambda v: be.set_app_render(a["id"], v)))
                 add(B.Note(RENDER_NOTE))
+            if a.get("desk"):
+                m = a.get("mode", "tiled")
+                add(B.Head("Window"))
+                add(B.Segments("Opens", APP_MODE_SUB[m], APP_MODES, m, lambda v: be.set_app_mode(a["id"], v)))
             if a["proc"]:
                 on = app_own(ui, a, "freeze", a["freeze"] != "auto")
                 add(B.Head("Background"))
@@ -690,6 +702,12 @@ def build(ui, be):
                 add(choice(ui, "Swipe " + d, "", GA, be.gestures.get((n, d), "nothing"),
                            (lambda v, n=n, d=d: be.set_gesture(n, d, v)), icon=icon,
                            title=("Swipe " + d) if ui.L.cw < 360 else "%s · %s" % (lbl, d), key="g%d%s" % (n, dn)))
+        # one finger from an edge inward (FR-060): an edge set to Nothing leaves its touches to the apps
+        add(B.Head("Edges", "One finger from the edge of the screen inward"))
+        for e, en, icon in GEDGES:
+            add(choice(ui, en, "", GA, be.gestures.get(("edge", e), "nothing"),
+                       (lambda v, e=e: be.set_gesture("edge", e, v)), icon=icon,
+                       title=en, key="gEdge" + e.capitalize()))
 
     elif p == "pick" and ui.pick:
         title, back = ui.pick["title"], ui.pick["from"]

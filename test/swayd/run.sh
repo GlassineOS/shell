@@ -24,6 +24,7 @@ while True:
     m=s.recv(4096); f.write(m.replace(b"\0",b" ").decode()+"\n"); f.flush()' &
 sleep 0.3
 GLASSINE_SWAYD_TEST=1 /tmp/glassine-swayd -v 2>/tmp/swayd.log &
+SWAYD=$!
 sleep 0.5
 fail=0
 # a window opens (waits up to 5 s for it: foot is slow to map under load), then the layout settles
@@ -181,7 +182,7 @@ WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/sway -d
 expect "sway -C: keys.conf read" "$(grep -c 'Loading config from /o/usr/share/glassine/sway/keys.conf' /tmp/devcfg.log)" "1"
 expect "sway -C: no errors, no binding bound twice" "$(grep -E '\[ERROR\]|Overwriting' /tmp/devcfg.log | head -3)" ""
 expect "keys.conf: its glassine scripts are in the overlay" "$(grep -o '/usr/s\?bin/glassine-[a-z0-9-]*' /o/usr/share/glassine/sway/keys.conf | sort -u | while read -r f; do [ -e /o$f ] || [ $f = /usr/bin/glassine-shell ] || [ $f = /usr/bin/glassine-swayd ] || echo $f; done)" ""
-expect "keys.conf: no sway fullscreen (full screen is glassine-swayd's full: the bar stays)" "$(grep -E '^bindsym .* fullscreen' /o/usr/share/glassine/sway/keys.conf)" ""
+expect "keys.conf: no sway fullscreen binding (immersive is glassine-swayd's full)" "$(grep -E '^bindsym .* fullscreen' /o/usr/share/glassine/sway/keys.conf)" ""
 expect "shellcheck: glassine-screenshot, glassine-kbd-layout, glassine-home-start" "$(shellcheck -s sh /o/usr/bin/glassine-screenshot /o/usr/bin/glassine-kbd-layout /o/usr/bin/glassine-home-start 2>&1)" ""
 # the home app the session starts (glassine-home-start -n: the command): the app_id as
 # glassine-swayd finds it, its desktop entry, else a command of that name, else nothing
@@ -330,37 +331,57 @@ expect "swapin: the two of E's half trade (left column)" "$(geo)" "A 1 361 478 3
 cmd "direction $(id E)"
 expect "direction on 4 windows: refused" "$(warned 'direction: 4 windows')" "yes"
 cmd "full $(id E)"
-expect "full: E over the work area, the others tiled underneath (sway fills its tile)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 936 | C 1 361 0 341 458 | E 1 0 0 702 936"
-expect "full: no sway fullscreen (the bar stays above)" "$(fsviews)" "0"
+expect "full = immersive: E in sway's fullscreen over the whole output, the others tiled underneath" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 458 | C 1 361 0 341 458 | E 1 0 0 702 936"
+expect "full: sway's fullscreen (it covers the bar), no mark" "$(fsviews) $(fullmarked)" "1 0"
 expect "full: no handles under it" "$(grep 'handle [0-9]: level\|no handles' /tmp/swayd.log | tail -1 | grep -c 'no handles')" "1"
 cmd "full $(id E)"
-expect "full off: E back in its tile" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 458 | C 1 361 0 341 458 | E 1 0 478 341 458"
+expect "full off: E back in its tile" "$(geo) $(fsviews)" "A 1 361 478 341 458 | B 1 0 0 341 458 | C 1 361 0 341 458 | E 1 0 478 341 458 0"
 cmd "full $(id E)"
 kill_ E
-expect "a full window closes: its gap closes (its column whole)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 936 | C 1 361 0 341 458"
-# a window opens on a screen with a full one: full ends (a floating window would hide it)
+expect "an immersive window closes: its gap closes (its column whole)" "$(geo)" "A 1 361 478 341 458 | B 1 0 0 341 936 | C 1 361 0 341 458"
+# a window opens on a screen with an immersive one: immersive ends (the new one would open unseen)
 cmd "full $(id C)"
 term F
-expect "a window opens while one is full: full ends, quarters" "$(sizes)" "A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458"
-expect "... no window left marked full" "$(fullmarked)" "0"
+expect "a window opens while one is immersive: immersive ends, quarters" "$(sizes) $(fsviews)" "A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 0"
 cmd "full $(id C)"
-expect "... C full again" "$(fullmarked)" "1"
+expect "... C immersive again" "$(fsviews) $(geo_of C)" "1 1 0 0 702 936"
 term G
-expect "a fifth window while one is full: the 4-apps rule, a new screen, the view follows" "$(cur) $(geo_of G)" "1 2 focus 2 2 0 0 702 936"
-expect "... full ended on screen 1" "$(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+expect "a fifth window while one is immersive: the 4-apps rule, a new screen, the view follows" "$(cur) $(geo_of G)" "1 2 focus 2 2 0 0 702 936"
+expect "... immersive ended on screen 1" "$(fsviews) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
 swaymsg -q 'workspace 1'; sleep 0.5
-# sway's own fullscreen (an app asked, or a gesture): the shell shows it as full screen, and
-# its Exit full screen (`full W`) ends it in one tap
+# an app that asks for fullscreen itself is immersive the same way, `full W` ends it in one tap
 swaymsg -q "[app_id=F] fullscreen enable"; sleep 0.8
 expect "an app in sway's fullscreen" "$(fsviews)" "1"
 cmd "full $(id F)"
-expect "full on a window in sway's fullscreen: back in its tile, not full" "$(fsviews) $(fullmarked) $(sizes | cut -d'|' -f1-4)" "0 0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+expect "full on a window in sway's fullscreen: back in its tile" "$(fsviews) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
 # `full` with no window (keys.conf's Super+F): the focused one
 swaymsg -q "[app_id=A] focus"; sleep 0.5
 cmd "full"
-expect "full, no window named: the focused one, over the work area" "$(fullmarked) $(fsviews) $(geo_of A)" "1 0 1 0 0 702 936"
+expect "full, no window named: the focused one, immersive" "$(fsviews) $(geo_of A)" "1 1 0 0 702 936"
 cmd "full"
-expect "full, no window named, again: back in its tile" "$(fullmarked) $(geo_of A | cut -d' ' -f4-)" "0 341 458"
+expect "full, no window named, again: back in its tile" "$(fsviews) $(geo_of A | cut -d' ' -f4-)" "0 341 458"
+# Home shown over an immersive app ends immersive first (FR-030: Home floats, sway's fullscreen would cover it)
+swaymsg -q 'exec foot -a glassine-home sleep 600'; sleep 1.2
+cmd "full $(id B)"
+cmd "home show"
+expect "home show over an immersive app: immersive ends, Home over the work area" "$(fsviews) $(geo_of glassine-home) $(geo_of B | cut -d' ' -f4-)" "0 1 0 0 702 936 341 458"
+cmd "home hide"
+swaymsg -q '[app_id=glassine-home] kill'; sleep 1
+# an earlier session's floating `full` (the _glassine_full mark): made immersive, the mark gone
+swaymsg -q "[app_id=C] floating enable, mark --add _glassine_full"; sleep 0.3
+kill -TERM $SWAYD; sleep 0.5
+GLASSINE_SWAYD_TEST=1 /tmp/glassine-swayd -v 2>>/tmp/swayd.log &
+SWAYD=$!; sleep 2
+expect "the old full mark at start: unmarked, tiled, immersive" "$(fullmarked) $(fsviews) $(geo_of C)" "0 1 1 0 0 702 936"
+cmd "full $(id C)"
+expect "... full again: back in a tile, quarters" "$(fsviews) $(sizes | cut -d'|' -f1-4)" "0 A 1 341x458 | B 1 341x458 | C 1 341x458 | F 1 341x458 "
+# an app alone on its screen can be immersive too (FR-016)
+swaymsg -q "workspace number 5"; term L1
+cmd "full $(id L1)"
+expect "full on a window alone on its screen: immersive" "$(fsviews) $(geo_of L1 | cut -d' ' -f2-)" "1 0 0 702 936"
+cmd "full $(id L1)"
+kill_ L1
+swaymsg -q 'workspace 1'; sleep 0.5
 # two windows: direction, and place on the window's own screen
 swaymsg -q '[shell=".*"] kill'; sleep 1.5
 term P; term Q
@@ -446,7 +467,8 @@ expect "home toggle: shown" "$(lasthome "home 1 0")" "home 1 0"
 cmd "home toggle"
 expect "home toggle: hidden" "$(lasthome "home 0 0") $(geo_of A) $(geo_of glassine-home | cut -d' ' -f1)" "home 0 0 1 0 0 702 936 __i3_scratch"
 # the on-screen keyboard's zone (no sway event when it changes): Home shown while it is up
-# covers the area above it, and the whole work area again once it goes; the same for `full`
+# covers the area above it, and the whole work area again once it goes; an immersive
+# window stays the whole output (the keyboard, an overlay surface, above it)
 wvkbd-mobintl --hidden >/tmp/wvkbd.log 2>&1 &
 sleep 1
 osk() { sh /o/usr/bin/glassine-osk "$1"; sleep 2.5; }
@@ -465,9 +487,9 @@ osk hide
 cmd "home hide"
 cmd "full"
 osk show
-expect "a full window fits the area above the keyboard" "$(fits "$(geo_of A)" "$KA")" "ok"
+expect "an immersive window with the keyboard up: still the whole output" "$(geo_of A)" "1 0 0 702 936"
 osk hide
-expect "... and the whole work area once it goes" "$(fits "$(geo_of A)" "1 0 0 702 936")" "ok"
+expect "... and once it goes" "$(geo_of A)" "1 0 0 702 936"
 cmd "full"
 # a turn: the layer surfaces lay themselves out after sway's output event; here the keyboard
 # (raised and dropped by signal, its state file untouched) goes right after the turn
@@ -572,6 +594,62 @@ G=$(geo_of small-1)
 expect "a dialog that fits: where sway put it, centred in the work area, its size" "$(echo "$G $WA" | awk '{ dx = $2 + $4 / 2 - ($6 + $8 / 2); dy = $3 + $5 / 2 - ($7 + $9 / 2) } dx * dx <= 4 && dy * dy <= 4 && $4 > 280 && $4 <= 300 && $5 > 280 && $5 <= 300 { print "ok" }')" "ok"
 swaymsg -q '[app_id=small-1] move absolute position 100 0'; sleep 1.2
 expect "a dialog the user moves under the bar stays there" "$(geo_of small-1 | cut -d' ' -f2-3)" "100 0"
+# immersive over the docked bar (FR-019): the whole output, the bar covered; a dialog of the
+# immersive app (or any other window floating on its screen) that sway would hide under it (not transient for it: sway's
+# popup_during_fullscreen smart shows only those) ends immersive (FR-064)
+swaymsg -q '[app_id="^tall-|^small-|^dlg-"] kill'; sleep 1
+swaymsg -q 'workspace number 6'; sleep 0.3
+fsrv e; fc e main-e
+cmd "full $(id main-e)"
+expect "immersive with the bar docked: over the whole output, the bar too" "$(geo_of main-e | cut -d' ' -f2-) $(fsviews)" "0 0 702 936 1"
+fc e dlg-e
+vis() { swaymsg -t get_tree -r | python3 -c '
+import json,sys
+def w(n):
+    if n.get("app_id")==sys.argv[1]: print("visible" if n.get("visible") else "hidden")
+    for c in n.get("nodes",[])+n.get("floating_nodes",[]): w(c)
+w(json.load(sys.stdin))' "$1"; }
+expect "a dialog of the immersive app opens: immersive ends, the dialog is seen" "$(fsviews) $(vis dlg-e) $(warned 'hidden under it: immersive ends')" "0 visible yes"
+swaymsg -q '[app_id="^dlg-e"] kill'; sleep 1
+# a dialog of another process (a portal's file chooser, an auth prompt): the same
+cmd "full $(id main-e)"
+N0=$(grep -c 'hidden under it: immersive ends' /tmp/swayd.log)
+term dlg-other
+expect "a dialog of another process opens over it: immersive ends, the dialog is seen" "$(fsviews) $(vis dlg-other) $(grep -c 'hidden under it: immersive ends' /tmp/swayd.log)" "0 visible $((N0 + 1))"
+# a dialog floating there before: `full` still works, the dialog stays under it
+swaymsg -q '[app_id="^dlg-other"] kill'; sleep 1
+term dlg-before
+cmd "full $(id main-e)"
+expect "a dialog already floating there: immersive starts all the same" "$(fsviews)" "1"
+cmd "full $(id main-e)"
+swaymsg -q '[app_id="^main-e|^dlg-before"] kill'; sleep 1
+# an app's preferred mode (FR-063): ~/.config/glassine/app-modes, "DESKTOP_ID immersive"
+AM=$HOME/.config/glassine/app-modes; mkdir -p "$(dirname "$AM")"
+printf '# glassine-settings\norg.test.Imm immersive\nIMM2 immersive\ndlg-imm immersive\n' > "$AM"
+swaymsg -q 'workspace number 6'; sleep 0.3
+term X6
+ph "org.test.imm immwin"
+term immwin
+expect "app-modes: a window taking its placeholder's place (desktop id org.test.imm) opens immersive" "$(geo_of immwin | cut -d' ' -f2-) $(fsviews) $(geo_of glassine-placeholder)" "0 0 702 936 1 "
+expect "... by its desktop id from the placeholder" "$(warned 'opens immersive (app-modes: org.test.imm)')" "yes"
+expect "... the screen's other window stays tiled underneath" "$(geo_of X6 | cut -d' ' -f4)" "702"
+kill_ immwin
+term imm2
+expect "app-modes: no placeholder, by its app id (any case)" "$(geo_of imm2 | cut -d' ' -f2-) $(fsviews)" "0 0 702 936 1"
+cmd "full $(id imm2)"
+expect "... Leave immersive: back in its tile, not made immersive again" "$(fsviews) $(geo_of imm2 | cut -d' ' -f4)" "0 702"
+swaymsg -q 'for_window [app_id="^dlg-imm$"] floating enable'
+term dlg-imm
+expect "app-modes: its dialogs (floating) never" "$(fsviews)" "0"
+kill_ imm2
+printf 'x6 immersive\n' >> "$AM"; sleep 1.1; touch "$AM"
+term X6b
+expect "app-modes changed: the open windows stay as they are" "$(fsviews)" "0"
+rm -f "$AM"
+term imm2
+expect "app-modes gone: the app opens tiled" "$(fsviews)" "0"
+swaymsg -q '[app_id="^X6|^imm2|^dlg-imm"] kill'; sleep 1.2
+swaymsg -q 'workspace 1'; sleep 0.5
 swaymsg -q 'bar top mode invisible'
 # the keyboard as the input method (wvkbd --im, one per seat): it says "osk im", swayd gives its
 # own up and takes the text focus from the keyboard's reports, with the same rules

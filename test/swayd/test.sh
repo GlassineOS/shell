@@ -6,7 +6,9 @@
 # a floating dialog, the hints glassine-epdd-desktop gets (a FIFO stand-in), swapdir, the
 # physical-keyboard rule (fixtures) and sway's bare-Super release binding (wtype);
 # the window model of spec 001: a position per line (a test-only drag,
-# GLASSINE_SWAYD_TEST), swapin/cross/direction/full, place on the own screen,
+# GLASSINE_SWAYD_TEST), swapin/cross/direction, full (immersive: sway's fullscreen; Home
+# ends it, an old session's mark is migrated, an app's dialog sway hides ends it, app-modes
+# opens an app immersive), place on the own screen,
 # scrmove/scrclose, next, Home (a foot stand-in) and the empty screen, with the
 # dividers and home requests a stand-in glassine-shell socket gets;
 # dialogs (one pid, another app_id) following their app's window across screens and placed

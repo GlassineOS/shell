@@ -13,8 +13,9 @@
  * its apps' icons in four slots around it, under it move it
  * earlier / close it with its apps / move it later. Tap an app:
  * it moves -- arrows beside the other apps place it, its own
- * actions (close, full screen, new screen) sit in a half-circle
- * around it (FR-010..019)
+ * actions (close, immersive, new screen) sit in a half-circle
+ * around it (FR-010..019); an immersive app (sway's fullscreen,
+ * over the bar) has a heavy ring and its screen's title says so
  * notices (tap on the clock) the notifications (glassine-shell-notify.c):
  * tap = open, x = dismiss, clear all
  * divider (tap on a glassine-swayd handle) Swap on every divider,
@@ -30,6 +31,10 @@
  * (only where the board's loader takes the request: glassine-loader-mark
  * can-request menu, GlassineOS/boot): one tap (the popup is the
  * confirmation)
+ * bar show (sway's Show bar gesture, spec 001 FR-061) over an immersive
+ * app on the current screen: the bar on the overlay layer, above
+ * it, until 5 s after the last touch on it (a popup opened from
+ * it keeps it up until it closes); no immersive app: nothing
  * resizing while a glassine-swayd handle is dragged: only the bar moves (drawn
  * by glassine-swayd / glassine-epdd-desktop) and, for rows, the 1/3 1/2 2/3 snap
  * marks
@@ -50,6 +55,7 @@
  * home | launcher = the request home)
  * home show or hide Home: "home toggle" to glassine-swayd (the
  * bar's button, the Home gesture)
+ * bar show the bar over an immersive app for 5 s (FR-061)
  * home VISIBLE HOLE (glassine-swayd, on every change) Home is shown (0|1);
  * the empty screen under it, its number (0: none)
  * divider-tap | dividers N,ORIENT0 x,y,w,h,vert,level,a,b,pos... (glassine-swayd;
@@ -77,7 +83,7 @@
  *
  * glassine-shell [-v] run (session autostart)
  * glassine-shell theme NAME switch the theme
- * glassine-shell toggle VIEW | home | close | verbose | launch ID [new|here [ARG]] | light STEP send a request
+ * glassine-shell toggle VIEW | home | bar show | close | verbose | launch ID [new|here [ARG]] | light STEP send a request
  * GLASSINE_SHELL_HITS=DIR (host tests) the targets of each render to DIR/bar, DIR/pop
  */
 #define _GNU_SOURCE
@@ -1057,7 +1063,6 @@ static Layout lay_get(long d)
         for (int j = 0; j < s->gn[g]; j++) if (client(s->w[g][j])) L.w[L.ng][k++] = s->w[g][j];
         if (k) L.gn[L.ng++] = k;
     }
-    if (s->full && client(s->full)) L.full = s->full;
     return L;
 }
 
@@ -1073,11 +1078,6 @@ static int lay_rects(const Layout *L, Rc *out)
             if (L->side) { r->x = a; r->wd = b; r->y = c; r->ht = e; }
             else { r->x = c; r->wd = e; r->y = a; r->ht = b; }
         }
-    if (L->full) {                      /* out of the tiling while full: the whole screen, gi -1 */
-        Rc *r = &out[n++];
-        r->w = L->full; r->c = client(r->w); r->gi = -1;
-        r->x = r->y = 0; r->wd = r->ht = 1;
-    }
     return n;
 }
 
@@ -1099,14 +1099,14 @@ static int scr_rects(long d, Rc *out, int reading)
  * becomes whole again; a half left alone splits the other way */
 static Layout lay_without(const Layout *L, WinId m)
 {
-    Layout o = { .side = L->side, .full = L->full == m ? 0 : L->full };
+    Layout o = { .side = L->side };
     for (int g = 0; g < L->ng; g++) {
         int k = 0;
         for (int j = 0; j < L->gn[g]; j++) if (L->w[g][j] != m) o.w[o.ng][k++] = L->w[g][j];
         if (k) o.gn[o.ng++] = k;
     }
     if (o.ng == 1 && o.gn[0] == 2) {
-        Layout f = { .side = !o.side, .ng = 2, .gn = { 1, 1 }, .full = o.full };
+        Layout f = { .side = !o.side, .ng = 2, .gn = { 1, 1 } };
         f.w[0][0] = o.w[0][0]; f.w[1][0] = o.w[0][1];
         return f;
     }
@@ -1123,10 +1123,11 @@ static int lay_same(const Layout *a, const Layout *b)
     return 1;
 }
 
-/* the window shown full screen on its screen over the others (FR-012), NULL: none */
+/* the screen's immersive window (FR-012: sway's fullscreen, over the bar and the
+ * screen's other windows), NULL: none */
 static const Client *scr_full(const Rc *R, int n)
 {
-    for (int i = 0; n > 1 && i < n; i++) if (R[i].c && (R[i].c->maxed || R[i].gi < 0)) return R[i].c;
+    for (int i = 0; i < n; i++) if (R[i].c && R[i].c->maxed) return R[i].c;
     return NULL;
 }
 
@@ -1177,10 +1178,19 @@ static const char *wifi_icon(void)
     return st.wifi_lvl < 0 ? "network-wireless-offline-symbolic" : L[st.wifi_lvl];
 }
 
-/* the window the bar's title and close button are for (FR-005), or NULL */
+/* bar show (FR-061): the bar is over an immersive app, until bar_up_due (ms) */
+#define BAR_UP_MS 5000
+static int bar_up;
+static double bar_up_due;
+
+/* the window the bar's title and close button are for (FR-005), or NULL: raised over
+ * an immersive app, that app's window */
 static const Client *bar_focused(void)
 {
-    if (st.home_vis || st.view == V_WS || !active) return NULL;
+    if (st.home_vis || st.view == V_WS) return NULL;
+    WinId im = bar_up ? be_immersive(curdesk) : 0;
+    for (int i = 0; im && i < ncl; i++) if (cl[i].w == im) return &cl[i];
+    if (!active) return NULL;
     for (int i = 0; i < ncl; i++) if (cl[i].w == active) return cl[i].desk == curdesk ? &cl[i] : NULL;
     return NULL;
 }
@@ -1762,13 +1772,14 @@ static double ws_minimized(Gc *g, double x, double y, double w, col fg, int pain
  * own actions sit in a half-circle around its icon (ov_actions). */
 static void pg_btn(Gc *g, double x, double y, double sz, int next, int on, int act, int arg);
 
-/* the screen's title: its apps in order; a full-screen one says so (FR-012) */
+/* the screen's title: its apps in order; an immersive one says so (FR-012):
+ * "<App> immersive · <others> hidden" */
 static void ov_title(const Rc *R, int n, char *out, size_t len)
 {
     const Client *f = scr_full(R, n);
     size_t o = 0;
     out[0] = 0;
-    if (f) o += snprintf(out, len, "%s full screen", f->name);
+    if (f) o += snprintf(out, len, "%s immersive", f->name);
     int k = 0;
     for (int i = 0; i < n && o < len; i++) {
         if (!R[i].c || R[i].c == f) continue;
@@ -1800,8 +1811,8 @@ static void ov_turn_page(int dir)
     render_pop();
 }
 
-/* the still: be_snap's picture of the screen, else its tiles in miniature (a
- * full-screen app: the whole preview) */
+/* the still: be_snap's picture of the screen, else its tiles in miniature (an
+ * immersive app: it alone, the whole preview) */
 static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
 {
     ui_fill_rect(g, x, y, w, h, T->ink);   /* the gaps between the tiles: ink (design) */
@@ -1825,7 +1836,7 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
     }
     Rc R[MAXRC];
     int n = scr_rects(d, R, 0);
-    if (!n || scr_full(R, n)) { ui_fill_rect(g, x, y, w, h, UI_PAPER); return; }
+    if (!n || scr_full(R, n)) { ui_fill_rect(g, x, y, w, h, UI_PAPER); return; }   /* (immersive: the whole preview is its) */
     for (int i = 0; i < n; i++) {
         const Client *c = R[i].c;
         if (!c || warea[2] <= 0 || warea[3] <= 0) continue;
@@ -1840,7 +1851,7 @@ static void ov_thumb(Gc *g, long d, double x, double y, double w, double h)
     }
 }
 
-/* a 48 px button with an app's icon; ring: the heavy edge of a full-screen app */
+/* a 48 px button with an app's icon; ring: the heavy edge of an immersive app */
 static void ov_icon_btn(Gc *g, const Client *c, double x, double y, int hi, int ring, int act)
 {
     ui_box(g, x, y, 48, 48, hi ? &T->sel : &T->btn);
@@ -1906,11 +1917,11 @@ static int ov_targets(long d, const Client *m, const Rc *R, int n, double W, dou
     return nt;
 }
 
-/* the moving app's actions (FR-016): Close app, and with others on its screen
- * Full screen (or Exit full screen) and New screen, in a half-circle around its
+/* the moving app's actions (FR-016): Close app, Immersive (or Leave immersive) and,
+ * with others on its screen, New screen, in a half-circle around its
  * icon that bulges out of the screen: sideways for a window narrower than the
- * screen (Close toward the nearest edge, Full screen above, New screen below),
- * up or down for a full-width half (Close toward that edge, Full screen left,
+ * screen (Close toward the nearest edge, Immersive above, New screen below),
+ * up or down for a full-width half (Close toward that edge, Immersive left,
  * New screen right). A spot within 46 px of another icon, arrow or action, or
  * off the preview (x: by more than the rail beside it, 30 px; y: by more than
  * 8 px) moves to the first free spot around the icon. Preview px. */
@@ -1935,7 +1946,7 @@ static int ov_actions(const Client *m, const Rc *R, int n, const Tgt *tg, int nt
     for (int i = 0; i < nt && nk < 40; i++) { taken[nk][0] = tg[i].x; taken[nk][1] = tg[i].y; nk++; }
     taken[nk][0] = mx; taken[nk][1] = my; nk++;
     static const int ACT[3] = { A_OV_CLOSEAPP, A_OV_FULL, A_OV_NEW };
-    int na = 0, want = n > 1 ? 3 : 1;
+    int na = 0, want = n > 1 ? 3 : 2;
     for (int a = 0; a < want; a++) {
         double sx = 0, sy = 0;
         int found = 0;
@@ -1978,7 +1989,7 @@ static void view_ov(Gc *g)
                  "tap another app to pick it instead", mc->name);
     } else {
         snprintf(sub, sizeof sub, "%ld %s · %d %s", ndesk, ndesk == 1 ? "screen" : "screens", nwin, nwin == 1 ? "window" : "windows");
-        snprintf(hint, sizeof hint, "Tap a screen to go to it · tap an app to move, full-screen or close it · arrows reorder screens");
+        snprintf(hint, sizeof hint, "Tap a screen to go to it · tap an app to move it, make it immersive or close it · arrows reorder screens");
     }
     snprintf(pl, sizeof pl, "%d/%d", page + 1, np);
 
@@ -2032,6 +2043,7 @@ static void view_ov(Gc *g)
         char title[300], num[16];
         ov_title(R, n, title, sizeof title);
         if (nofit) snprintf(title + strlen(title), sizeof title - strlen(title), " · no room");
+        if (g->paint) LOG("overview: screen %ld: %s%s", d + 1, title, full ? " (ring)" : "");
         snprintf(num, sizeof num, "%ld", d + 1);
         TFont tf = T->appNameFont;
         if (isCur && !mc) tf.weight = 700;
@@ -2053,7 +2065,6 @@ static void view_ov(Gc *g)
                 for (int q = 0; q < 4; q++)
                     if (QX[q] > r->x && QX[q] < r->x + r->wd && QY[q] > r->y && QY[q] < r->y + r->ht) {
                         if (!slot[q]) slot[q] = r;
-                        else if (r->gi < 0) continue;   /* the full one, out of the tiling: the first free slot */
                         break;
                     }
             }
@@ -2104,7 +2115,9 @@ static void view_ov(Gc *g)
                     else if (oa[a].act == A_OV_FULL)
                         ui_icon(g, mc->maxed ? "view-restore-symbolic" : "view-fullscreen-symbolic", 24, ax + 22, ay + 22, T->ink);
                     else newscreen_glyph(g, ax + 22, ay + 22, T->ink);
-                    hit(ax, ay, 44, 44, oa[a].act, 0, mc->w);
+                    hit(ax, ay, 44, 44, oa[a].act, oa[a].act == A_OV_FULL && mc->maxed, mc->w);
+                    if (oa[a].act == A_OV_FULL && g->paint)
+                        LOG("overview: %s's action %s", mc->name, mc->maxed ? "Leave immersive" : "Immersive");
                 }
             }
             if (nofit) ui_fill_rect(g, cx, ry, cw, rh, 0x8cffffff);   /* design: opacity .45 */
@@ -2491,6 +2504,8 @@ static void light_step(const char *how)
     if (st.view == V_QS) render_pop();
 }
 
+static void bar_lower(void);
+
 static void set_view(int v)
 {
     if (v == st.view) v = V_IDLE;       /* the bar buttons toggle */
@@ -2511,6 +2526,7 @@ static void set_view(int v)
     if (v == V_PWR) query_pwr_menu();
     if (v == V_WS || v == V_DIV) be_read_desktop();
     LOG("view %d", v);
+    if (v == V_IDLE && bar_up && now_ms() >= bar_up_due) bar_lower();  /* the raised bar's popup closed after its 5 s */
     render_bar();
     render_pop();
     div_input();
@@ -3171,6 +3187,7 @@ void ev_pointer(int down, int rx_dev, int ry_dev)
         ov_turn_page(x < sw_x ? 1 : -1);
         return;
     }
+    if (down && s == &bar && bar_up) bar_up_due = now_ms() + BAR_UP_MS;    /* a touch on the raised bar */
     if (down) {
         LOG("press %.0f,%.0f %s: hit %d/%d t=%.0f", x, y, s == &bar ? "bar" : "pop", h ? h->act : -1, h ? h->arg : -1, now_ms());
         press.down = 1;
@@ -3281,9 +3298,30 @@ void ev_key(int k, const char *b, int n)
     }
 }
 
+static void bar_lower(void)
+{
+    if (!bar_up) return;
+    bar_up = 0;
+    be_bar_over(0);
+    LOG("bar: back under the immersive app");
+}
+
+/* "bar show": over the current screen's immersive app (sway's fullscreen covers the
+ * top layer) for BAR_UP_MS after the last touch on it; no immersive app: nothing */
+static void bar_show(void)
+{
+    be_read_desktop();
+    if (!be_immersive(curdesk)) { LOG("bar show: no immersive app on this screen: nothing to do"); return; }
+    bar_up_due = now_ms() + BAR_UP_MS;
+    if (!bar_up) { bar_up = 1; be_bar_over(1); }
+    LOG("bar: over the immersive app for %d s", BAR_UP_MS / 1000);
+    render_bar();
+}
+
 void ev_desktop(void)
 {
     be_read_desktop();
+    if (bar_up && !be_immersive(curdesk)) bar_lower();     /* it ended, or another screen */
     render_bar();
     if (st.view == V_WS) render_pop();
 }
@@ -3333,6 +3371,8 @@ static void request(char *msg, int len)
         st.hole = n > 2 ? atoi(w[2]) : 0;
         LOG("home %d hole %d", st.home_vis, st.hole);
         render_bar();
+    } else if (!strcmp(w[0], "bar") && n > 1 && !strcmp(w[1], "show")) {
+        bar_show();
     } else if (!strcmp(w[0], "close")) {
         if (st.view != V_IDLE) set_view(V_IDLE);
     } else if (!strcmp(w[0], "theme") && n > 1) {
@@ -3439,6 +3479,7 @@ int main(int argc, char **argv)
         return 0;
     }
     if (argc > 1 && (!strcmp(argv[1], "toggle") || !strcmp(argv[1], "close") || !strcmp(argv[1], "verbose") || !strcmp(argv[1], "home") ||
+                     !strcmp(argv[1], "bar") ||
                      !strcmp(argv[1], "status") || !strcmp(argv[1], "launch") || !strcmp(argv[1], "open") ||
                      !strcmp(argv[1], "light")))
         return send_request(argc - 1, argv + 1);
@@ -3508,6 +3549,7 @@ int main(int argc, char **argv)
         if (press_long_due && press_long_due < due) due = press_long_due;
         if (st.opening >= 0 && st.opening_t + 1000 < due) due = st.opening_t + 1000;
         if (ws_hold_due && ws_hold_due < due) due = ws_hold_due;
+        if (bar_up && st.view == V_IDLE && bar_up_due < due) due = bar_up_due;     /* (a popup open: until it closes) */
         struct pollfd pf[10 + NGFD] = { { be_fd(), POLLIN, 0 }, { sfd, POLLIN, 0 } };
         int np = 2, jix[8];
         for (int i = 0; i < 8; i++) if (jobs[i].pid) { pf[np] = (struct pollfd){ jobs[i].fd, POLLIN, 0 }; jix[np - 2] = i; np++; }
@@ -3553,6 +3595,7 @@ int main(int argc, char **argv)
         }
         if (st.opening >= 0 && t >= st.opening_t + 1000) set_view(V_IDLE);
         if (ws_hold_due && t >= ws_hold_due) ws_hold_check();
+        if (bar_up && st.view == V_IDLE && t >= bar_up_due) { bar_lower(); render_bar(); }
         if (t >= status_due || wall % 60 == 0 || strcmp(st.clock, "") == 0) {
             char old[sizeof st.clock];
             int ob = st.batt, oc = st.charging, ow = st.wifi_lvl;
