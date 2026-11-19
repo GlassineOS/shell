@@ -128,7 +128,7 @@ enum {
     A_QS_TITLE, A_QS_TOGGLE, A_QS_SLABEL, A_QS_SLIDER, A_QS_FLUID, A_QS_SETTINGS,
     A_QS_PWR, A_QS_ROT, A_P_ACT, A_P_CANCEL,
     A_WS_GOTO, A_WS_RESTORE,
-    A_BAR_OV, A_BAR_CHG, A_OV_X, A_OV_PICK, A_OV_PUT, A_OV_NEW, A_OV_CLOSEAPP, A_OV_FULL, A_OV_CANCEL,
+    A_BAR_OV, A_BAR_CHG, A_BAR_CLOSE, A_OV_X, A_OV_PICK, A_OV_PUT, A_OV_NEW, A_OV_CLOSEAPP, A_OV_FULL, A_OV_CANCEL,
     A_OV_PREV, A_OV_NEXT, A_SCR_PREV, A_SCR_CLOSE, A_SCR_NEXT,
     A_N_CLEAR, A_N_OPEN, A_N_DISMISS,
     A_DIV_SWAP, A_DIV_DIR, A_DIV_CROSS,
@@ -234,8 +234,10 @@ static const char *act_name(int a)
     switch (a) {
     case A_BAR_HOME: return "home";
     case A_BAR_OV: return "screen";
+    case A_BAR_CLOSE: return "close";
     case A_BAR_QS: return "qs";
     case A_QS_PWR: return "qs-power";
+    case A_QS_SETTINGS: return "qs-settings";
     case A_P_ACT: return "pwr-act";
     case A_P_CANCEL: return "pwr-cancel";
     case A_OV_X: return "ov-close";
@@ -1175,6 +1177,14 @@ static const char *wifi_icon(void)
     return st.wifi_lvl < 0 ? "network-wireless-offline-symbolic" : L[st.wifi_lvl];
 }
 
+/* the window the bar's title and close button are for (FR-005), or NULL */
+static const Client *bar_focused(void)
+{
+    if (st.home_vis || st.view == V_WS || !active) return NULL;
+    for (int i = 0; i < ncl; i++) if (cl[i].w == active) return cl[i].desk == curdesk ? &cl[i] : NULL;
+    return NULL;
+}
+
 static void view_bar(Gc *g)
 {
     double H = BH, cy = H / 2;
@@ -1272,13 +1282,12 @@ static void view_bar(Gc *g)
     hit(xr, 0, nw, H, A_BAR_NOTIF, 0, 0);
     xr -= 6;
 
-    /* the screen button (FR-002..004): "n/N" in a small screen frame with a thick
-     * top edge, then its apps' icons in reading order; with an empty screen
-     * under Home its number only. It names the screen, not the focused window,
-     * and opens Overview (pressed while it is open). */
-    double pw = xr - x;
-    if (pw > 40) {
-        plate(g, x, cy - 18, pw, 36, st.view == V_WS, &fg);
+    /* the screen button (FR-002..004), left after Home and as wide as it shows: "n/N"
+     * in a small screen frame with a thick top edge, then its apps' icons in reading
+     * order; with an empty screen under Home its number only. It names the screen, not
+     * the focused window, and opens Overview (pressed while it is open). */
+    double room = xr - x;
+    if (room > 40) {
         int hole = st.home_vis && st.hole > 0;
         long num = hole ? st.hole : curdesk + 1, cnt = ndesk > num ? ndesk : num;
         Rc R[MAXRC];
@@ -1287,17 +1296,40 @@ static void view_bar(Gc *g)
         snprintf(lab, sizeof lab, "%ld/%ld", num, cnt);
         TFont nf = ui_font_px(&T->numFont, 13);
         double nh, nw = ui_text_w(g, &nf, lab, &nh), fw = 6 + nw + 6 + 3, FH = 26;
-        double tot = fw + (n ? 8 + n * 20 + (n - 1) * 5 : 0);
-        double sx = x + (pw - tot) / 2;
-        if (sx < x + 10) sx = x + 10;
+        int fit = (int)((room - 10 - fw - 10 - 8 + 5) / 25);   /* the icons that fit */
+        if (fit < 0) fit = 0;
+        if (n > fit) n = fit;
+        double pw = 10 + fw + (n ? 8 + n * 20 + (n - 1) * 5 : 0) + 10;
+        plate(g, x, cy - 18, pw, 36, st.view == V_WS, &fg);
+        double sx = x + 10;
         screen_frame(g, sx, cy - FH / 2, fw, FH, fg);
         ui_text(g, &nf, lab, sx + fw / 2, cy - FH / 2 + 5 + (FH - 5 - 1.5 - nh) / 2, 1, 0, fg, NULL);
         sx += fw + 8;
-        for (int i = 0; i < n && sx + 20 <= x + pw - 10; i++) {
+        for (int i = 0; i < n; i++) {
             app_icon(g, R[i].c, 20, sx + 10, cy, fg);
             sx += 25;
         }
         hit(x, 0, pw, H, A_BAR_OV, 0, 0);
+        x += pw + 6;
+    }
+
+    /* the focused window's title and its close button (FR-005): not with Home shown,
+     * Overview open, or no focused window on this screen */
+    const Client *fc = bar_focused();
+    if (fc && xr - x >= 42) {
+        double cxr = xr - 42;           /* the close button, right of the title, its own plate */
+        plate(g, cxr, cy - 18, 42, 36, 0, &fg);
+        ui_icon(g, "window-close-symbolic", 22, cxr + 21, cy, fg);
+        hit(cxr, 0, 42, H, A_BAR_CLOSE, 0, fc->w);
+        double tw = cxr - 10 - x;       /* 10 px clear of the close button */
+        char t[160];
+        be_title(fc->w, t, sizeof t);
+        if (!t[0]) snprintf(t, sizeof t, "%s", fc->name);
+        TFont tf = ui_font_px(&T->nameFont, 14);
+        double th;
+        ui_text_w(g, &tf, "Abcdef", &th);
+        if (t[0] && tw >= ui_text_w(g, &tf, "Abc…", NULL))
+            ui_text(g, &tf, t, x + 4, cy - th / 2, 0, tw - 4, T->barFg, NULL);
     }
 }
 
@@ -1394,13 +1426,12 @@ static void rot_set(const char *v)
 }
 /* held toggles open these (0-3: Wi-Fi, Bluetooth, Mute, Refresh; 4: a held
  * front light / warmth label): glassine-settings on its page */
-#define GLASSINE_SETTINGS(page) "/usr/bin/glassine-settings " page
-static const struct { const char *name, *cmd; } SETTINGS[5] = {
-    { "network", GLASSINE_SETTINGS("wifi") },
-    { "Bluetooth", GLASSINE_SETTINGS("bt") },
-    { "sound", GLASSINE_SETTINGS("sound") },
-    { "display", GLASSINE_SETTINGS("eink") },
-    { "light", GLASSINE_SETTINGS("light") },
+static const struct { const char *name, *page; } SETTINGS[5] = {
+    { "network", "wifi" },
+    { "Bluetooth", "bt" },
+    { "sound", "sound" },
+    { "display", "eink" },
+    { "light", "light" },
 };
 #define HOLD_MS 550
 #define OPENING_ALL 6                   /* the settings button: glassine-settings itself */
@@ -2848,17 +2879,37 @@ static int focus_window_of(App *a)
 
 /* an app that already has a window comes forward (minimized: back here)
  * instead of a second copy (KOReader ran twice on one book); else it starts */
-static void open_app(App *a)
+/* where an app the person opens goes: glassine-settings > Appearance > Windows,
+ * a screen of its own (the default; the file app-shared-workspace turns it off);
+ * an empty current one is used as it is */
+static const char *open_where(void)
 {
-    if (focus_window_of(a)) return;
-    /* glassine-settings > Appearance > Windows: a workspace of its own (*; the default since design, the file
-     * app-shared-workspace turns it off); an empty current one is used as it is */
     char shared[512];
     const char *home = getenv("HOME");
     snprintf(shared, sizeof shared, "%s/.config/glassine/app-shared-workspace", home ? home : "");
+    be_read_desktop();
     int busy = 0;
     for (int k = 0; k < ncl; k++) if (cl[k].desk == curdesk) busy = 1;
-    launch_where(a, access(shared, F_OK) && busy ? "new" : NULL, NULL);
+    return access(shared, F_OK) && busy ? "new" : NULL;
+}
+
+static void open_app(App *a)
+{
+    if (focus_window_of(a)) return;
+    launch_where(a, open_where(), NULL);
+}
+
+/* glassine-settings on PAGE (NULL: as it was) from the bar or quick settings: as a
+ * drawer tap (open_where), so a first start gets its own screen when the setting
+ * says so; a running one turns its page and comes forward (launch_where: it runs once) */
+static void open_settings(const char *page)
+{
+    App *a = notice_app(SETTINGS_ID, "");
+    if (a) { launch_where(a, open_where(), page); return; }
+    char c[128];                        /* no desktop entry (a bare checkout): as before */
+    snprintf(c, sizeof c, "/usr/bin/glassine-settings%s%s", page ? " " : "", page ? page : "");
+    run(c, NULL);
+    raise_settings();
 }
 
 /* a notice without a "default" action: bring its app forward (a window of
@@ -2894,8 +2945,7 @@ static void act(const Hit *h, double rx)
     case A_BAR_NOTIF: set_view(V_NOTIF); break;
     case A_BAR_CHG:
         if (st.view != V_IDLE) set_view(V_IDLE);
-        run("/usr/bin/glassine-settings packages", NULL);
-        raise_settings();
+        open_settings("packages");
         break;
     case A_BAR_QS: set_view(V_QS); break;
     case A_BAR_KBD: run("/usr/bin/glassine-osk", NULL); break;
@@ -2959,8 +3009,7 @@ static void act(const Hit *h, double rx)
     case A_QS_SETTINGS:
         st.opening = OPENING_ALL;
         st.opening_t = now_ms();
-        run("/usr/bin/glassine-settings", NULL);
-        raise_settings();
+        open_settings(NULL);
         render_pop();
         break;
     case A_QS_SLABEL: break;             /* hold only */
@@ -2992,6 +3041,7 @@ static void act(const Hit *h, double rx)
     case A_WS_GOTO: be_goto_desk(h->arg); set_view(V_IDLE); break;
     case A_WS_RESTORE: be_restore(h->win); set_view(V_IDLE); break;
     case A_BAR_OV: overview(); break;
+    case A_BAR_CLOSE: if (h->win) be_close(h->win); break;
     case A_OV_X: set_view(V_IDLE); break;
     case A_OV_PICK: st.mv = h->win; st.ov_page = -1; render_pop(); break;
     case A_OV_CANCEL: st.mv = 0; st.ov_page = -1; render_pop(); break;
@@ -3073,8 +3123,7 @@ static void held(int a, int arg)
     if (a == A_QS_TOGGLE || a == A_QS_SLABEL) {
         st.opening = a == A_QS_SLABEL ? 4 : arg;
         st.opening_t = now_ms();
-        run(SETTINGS[st.opening].cmd, NULL);
-        raise_settings();
+        open_settings(SETTINGS[st.opening].page);
         press.s = NULL;             /* no inverted target: the hint is the feedback */
         render_pop();
     } else if (a == A_BAR_WS) {
@@ -3239,7 +3288,26 @@ void ev_desktop(void)
     if (st.view == V_WS) render_pop();
 }
 
-void ev_title(void) { render_bar(); }
+/* the bar's title (FR-005): a title that keeps changing (a page loading, a clock in
+ * it) repaints the bar at most once a second -- each repaint is an e-ink update */
+#define TITLE_MS 1000
+static guint title_timer;
+static double title_last;
+static gboolean title_tick(gpointer u)
+{
+    (void)u;
+    title_timer = 0;
+    title_last = now_ms();
+    render_bar();
+    return G_SOURCE_REMOVE;
+}
+void ev_title(void)
+{
+    double t = now_ms();
+    if (title_timer) return;            /* due already: it paints the latest */
+    if (t - title_last >= TITLE_MS) { title_last = t; render_bar(); return; }
+    title_timer = g_timeout_add((guint)(TITLE_MS - (t - title_last)) + 1, title_tick, NULL);
+}
 
 /* ============================================================================
  * requests
