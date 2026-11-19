@@ -126,11 +126,12 @@ hib_on() {      # a stand-in glassine-hibernate and its swap file (deploy.conf's
 }
 rm -f /usr/sbin/glassine-hibernate
 tap bar qs; tap pop qs-power
-expect "Power without hibernation: 3 rows + 2 restart targets, no Hibernate" "$(nh pop pwr-act) $(nh pop pwr-act 1)" "5 0"
+expect "Power without hibernation: 4 rows + 2 restart targets, no Hibernate" "$(nh pop pwr-act) $(nh pop pwr-act 1)" "6 0"
+expect "Power: Restart and Restart fully (target 7) side by side" "$(nh pop pwr-act 2) $(nh pop pwr-act 7)" "1 1"
 key Escape; key Escape
 hib_on
 tap bar qs; tap pop qs-power; shot white-$O-power-hibernate
-expect "Power with hibernation set up: Hibernate (row 1) shown" "$(nh pop pwr-act) $(nh pop pwr-act 1)" "6 1"
+expect "Power with hibernation set up: Hibernate (row 1) shown" "$(nh pop pwr-act) $(nh pop pwr-act 1)" "7 1"
 key Escape; key Escape
 sed -i 's/^HIBERNATE_SIZE_MB=.*/HIBERNATE_SIZE_MB=0/' /etc/glassine/deploy.conf
 tap bar qs; tap pop qs-power
@@ -140,13 +141,13 @@ rm -rf /usr/sbin/glassine-hibernate /etc/glassine/deploy.conf /tmp/hib-ud
 # ---- the Start menu target: only where the board's loader takes the request ----------
 printf '#!/bin/sh\n[ "$1 $2" = "can-request menu" ]\n' > /usr/sbin/glassine-loader-mark && chmod 755 /usr/sbin/glassine-loader-mark
 tap bar qs; tap pop qs-power; sleep 1
-expect "Power where the loader takes a menu request: Start menu (target 6) shown, 6 targets in all" "$(nh pop pwr-act 6) $(nh pop pwr-act)" "1 6"
+expect "Power where the loader takes a menu request: Start menu (target 6) shown, 7 targets in all" "$(nh pop pwr-act 6) $(nh pop pwr-act)" "1 7"
 shot white-$O-power-menu
 key Escape; key Escape
 hib_on
 tap bar qs; tap pop qs-power; sleep 1
 OH=$(swaymsg -t get_outputs -r | python3 -c 'import json,sys; print(json.load(sys.stdin)[0]["rect"]["height"])')
-expect "Power with hibernation and the Start menu: 7 targets, the card inside the screen" "$(nh pop pwr-act) $(awk -v h=$OH '$1 == "pwr-cancel" { print ($5 + $7 + 22 <= h) ? "in" : "out" }' $HITS/pop)" "7 in"
+expect "Power with hibernation and the Start menu: 8 targets, the card inside the screen" "$(nh pop pwr-act) $(awk -v h=$OH '$1 == "pwr-cancel" { print ($5 + $7 + 22 <= h) ? "in" : "out" }' $HITS/pop)" "8 in"
 shot white-$O-power-hibernate-menu
 key Escape; key Escape
 rm -rf /usr/sbin/glassine-hibernate /etc/glassine/deploy.conf /tmp/hib-ud
@@ -155,6 +156,19 @@ tap bar qs; tap pop qs-power; sleep 1
 expect "Power where the loader takes none (can-request 3): no Start menu" "$(nh pop pwr-act 6)" "0"
 key Escape; key Escape
 rm -f /usr/sbin/glassine-loader-mark
+# ---- Restart's second line: soft or cold, from the restart step (GlassineOS/boot 013) ----
+# stand-ins: doas runs the helper; the helper prints the step's record
+command -v doas >/dev/null || { printf '#!/bin/sh\n[ "$1" = -n ] && shift\nexec "$@"\n' > /usr/bin/doas; chmod 755 /usr/bin/doas; RM_DOAS=1; }
+[ -e /usr/sbin/glassine-power-root ] && cp /usr/sbin/glassine-power-root /tmp/pr.away
+for k in 'soft	restart_reason=' 'cold	restart_reason=not-healthy' 'cold	restart_reason=kernel-candidate'; do
+    printf '#!/bin/sh\n[ "$1" = restart-check ] && printf "glassine-deploy 1\\ntype=restart\\trestart=%s\\n"\n' "$k" > /usr/sbin/glassine-power-root
+    chmod 755 /usr/sbin/glassine-power-root
+    tap bar qs; tap pop qs-power; sleep 1
+    shot white-$O-power-restart-$(printf '%s' "$k" | sed 's/[^a-z-]*restart_reason=/-/; s/-$//')
+    key Escape; key Escape
+done
+rm -f /usr/sbin/glassine-power-root; [ -e /tmp/pr.away ] && mv /tmp/pr.away /usr/sbin/glassine-power-root
+[ -z "${RM_DOAS:-}" ] || rm -f /usr/bin/doas
 
 # ---- checks that change nothing --------------------------------------------------
 sm -q "workspace number 2"; sleep 0.8

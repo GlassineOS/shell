@@ -61,4 +61,23 @@ ok "unreadable shadow: exit 2, no wait" "[ $rc = 2 ] && [ $((t1-t0)) -lt 2 ]"
 ok "unreadable shadow: the kept password stays" "as anna $R auth-check password"
 ok "checkpass: no crypt in libc is exit 2" "printf x | python3 -I -c \"import ctypes; ctypes.CDLL.__getattr__ = lambda s, n: (_ for _ in ()).throw(AttributeError(n)); import runpy, sys; sys.argv = ['c']; runpy.run_path('/usr/sbin/glassine-checkpass', run_name='__main__')\" 2>/dev/null; [ \$? = 2 ]"
 ok "checkpass ignores SHADOW and GROUP" "printf annapass | SHADOW=/dev/null GROUP=/dev/null /usr/sbin/glassine-checkpass"
+# ---- Restart and Restart fully (GlassineOS/boot spec 013: glassine-deploy restart) ----
+cp /usr/sbin/glassine /usr/sbin/reboot; cp /usr/sbin/glassine /usr/sbin/glassine-switch-hook; : > /tmp/ran
+ok "no restart step: Restart is the user-started reboot, restart-check prints nothing" "as kid $P reboot && grep -qx -- --user-shutdown /tmp/ran && ! grep -q deploy /tmp/ran && [ -z \"\$(DOAS_USER=kid $P restart-check)\" ]"
+# a restart step that says soft, returns after its restart (a stand-in: the real one
+# doesn't return when it restarts) and logs the rest
+printf '#!/bin/sh\necho "deploy $*" >> /tmp/ran\ncase "$*" in "restart --check") exit 0 ;; "restart --check --porcelain") printf "glassine-deploy 1\\ntype=restart\\trestart=soft\\trestart_reason=\\n" ;; esac\n' > /usr/sbin/glassine-deploy; chmod +x /usr/sbin/glassine-deploy
+: > /tmp/ran
+ok "Restart: glassine-deploy restart (soft where it can be)" "as kid $P reboot && grep -qx 'deploy restart' /tmp/ran && ! grep -q 'restart --cold' /tmp/ran"
+: > /tmp/ran
+ok "Restart fully: restart --cold" "as kid $P reboot-full && grep -qx 'deploy restart --cold' /tmp/ran"
+ok "restart-check: the step's record" "DOAS_USER=kid $P restart-check | grep -q '^type=restart	restart=soft'"
+: > /tmp/ran
+ok "a restart step that refuses (it returns): an ordinary reboot after it, with the hook" "as kid $P reboot && grep -qx 'deploy restart' /tmp/ran && grep -qx -- --user-shutdown /tmp/ran"
+mkdir -p /run/glassine; : > /run/glassine/restarting; : > /tmp/ran
+ok "Restart: the step returns while its soft restart runs (restarting): no reboot after it" "as kid $P reboot && grep -qx 'deploy restart' /tmp/ran && ! grep -qx -- --user-shutdown /tmp/ran"
+rm -f /run/glassine/restarting
+printf '#!/bin/sh\necho "deploy $*" >> /tmp/ran\nexit 2\n' > /usr/sbin/glassine-deploy; : > /tmp/ran
+ok "an older glassine-deploy (no restart: usage 2): the reboot alone" "as kid $P reboot && ! grep -qx 'deploy restart' /tmp/ran && grep -qx -- --user-shutdown /tmp/ran && [ -z \"\$(DOAS_USER=kid $P restart-check)\" ]"
+rm -f /usr/sbin/glassine-deploy /usr/sbin/glassine-switch-hook
 echo "$F failed"; [ $F = 0 ]
