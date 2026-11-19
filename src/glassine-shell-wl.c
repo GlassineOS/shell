@@ -6,9 +6,13 @@
  * layer at an absolute position (exclusive zone -1). Pixels go out as wl_shm
  * buffers at the output's scale (device px); a surface is a multiple of the
  * scale in size and place (be_align). The popup's pointer grab is a
- * transparent full-screen surface on the top layer ("backdrop"):
- * a tap outside the popup lands there (the bar region included: the common
- * part picks the bar by y), as with the grab.
+ * transparent full-screen surface ("backdrop"): a tap outside the popup lands
+ * there (the bar region included: the common part picks the bar by y), as with
+ * the grab. It is on the top layer, or over an immersive app (sway's fullscreen
+ * covers the top layer) on the overlay layer, under the popup: within a layer
+ * sway stacks the surfaces in the order they were made (and moves one to the
+ * top when its layer changes), so both backdrops are made before any popup.
+ * The bar goes on the overlay layer for a while on "bar show" (be_bar_over).
  * Input: wl_pointer / wl_touch (the first finger) straight from sway, no
  * window manager grab in between: a press is also the "raw" press (ev_raw),
  * so holds are timed from the real finger. The search field takes the
@@ -92,7 +96,8 @@ typedef struct {
     int w, h;                           /* buffer size, device px */
     Buf buf[NBUF]; int cur;             /* cur: the buffer with the latest image (-1: none) */
 } WSurf;
-static WSurf backdrop;
+static WSurf backdrop, backdrop_ov;    /* on the top layer / the overlay one (over an immersive app) */
+static WSurf *bd;                       /* the one mapped (be_grab_pointer), NULL: none */
 
 static void buf_release(void *data, struct wl_buffer *b) { (void)b; ((Buf *)data)->busy = 0; }
 static const struct wl_buffer_listener buf_lis = { buf_release };
@@ -149,9 +154,12 @@ static void wsurf_create(WSurf *w, uint32_t layer)
     w->cur = -1;
 }
 
+static void backdrops_make(void);
+
 static WSurf *ws_of(Surf *s)
 {
     if (!s->be) {
+        if (!s->dock) backdrops_make();     /* before any popup: below it in its layer */
         WSurf *w = calloc(1, sizeof *w);
         w->owner = s;
         wsurf_create(w, s->dock ? ZWLR_LAYER_SHELL_V1_LAYER_TOP : ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY);
@@ -308,24 +316,65 @@ void be_surf_unmap(Surf *s)
     if (s == &pop) snap_later();        /* the screen without the popup: a still of it */
 }
 
+static void backdrop_make(WSurf *b, uint32_t layer)
+{
+    if (b->s) return;
+    wsurf_create(b, layer);
+    zwlr_layer_surface_v1_set_anchor(b->ls, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
+                                            ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
+    zwlr_layer_surface_v1_set_exclusive_zone(b->ls, -1);
+    b->w = SW; b->h = SH;
+}
+
+static void backdrops_make(void)
+{
+    backdrop_make(&backdrop, ZWLR_LAYER_SHELL_V1_LAYER_TOP);
+    backdrop_make(&backdrop_ov, ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY);
+}
+
+/* the window shown immersive (sway's fullscreen) on screen d, 0: none */
+WinId be_immersive(long d)
+{
+    for (int i = 0; i < ncl; i++) if (cl[i].desk == d && d >= 0 && cl[i].maxed) return cl[i].w;
+    return 0;
+}
+
 int be_grab_pointer(Surf *s)
 {
     (void)s;
-    if (!backdrop.s) {
-        wsurf_create(&backdrop, ZWLR_LAYER_SHELL_V1_LAYER_TOP);
-        zwlr_layer_surface_v1_set_anchor(backdrop.ls, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
-                                                      ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
-        zwlr_layer_surface_v1_set_exclusive_zone(backdrop.ls, -1);
-        backdrop.w = SW; backdrop.h = SH;
-        if (!buf_new(&backdrop.buf[0], SW, SH)) return 0;     /* all zero: transparent */
-        backdrop.cur = 0;
+    backdrops_make();
+    WSurf *b = be_immersive(curdesk) ? &backdrop_ov : &backdrop;  /* over an immersive app: above it (FR-064) */
+    if (bd && bd != b) wsurf_hide(bd);
+    if (!b->buf[0].b) {
+        if (!buf_new(&b->buf[0], SW, SH)) return 0;    /* all zero: transparent */
+        b->cur = 0;
     }
-    if (backdrop.buf[0].busy) return 1;
-    wsurf_show(&backdrop, 0, 0, SW, SH);
+    bd = b;
+    LOG("wl: backdrop on the %s layer", b == &backdrop_ov ? "overlay" : "top");
+    if (b->mapped) return 1;
+    wsurf_show(b, 0, 0, SW, SH);
     return 1;
 }
 
-void be_ungrab_pointer(void) { wsurf_hide(&backdrop); }
+void be_ungrab_pointer(void)
+{
+    if (bd) wsurf_hide(bd);
+    bd = NULL;
+}
+
+/* the bar on the overlay layer (on: above an immersive app, FR-061) or back on the top layer */
+void be_bar_over(int on)
+{
+    WSurf *b = bar.be;
+    if (!b || !b->ls) return;
+    if (zwlr_layer_surface_v1_get_version(b->ls) < ZWLR_LAYER_SURFACE_V1_SET_LAYER_SINCE_VERSION) {
+        LOG("wl: the layer shell has no set_layer: the bar stays under");
+        return;
+    }
+    zwlr_layer_surface_v1_set_layer(b->ls, on ? ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY : ZWLR_LAYER_SHELL_V1_LAYER_TOP);
+    wl_surface_commit(b->s);
+    LOG("wl: the bar on the %s layer", on ? "overlay" : "top");
+}
 
 /* the input region (surface coordinates): `all` minus the rects, or just the rects */
 static void wsurf_input(WSurf *w, int all, const int (*r)[4], int n, int ox, int oy)
@@ -346,7 +395,12 @@ static void wsurf_input(WSurf *w, int all, const int (*r)[4], int n, int ox, int
     if (w->mapped) wl_surface_commit(w->s);     /* (else it waits for the map) */
 }
 
-void be_grab_holes(const int (*r)[4], int n) { wsurf_input(&backdrop, n > 0, r, n, 0, 0); }
+void be_grab_holes(const int (*r)[4], int n)
+{
+    backdrops_make();
+    wsurf_input(&backdrop, n > 0, r, n, 0, 0);
+    wsurf_input(&backdrop_ov, n > 0, r, n, 0, 0);
+}
 void be_pop_input(const int (*r)[4], int n) { wsurf_input(pop.be, 0, r, n, pop.x, pop.y); }
 
 static void set_kbd(Surf *s, int on)
@@ -765,18 +819,6 @@ static int skip_view(json_object *n)
     return a && (!strcmp(a, "glassine-placeholder") || !strcmp(a, home_app()));
 }
 
-/* glassine-swayd's `full`: the window floats over the work area, marked */
-static int full_marked(json_object *n)
-{
-    json_object *m;
-    if (!json_object_object_get_ex(n, "marks", &m)) return 0;
-    for (size_t i = 0; i < json_object_array_length(m); i++) {
-        const char *s = json_object_get_string(json_object_array_get_idx(m, i));
-        if (s && !strcmp(s, "_glassine_full")) return 1;
-    }
-    return 0;
-}
-
 /* the views under n in tree order (tiled only), at most max */
 static int lay_views(json_object *n, WinId *out, int max)
 {
@@ -853,8 +895,7 @@ static void walk(json_object *n, long d)
         sj_rect(n, "rect", osc, r);
         k->w = id; k->desk = d == D_SCRATCH ? -1 : d;
         k->x = r[0]; k->y = r[1]; k->wd = r[2]; k->ht = r[3];
-        k->maxed = sj_int(n, "fullscreen_mode", 0) != 0;
-        if (d >= 0 && full_marked(n)) { k->maxed = 1; lay[d].full = id; }
+        k->maxed = sj_int(n, "fullscreen_mode", 0) != 0;     /* immersive (glassine-swayd's `full` or the app's own) */
         App *ap = app_of(id);
         if (ap) { snprintf(k->name, sizeof k->name, "%s", ap->name); snprintf(k->icon, sizeof k->icon, "%s", ap->icon); }
         else { snprintf(k->name, sizeof k->name, "%s", f->title); k->icon[0] = 0; }
@@ -1129,7 +1170,9 @@ static struct {
 } cap;
 static guint snap_timer;
 
-/* screen index d's windows, sorted by id (their places from be_read_desktop) */
+/* screen index d's windows, sorted by id (their places from be_read_desktop). An
+ * immersive one covers the whole output: its place here is the work area, the part
+ * of the output a still takes (FR-065: under where the bar is, the bar not in it) */
 static void snap_key(long d, SnapKey *k)
 {
     k->n = 0;
@@ -1138,7 +1181,8 @@ static void snap_key(long d, SnapKey *k)
         int j = k->n++;
         while (j > 0 && k->id[j - 1] > cl[i].w) { k->id[j] = k->id[j - 1]; memcpy(k->r[j], k->r[j - 1], sizeof k->r[j]); j--; }
         k->id[j] = cl[i].w;
-        k->r[j][0] = cl[i].x; k->r[j][1] = cl[i].y; k->r[j][2] = cl[i].wd; k->r[j][3] = cl[i].ht;
+        if (cl[i].maxed) memcpy(k->r[j], warea, sizeof k->r[j]);
+        else { k->r[j][0] = cl[i].x; k->r[j][1] = cl[i].y; k->r[j][2] = cl[i].wd; k->r[j][3] = cl[i].ht; }
     }
 }
 
@@ -1185,12 +1229,12 @@ static WinSnap *wsnap_of(WinId id)
 }
 
 /* the still img (the work area at 1/SNAP_DS) cut into the pictures of the windows
- * of key k as they were placed. A screen with a full-screen window: that one only
+ * of key k as they were placed. A screen with an immersive window: that one only
  * (the others are hidden under it) */
 static void snap_cut(cairo_surface_t *img, const SnapKey *k, long d)
 {
     int iw = cairo_image_surface_get_width(img), ih = cairo_image_surface_get_height(img);
-    WinId full = d >= 0 && d < MAXDESK ? lay[d].full : 0;
+    WinId full = be_immersive(d);
     double t = now_ms();
     for (int i = 0; i < k->n; i++) {
         if (full && k->id[i] != full) continue;
@@ -1323,11 +1367,6 @@ static int snap_take(void)
     snap_key(curdesk, &cap.k);
     cap.d = curdesk;
     if (!cap.k.n) return 0;
-    for (int i = 0; i < cap.k.n; i++) {     /* a sway fullscreen window covers the bar: no still of the work area */
-        Client *c = NULL;
-        for (int k = 0; k < ncl; k++) if (cl[k].w == cap.k.id[i]) c = &cl[k];
-        if (c && c->maxed && !(curdesk >= 0 && curdesk < MAXDESK && lay[curdesk].full == c->w)) return 0;
-    }
     cap.busy = 1; cap.done = 0; cap.yinv = 0;
     cap.f = zwlr_screencopy_manager_v1_capture_output(scm, 0, out);
     wl_proxy_set_queue((struct wl_proxy *)cap.f, sq);   /* be_snap_fresh waits on this queue only (no input in between) */
@@ -1391,7 +1430,7 @@ static cairo_surface_t *snap_compose(long d, const SnapKey *k)
         for (int i = 0; i < k->n; i++) { WinSnap *w = wsnap_of(k->id[i]); if (w && w->t > c->t) newer = 1; }
         if (!newer) return c->img;
     }
-    WinId full = lay[d].full;
+    WinId full = be_immersive(d);
     int any = 0;
     for (int i = 0; i < k->n; i++) if ((!full || k->id[i] == full) && wsnap_of(k->id[i])) any = 1;
     if (!any) return NULL;

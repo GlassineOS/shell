@@ -66,9 +66,16 @@
  * cross HEXID a 2x2 screen: the other axis runs through, every
  * window keeps its quarter (FR-023)
  * direction HEXID a 2-window screen: rows <-> side by side
- * full [HEXID] toggle: floating over its screen's work area (the
- * bar stays; not sway's fullscreen), the others tiled underneath;
- * off for a window in sway's fullscreen too. No id: the focused one
+ * full [HEXID] immersive (spec 001 FR-019) on or off: sway's own
+ * fullscreen (the bar covered), the others tiled underneath; an
+ * app that went fullscreen itself is immersive the same way. No
+ * id: the focused one. A window still marked _glassine_full (the
+ * old floating `full` of an earlier session) is made immersive.
+ * Home shown on the screen ends it (FR-030), and so does an app's
+ * dialog sway would hide under it (FR-064: popup_during_fullscreen
+ * smart shows only the transient ones). An app whose desktop id
+ * has a line "ID immersive" in ~/.config/glassine/app-modes opens
+ * its new tiled windows immersive (FR-063; see app_modes)
  * scrmove N -1|1 screen N trades places with the one before/after
  * scrclose N every app on screen N closes, the screen goes (not the last)
  * home show|hide|toggle
@@ -120,6 +127,8 @@
 #include <time.h>
 #include <unistd.h>
 #include <sys/inotify.h>
+#include <sys/stat.h>
+#include <strings.h>
 #include "glassine-popupd.h"
 #include "wayland/sway-ipc.h"
 #include "wayland/swayd-handles.h"
@@ -142,12 +151,13 @@ static int cmd_fd = -1, ev_fd = -1, scale = 2;
 
 /* ---- the tree ------------------------------------------------------------------ */
 typedef struct {
-    long id; int r[4]; int floating, fullscreen, focused; char cls[128];
-    int full;                           /* `full`: floating over the work area, still one of the layout's */
+    long id; int r[4]; int floating, fullscreen, focused, visible; char cls[128];
     long pid; long ph_pid; char ph_ids[192];    /* ph_pid: a launch placeholder for that pid */
 } View;
 #define PH_APP_ID "glassine-placeholder"
-#define FULL_MARK "_glassine_full"      /* `full W`: W floats over the work area (the bar stays), kept in the order */
+#define FULL_MARK "_glassine_full"      /* the old `full W` (W floated over the work area): made immersive (full_migrate) */
+static long old_full[8];                /* views still carrying it (walk) */
+static int nold_full;
 
 /* Home: an app kept in the scratchpad, shown floating over the work area (under the bar,
  * never sway's fullscreen: that covers the bar). Its app_id: $GLASSINE_HOME_APP_ID, else
@@ -177,8 +187,7 @@ typedef struct {
     int r[4];                           /* the area windows get (without the bar) */
     View v[MAXV]; int nv;               /* tiled views, tree order */
     View f[MAXV]; int nf;               /* floating ones (dialogs) */
-    int fullscreen;                     /* a view is fullscreen or `full`: no tiling */
-    long full;                          /* the `full` one (FULL_MARK), 0: none */
+    int fullscreen;                     /* a view is in sway's fullscreen (immersive): no tiling */
     long unwrap[16]; int nun;           /* the only child of a single-child container (build) */
 } Ws;
 static Ws ws[MAXWS];
@@ -301,8 +310,9 @@ static void walk(json_object *n, Ws *w, int floating)
         return;
     }
     if (w && sj_str(n, "shell")) {      /* a view */
-        View v = { .id = sj_int(n, "id", 0), .floating = floating, .fullscreen = sj_int(n, "fullscreen_mode", 0) != 0 };
-        if (floating && has_mark(n, FULL_MARK)) { v.full = 1; v.floating = 0; floating = 0; w->full = v.id; w->fullscreen = 1; }
+        View v = { .id = sj_int(n, "id", 0), .floating = floating, .fullscreen = sj_int(n, "fullscreen_mode", 0) != 0,
+                   .visible = sj_bool(n, "visible") };
+        if (has_mark(n, FULL_MARK) && nold_full < 8) old_full[nold_full++] = v.id;
         sj_rect(n, "rect", scale, v.r);
         v.focused = sj_bool(n, "focused");
         view_class(n, v.cls, sizeof v.cls);
@@ -391,6 +401,7 @@ static int read_tree(void)
     nws = 0;
     nscr_ph = 0;
     home_id = 0; home_on[0] = 0; home_tiled = 0;
+    nold_full = 0;
     walk(t, NULL, 0);
     for (int i = 0; i < nws; i++)
         for (int k = 0; k < nwsflags; k++)
@@ -638,7 +649,7 @@ static void build(Keep *k)
     long *v = k->order;
     if (k->n < 2) return;
     Ws *fw = ws_named(k->name);
-    if (fw && fw->full) { k->built = 0; return; }   /* `full`: laid out again when it ends */
+    if (fw && fw->fullscreen) { k->built = 0; return; }     /* immersive: laid out again when it ends */
     /* the single-child containers earlier builds left go first ("split none" on
      * the only child flattens its parent): "layout" on a workspace's child wraps
      * the workspace's children in a new container, so each rebuild nested the
@@ -736,12 +747,23 @@ static int ph_matches(const View *ph, const View *v)
 
 static long launch_view, launch_ms;     /* the window that last took a placeholder's place */
 
-static void launch_note(long id)
+/* the windows that took a placeholder's place, with its desktop id (its first ID,
+ * lower case): the app whose preferred mode they open in (app_modes) */
+static struct { long id; char did[64]; } subst[16];
+static int nsubst;
+
+static void launch_note(long id, const View *ph)
 {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     launch_view = id;
     launch_ms = ts.tv_sec * 1000L + ts.tv_nsec / 1000000;
+    char first[64] = "";
+    if (ph && sscanf(ph->ph_ids, " %63s", first) == 1) {
+        subst[nsubst % 16].id = id;
+        snprintf(subst[nsubst % 16].did, sizeof subst[0].did, "%s", first);
+        nsubst++;
+    }
 }
 
 /* Sway tells a new window its size when the map's transaction commits, after the
@@ -804,7 +826,7 @@ static void ph_substitute(void)
                 if (known || v->ph_pid || !ph_matches(ph, v)) continue;
                 LOG("workspace %s: %s (%ld) takes the placeholder %ld's place", ws[i].name, v->cls, v->id, ph->id);
                 k->order[slot] = v->id;
-                launch_note(v->id);
+                launch_note(v->id, ph);
                 break;
             }
         }
@@ -832,7 +854,7 @@ static void ph_substitute(void)
                 if (!ph_matches(ph, v)) continue;
                 LOG("workspace %s: %s (%ld) takes the placeholder %ld's place", w->name, v->cls, v->id, ph->id);
                 k->order[slot] = v->id;
-                launch_note(v->id);
+                launch_note(v->id, ph);
                 if (nph_dead < 16) ph_dead[nph_dead++] = ph->id;
                 cadd("[con_id=%ld] kill", ph->id);
                 crun();
@@ -882,7 +904,7 @@ static int fit_area(const int r[4], const int a[4], int o[4])
 /* the rank of a candidate main window for a dialog: the one swayd moved last, the focused one */
 static int main_rank(const View *v) { return v->id == moved_view ? 2 : v->focused ? 1 : 0; }
 
-/* every pass: a floating window (not Home, not `full`) whose app (pid) has tiled windows,
+/* every pass: a floating window (not Home) whose app (pid) has tiled windows,
  * none of them on its workspace, goes to the workspace of the one swayd moved last, else
  * the focused one, else the newest (it mapped after its app's window moved, or sway moved
  * that window). A floating window just mapped that reaches out of its workspace's work
@@ -1588,7 +1610,7 @@ static int tap_wait(void)
 }
 
 /* The on-screen keyboard's exclusive zone changes the work area with no sway event
- * (layer surfaces have none), so a `full` window or Home covered while it was up would
+ * (layer surfaces have none), so Home covered while it was up would
  * keep the smaller area once it goes, the part below it bare. Its state file
  * ($XDG_RUNTIME_DIR/glassine-osk.shown, glassine-osk) comes or goes a little before
  * wvkbd's surface does, and after an output change (a turn) the bar and the keyboard
@@ -1777,20 +1799,34 @@ static void direction(long a)
     build(k); crun();
 }
 
-/* `full` ends for window id (it leaves or is placed): back into the tiling
- * (sway puts it where it likes: the workspace is laid out again) */
+/* immersive ends for window id (it leaves, is placed, Home or a new window comes):
+ * back in its tile (the workspace is laid out again) */
 static void unfull(long id)
 {
-    for (int i = 0; i < nws; i++)
-        if (ws[i].full == id) {
-            Keep *k = keep_of(ws[i].name);
-            if (k) k->built = 0;
-            cadd("[con_id=%ld] unmark " FULL_MARK, id);
-            cadd("[con_id=%ld] floating disable", id);
-            ws[i].full = 0;
-            ws[i].fullscreen = 0;
-            for (int a = 0; a < ws[i].nv; a++) if (ws[i].v[a].fullscreen) ws[i].fullscreen = 1;
-        }
+    for (int i = 0; i < nws; i++) {
+        int was = 0;
+        for (int a = 0; a < ws[i].nv; a++)
+            if (ws[i].v[a].id == id && ws[i].v[a].fullscreen) { ws[i].v[a].fullscreen = 0; was = 1; }
+        for (int a = 0; a < ws[i].nf; a++)
+            if (ws[i].f[a].id == id && ws[i].f[a].fullscreen) { ws[i].f[a].fullscreen = 0; was = 1; }
+        if (!was) continue;
+        Keep *k = keep_of(ws[i].name);
+        if (k) k->built = 0;
+        cadd("[con_id=%ld] fullscreen disable", id);
+        ws[i].fullscreen = 0;
+        for (int a = 0; a < ws[i].nv; a++) if (ws[i].v[a].fullscreen) ws[i].fullscreen = 1;
+        for (int a = 0; a < ws[i].nf; a++) if (ws[i].f[a].fullscreen) ws[i].fullscreen = 1;
+    }
+}
+
+/* every immersive window on workspace w ends (Home comes over it, a window opens there) */
+static void unfull_ws(Ws *w)
+{
+    long ids[MAXV];
+    int n = 0;
+    for (int a = 0; a < w->nv; a++) if (w->v[a].fullscreen) ids[n++] = w->v[a].id;
+    for (int a = 0; a < w->nf && n < MAXV; a++) if (w->f[a].fullscreen) ids[n++] = w->f[a].id;
+    for (int i = 0; i < n; i++) unfull(ids[i]);
 }
 
 /* a floating window over workspace w's area (device px; under the bar) */
@@ -1801,31 +1837,85 @@ static void cover(long id, const Ws *w)
     cadd("[con_id=%ld] move absolute position %d px %d px", id, w->r[0] / scale, w->r[1] / scale);
 }
 
-/* full (spec 001 FR-019): window a over its whole screen, the bar still above it;
- * the others stay tiled underneath. Not sway's fullscreen (that covers the bar):
- * a floating window over the work area, marked, kept in the layout's order.
- * A toggle: off for a `full` window, and for one in sway's fullscreen (an app
- * asked for it; the shell shows both as full screen) */
+/* full = immersive (spec 001 FR-019): window a in sway's own fullscreen, over the
+ * whole panel and the bar; the others stay tiled underneath, hidden. A toggle: off
+ * brings the bar and the others back (an app that asked for fullscreen itself is
+ * immersive the same way and leaves it the same way) */
 static void full(long a)
 {
     int ia;
     Ws *w = ws_of_view(a, &ia);
     Keep *k = w ? keep_of(w->name) : NULL;
     if (!k) { WARN("full: no window %lx", (unsigned long)a); return; }
-    if (w->full == a || w->v[ia].fullscreen) {  /* off: back to its tile */
-        if (w->v[ia].fullscreen) cadd("[con_id=%ld] fullscreen disable", a);
+    if (w->v[ia].fullscreen) {          /* off: back to its tile */
         unfull(a);
         crun();
         if (read_tree() && (w = ws_named(k->name)) && !w->fullscreen) { build(k); crun(); }
         return;
     }
-    if (w->full) unfull(w->full);
-    for (int i = 0; i < w->nv; i++) if (w->v[i].fullscreen) cadd("[con_id=%ld] fullscreen disable", w->v[i].id);
-    cadd("[con_id=%ld] mark --add " FULL_MARK, a);
-    cadd("[con_id=%ld] floating enable", a);
-    cover(a, w);
+    unfull_ws(w);                       /* (sway allows one per workspace) */
+    LOG("window %ld: immersive", a);
+    cadd("[con_id=%ld] fullscreen enable", a);
     cadd("[con_id=%ld] focus", a);
     crun();
+}
+
+/* views still marked by the old floating `full` (an earlier session): unmarked,
+ * back in the tiling, immersive. 1: changed */
+static int full_migrate(void)
+{
+    if (!nold_full) return 0;
+    for (int i = 0; i < nold_full; i++) {
+        LOG("window %ld: the old full mark: immersive now", old_full[i]);
+        cadd("[con_id=%ld] unmark " FULL_MARK, old_full[i]);
+        cadd("[con_id=%ld] floating disable", old_full[i]);
+        cadd("[con_id=%ld] border none", old_full[i]);
+        cadd("[con_id=%ld] fullscreen enable", old_full[i]);
+    }
+    nold_full = 0;
+    crun();
+    return 1;
+}
+
+/* FR-064: a dialog that opens on an immersive app's screen and that sway does not
+ * show (popup_during_fullscreen smart shows only those transient for the fullscreen
+ * window; "visible" in the tree) ends immersive, so the dialog is seen: the app's own,
+ * and those of other processes (a portal's file chooser, an auth prompt), which are
+ * seldom transient for it. Only new ones: a window already floating there when the
+ * app went immersive stays under it (else `full` could never start on that screen).
+ * 1: changed */
+static int full_dialogs(void)
+{
+    static long seen[64];
+    static int nseen = -1;              /* -1: the first pass (all known) */
+    long now[64];
+    int nnow = 0, hit = 0;
+    for (int i = 0; i < nws; i++)
+        for (int b = 0; b < ws[i].nf && nnow < 64; b++) now[nnow++] = ws[i].f[b].id;
+    for (int i = 0; nseen >= 0 && !hit && i < nws; i++) {
+        Ws *w = &ws[i];
+        if (!w->fullscreen || !w->visible) continue;
+        for (int a = 0; !hit && a < w->nv; a++) {
+            const View *v = &w->v[a];
+            if (!v->fullscreen) continue;
+            for (int b = 0; b < w->nf; b++) {
+                const View *f = &w->f[b];
+                if (f->id == home_id || f->visible || f->fullscreen) continue;
+                int old = 0;
+                for (int k = 0; k < nseen; k++) if (seen[k] == f->id) old = 1;
+                if (old) continue;
+                LOG("workspace %s: dialog %ld opened under immersive window %ld, hidden under it: immersive ends",
+                    w->name, f->id, v->id);
+                unfull(v->id);
+                crun();
+                hit = 1;
+                break;
+            }
+        }
+    }
+    memcpy(seen, now, nnow * sizeof *now);
+    nseen = nnow;
+    return hit;
 }
 
 /* the overview's arrows: window m to that side of window t (design
@@ -1876,7 +1966,6 @@ static void place(long m, long t, const char *dir)
     for (int i = 0; i < wt->nv; i++) {  /* it shares now: a maximized one comes back to its tile */
         if (wt->v[i].fullscreen) cadd("[con_id=%ld] fullscreen disable", wt->v[i].id);
     }
-    if (wt->full) unfull(wt->full);
     if (!same) {
         unfull(m);
         char to[80];
@@ -1985,6 +2074,8 @@ static void home_show(void)
     Ws *f = ws_focused();
     if (!home_id) { WARN("home: no Home window (app_id %s) runs", home_app); return; }
     if (!f || !strcmp(home_on, f->name)) return;
+    if (f->fullscreen) LOG("home over %s: immersive ends first (FR-030)", f->name);
+    unfull_ws(f);                       /* (sway's fullscreen would cover Home: it floats) */
     if (home_on[0]) cadd("[con_id=%ld] move scratchpad", home_id);
     cadd("[con_id=%ld] scratchpad show", home_id);
     cover(home_id, f);
@@ -2042,8 +2133,8 @@ static int seen_init;
 static long seen_view;
 
 /* new tiled windows: `next` sends the first where it was asked to go; any hides
- * Home (filling the hole if it is there) and ends `full` on the screen it lands
- * on (a floating window stays above it: the new one would open unseen, and the
+ * Home (filling the hole if it is there) and ends immersive on the screen it lands
+ * on (the immersive one covers the screen: the new one would open unseen, and the
  * 4-apps rule waits while a screen is full). 1: something moved (read again) */
 static int fresh(void)
 {
@@ -2093,11 +2184,11 @@ static int fresh(void)
         crun();
         if (did && !read_tree()) return 1;  /* (the focus moved: home_hide must see it) */
     }
-    for (int i = 0; i < nws; i++)       /* where the new ones are now */
-        for (int a = 0; ws[i].full && a < ws[i].nv; a++)
-            if (ws[i].v[a].id > before && ws[i].v[a].id != ws[i].full) {
-                LOG("workspace %s: window %ld opened: full ends", ws[i].name, ws[i].v[a].id);
-                unfull(ws[i].full);
+    for (int i = 0; i < nws; i++)       /* where the new ones are now: an immersive one there ends */
+        for (int a = 0; ws[i].fullscreen && a < ws[i].nv; a++)
+            if (ws[i].v[a].id > before && !ws[i].v[a].fullscreen) {
+                LOG("workspace %s: window %ld opened: immersive ends", ws[i].name, ws[i].v[a].id);
+                unfull_ws(&ws[i]);
                 crun();
                 did = 1;
                 break;
@@ -2257,16 +2348,105 @@ static void command(char *m)
 static volatile sig_atomic_t quit;
 static void on_term(int s) { (void)s; quit = 1; }
 
-/* a `full` window or Home that no longer covers its workspace's area (the output
- * turned): over it again. 1: changed */
+/* Home when it no longer covers its workspace's area (the output turned, the
+ * keyboard came or went): over it again. 1: changed */
 static int covers(void)
 {
     int did = 0;
     for (int i = 0; i < nws; i++) {
-        const View *v = ws[i].full ? view_by_id(&ws[i], ws[i].full) : NULL;
-        if (v && memcmp(v->r, ws[i].r, sizeof v->r)) { cover(v->id, &ws[i]); did = 1; }
         if (home_on[0] && !strcmp(home_on, ws[i].name) && memcmp(home_r, ws[i].r, sizeof home_r)) { cover(home_id, &ws[i]); did = 1; }
     }
+    if (did) crun();
+    return did;
+}
+
+/* ---- an app's preferred mode (spec 001 FR-063) ------------------------------------------ */
+/* ~/.config/glassine/app-modes (glassine-settings writes it): "DESKTOP_ID immersive" per
+ * line, '#' comments; read again when it changes. 1: id (lower case, ".desktop" dropped)
+ * opens immersive */
+static int mode_immersive(const char *id)
+{
+    static char ids[32][96];
+    static int nids;
+    static struct timespec mt;
+    static int read_once;
+    char path[512];
+    const char *h = getenv("HOME");     /* (glassine-settings writes it there, as the gestures file) */
+    snprintf(path, sizeof path, "%s/.config/glassine/app-modes", h ? h : "");
+    struct stat sb;
+    int there = stat(path, &sb) == 0;
+    if (!there) nids = 0, read_once = 0;
+    else if (!read_once || sb.st_mtim.tv_sec != mt.tv_sec || sb.st_mtim.tv_nsec != mt.tv_nsec) {
+        mt = sb.st_mtim;
+        nids = 0;
+        FILE *f = fopen(path, "r");
+        char l[256];
+        while (f && fgets(l, sizeof l, f) && nids < 32) {
+            *strchrnul(l, '#') = 0;
+            char a[96], m[32];
+            if (sscanf(l, "%95s %31s", a, m) != 2 || strcasecmp(m, "immersive")) continue;
+            for (char *q = a; *q; q++) *q = tolower((unsigned char)*q);
+            size_t n = strlen(a);
+            if (n > 8 && !strcmp(a + n - 8, ".desktop")) a[n - 8] = 0;
+            snprintf(ids[nids++], sizeof ids[0], "%s", a);
+        }
+        if (f) fclose(f);
+        LOG("app-modes: %d apps open immersive", nids);
+    }
+    read_once = there;
+    char want[96];
+    snprintf(want, sizeof want, "%s", id);
+    size_t n = strlen(want);
+    if (n > 8 && !strcmp(want + n - 8, ".desktop")) want[n - 8] = 0;
+    for (int i = 0; i < nids; i++) if (!strcasecmp(ids[i], want)) return 1;
+    return 0;
+}
+
+/* new tiled windows: one whose app opens immersive (its placeholder's desktop id, else
+ * a word of its app id / class, Flatpak id included) goes immersive once it has its
+ * tile (laid out: the app is told its tile first, then the panel). Each window once;
+ * the ones there when swayd starts, dialogs (floating) and Home never. 1: changed */
+static int app_modes(void)
+{
+    static int init;
+    static long seen, pend[16];
+    static int npend;
+    long top = seen;
+    for (int i = 0; i < nws; i++)
+        for (int a = 0; a < ws[i].nv; a++) {
+            const View *v = &ws[i].v[a];
+            if (v->id > top) top = v->id;
+            if (init && v->id > seen && !v->ph_pid && npend < 16) pend[npend++] = v->id;
+        }
+    seen = top;
+    if (!init) { init = 1; return 0; }
+    int did = 0, k = 0;
+    for (int j = 0; j < npend; j++) {
+        int ia;
+        Ws *w = ws_of_view(pend[j], &ia);
+        if (!w) continue;                   /* gone (or floating now: never) */
+        Keep *kp = keep_of(w->name);
+        int in = 0;
+        for (int q = 0; kp && q < kp->n; q++) if (kp->order[q] == pend[j]) in = 1;
+        if (!in || (kp->n >= 2 && !kp->built)) { pend[k++] = pend[j]; continue; }   /* not in its tile yet */
+        const View *v = &w->v[ia];
+        if (v->fullscreen) continue;
+        char why[96] = "";
+        for (int s2 = 0; s2 < 16 && s2 < nsubst; s2++)
+            if (subst[s2].id == v->id && mode_immersive(subst[s2].did)) snprintf(why, sizeof why, "%s", subst[s2].did);
+        if (!why[0]) {
+            char c[sizeof v->cls];
+            snprintf(c, sizeof c, "%s", v->cls);
+            for (char *save, *t = strtok_r(c, " ", &save); t && !why[0]; t = strtok_r(NULL, " ", &save))
+                if (mode_immersive(t)) snprintf(why, sizeof why, "%s", t);
+        }
+        if (!why[0]) continue;
+        LOG("window %ld (%s): opens immersive (app-modes: %s)", v->id, v->cls, why);
+        unfull_ws(w);
+        cadd("[con_id=%ld] fullscreen enable", v->id);
+        did = 1;
+    }
+    npend = k;
     if (did) crun();
     return did;
 }
@@ -2276,15 +2456,18 @@ static void settle_state(void)
     /* the rules until nothing changes (each may move windows: re-read) */
     for (int round = 0; round < 8 && read_tree(); round++) {
         keep_prune();
+        if (full_migrate()) continue;
         ph_arm();
         ph_substitute();
         if (fresh()) continue;
+        if (full_dialogs()) continue;
         if (dialogs()) continue;
         if (empty_screen()) continue;
         if (overflow()) continue;
         if (renumber()) continue;
         layout_all();
         if (covers()) continue;
+        if (app_modes()) continue;
         break;
     }
     if (read_tree()) { hints(); handles_update(0); home_send(0); }
