@@ -43,6 +43,7 @@ extern int be_align;                    /* surfaces at multiples of this (device
 void be_surf_map(Surf *s);              /* shown, on top */
 void be_surf_unmap(Surf *s);
 int be_grab_pointer(Surf *s);           /* all presses to s; 0: failed */
+void be_bar_over(int on);               /* the bar above an immersive app (on) or back under it */
 void be_ungrab_pointer(void);
 void be_grab_keyboard(Surf *s);
 void be_ungrab_keyboard(void);
@@ -66,16 +67,17 @@ extern int ncl;
 /* a screen's tiling as the tree has it: its groups (the screen's children:
  * a window or a split half) in order, each with its windows in order; side: the
  * groups sit side by side (else stacked). Floating windows, launch
- * placeholders and Home are not in it; full: the window glassine-swayd shows
- * full screen over the others (`full`: floating, marked), 0: none */
+ * placeholders and Home are not in it. An immersive window (Client.maxed: sway's
+ * fullscreen, glassine-swayd's `full` or the app's own) stays in it, in its tile */
 #define MAXDESK 32
-typedef struct { int side, ng, gn[4]; WinId w[4][4]; WinId full; } Layout;
+typedef struct { int side, ng, gn[4]; WinId w[4][4]; } Layout;
 extern Layout lay[MAXDESK];
 extern long ndesk, curdesk;
 extern WinId active;
 extern int warea[4];
 
 void be_read_desktop(void);             /* fills the above */
+WinId be_immersive(long d);             /* screen d's immersive window, 0: none */
 App *be_app_of(WinId w);
 void be_title(WinId w, char *out, size_t len);
 /* the overview's still of workspace index d (what it showed when last seen,

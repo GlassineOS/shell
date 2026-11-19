@@ -37,6 +37,7 @@ for t in ${THEMES:-white editorial stationery}; do
     # collapsed section's own page (the quarter window folds the e-ink page)
     python3 $S --demo --render /out/shots/$t-pick-g3Up.png --page gestures --pick g3Up --theme $t 2>/out/err.txt || { echo "FAIL $t pick g3Up"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-pick-g2Tap.png --page gestures --pick g2Tap --theme $t 2>/out/err.txt || { echo "FAIL $t pick g2Tap"; cat /out/err.txt; fail=1; }
+    python3 $S --demo --render /out/shots/$t-pick-gEdgeTop.png --page gestures --pick gEdgeTop --theme $t 2>/out/err.txt || { echo "FAIL $t pick gEdgeTop"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-column-pick-pkey.png --page power --pick pkey --theme $t --size $(size column) 2>/out/err.txt || { echo "FAIL $t pick pkey"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-quarter-eink-1.png --page "eink#1" --theme $t --size $(size quarter) --markers /out/shots/$t-quarter-eink-1.json 2>/out/err.txt || { echo "FAIL $t eink#1"; cat /out/err.txt; fail=1; }
     # the sway session's keyboard shortcuts (keys.conf's "## " labels): the Keyboard page's section
