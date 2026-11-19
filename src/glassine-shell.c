@@ -26,8 +26,10 @@
  * settings); e-ink mode for other apps; rotation (auto or one of
  * four, /etc/glassine/rotation via glassine-settings-root, glassine-rotd turns
  * the screen). On a landscape screen two columns.
- * power (the button next to the settings gear) sleep, restart, power
- * off, restart into the other system, recovery or the start menu
+ * power (the button next to the settings gear) sleep, restart (soft where
+ * GlassineOS/boot's restart step allows: its second line says which), restart
+ * fully (always through the hardware), power off, restart into the other
+ * system, recovery or the start menu
  * (only where the board's loader takes the request: glassine-loader-mark
  * can-request menu, GlassineOS/boot): one tap (the popup is the
  * confirmation)
@@ -704,7 +706,9 @@ static struct {
     int batt, charging, wifi_lvl;
     char clock[12];
     int pwr_menu;                       /* the loader takes a start menu request (Power › Restart into) */
-} st = { .opening = -1, .ov_page = -1, .focus = -1 };
+    int rs_kind;                        /* what Restart would be: 1 soft, 0 cold, -1 not known (no restart step) */
+    char rs_why[32];                    /* a cold one's reason word (GlassineOS/boot restart --check) */
+} st = { .opening = -1, .ov_page = -1, .focus = -1, .rs_kind = -1 };
 enum { V_IDLE, V_QS, V_WS, V_NOTIF, V_DIV, V_PWR };
 
 #define EPDD_CTL "/run/glassine-epdd-desktop.ctl"
@@ -889,6 +893,29 @@ static void pwr_menu_done(const char *o)
     if (st.view == V_PWR) render_pop();
 }
 static void query_pwr_menu(void) { run("/usr/sbin/glassine-loader-mark can-request menu >/dev/null 2>&1 && echo yes", pwr_menu_done); }
+/* what Restart would be (GlassineOS/boot spec 013): asked as Power opens, through the
+ * root helper (the state is root's); the type=restart record's restart= and
+ * restart_reason=; nothing (no restart step, the plain layout) = not known */
+static void restart_done(const char *o)
+{
+    int k = -1;
+    char why[32] = "";
+    const char *r = o ? strstr(o, "type=restart") : NULL;
+    if (r) {
+        const char *v = strstr(r, "\trestart=");
+        if (v) k = !strncmp(v + 9, "soft", 4) && (v[13] == '\t' || v[13] == '\n' || !v[13]);
+        if ((v = strstr(r, "\trestart_reason="))) {
+            size_t n = 0;
+            for (v += 16; n < sizeof why - 1 && (isalnum((unsigned char)v[n]) || v[n] == '-'); n++) why[n] = v[n];
+            why[n] = 0;
+        }
+    }
+    if (k == st.rs_kind && !strcmp(why, st.rs_why)) return;
+    st.rs_kind = k;
+    snprintf(st.rs_why, sizeof st.rs_why, "%s", why);
+    if (st.view == V_PWR) render_pop();
+}
+static void query_restart(void) { run("doas -n /usr/sbin/glassine-power-root restart-check 2>/dev/null", restart_done); }
 static void vol_set_done(const char *o) { (void)o; query_vol(); }
 
 static void tz_follow(void);
@@ -1373,18 +1400,21 @@ static void card_frame(Gc *g, double x, double y, double w, double h)
 
 /* ---- quick settings ---------------------------------------------------------- */
 /* the Power popup: A_P_ACT's arg indexes these */
-static const struct { const char *what, *name, *sub, *ic; } PWR[7] = {
+static const struct { const char *what, *name, *sub, *ic; } PWR[8] = {
     { "sleep", "Sleep", "Keeps the page on screen, wakes in a second", "weather-clear-night-symbolic" },
     { "hibernate", "Hibernate", "Off without closing apps, the power key resumes", "media-playback-pause-symbolic" },
-    { "reboot", "Restart", NULL, "system-reboot-symbolic" },     /* sub: the apps it closes */
+    { "reboot", "Restart", NULL, "system-reboot-symbolic" },     /* sub: soft or cold (pwr_restart_sub) */
     { "poweroff", "Power off", "The last page stays on the panel", "system-shutdown-symbolic" },
     { "android", "Android", "Second system", "phone-symbolic" },
     { "recovery", "TWRP", "Recovery, for updates", "applications-engineering-symbolic" },
     { "menu", "Start menu", "Choose what starts", "view-list-bullet-symbolic" },
+    { "reboot-full", "Restart fully", "Starts the hardware and the system again", "view-refresh-symbolic" },
 };
 #define PWR_HIB 1                       /* the row shown only where hibernation is set up */
 #define PWR_OFF 3                       /* the row drawn in the power-off style */
-#define PWR_ROWS 4                      /* the rows; then "Restart into" */
+#define PWR_ROWS 4                      /* the first rows; then "Restart into" */
+#define PWR_FULL 7                      /* "Restart fully": a row after Restart */
+#define PWR_NROW 5                      /* rows drawn at most */
 #define PWR_MENU 6                      /* the target shown only where the loader takes it (st.pwr_menu) */
 #define DEPLOY_CONF "/etc/glassine/deploy.conf"
 /* hibernation is set up here: the tool, and its swap file on userdata
@@ -1647,6 +1677,34 @@ static void pwr_closes(char *out, size_t len)
     else snprintf(out, len, "Closes %s, %s and %d more", nm[0], nm[1], n - 2);
 }
 
+/* Restart's second line: a soft restart closes the apps and keeps the device on; a
+ * cold one is an ordinary restart, with why in the shell's words (spec 013 FR-007) */
+static const char *rs_words(const char *w)
+{
+    static const struct { const char *w, *s; } R[] = {
+        { "off", "soft restarts are off" }, { "plain", "this system starts only from the hardware" },
+        { "bare", "this start is a bare one" }, { "first-start", "setup is not finished" },
+        { "test-role", "this is a test start" }, { "kernel-trial", "a system update is on trial" },
+        { "no-assembly", "this start kept nothing to restart from" }, { "kernel", "a system update is being written" },
+        { "kernel-candidate", "a system update waits for its test" }, { "no-target", "no system to start" },
+        { "modules", "the next system needs a new kernel" }, { "not-covered", "the next system needs a new kernel" },
+        { "not-healthy", "this start has not settled yet" }, { "loader-request", "the next start is chosen at start-up" },
+        { "loader-default", "another kernel starts next" }, { "loader-unreadable", "the start record can't be read" },
+        { "init", "the system can't restart softly" },
+    };
+    for (size_t i = 0; i < sizeof R / sizeof *R; i++) if (!strcmp(R[i].w, w)) return R[i].s;
+    return NULL;
+}
+static void pwr_restart_sub(char *out, size_t len, const char *closes)
+{
+    if (st.rs_kind == 1) snprintf(out, len, "%s, the device stays on", closes);
+    else if (st.rs_kind == 0) {
+        const char *s = rs_words(st.rs_why);
+        if (s) snprintf(out, len, "An ordinary restart: %s", s);
+        else snprintf(out, len, "An ordinary restart");
+    } else snprintf(out, len, "%s", closes);
+}
+
 /* ---- power ------------------------------------------------- */
 static void view_power(Gc *g)
 {
@@ -1654,31 +1712,41 @@ static void view_power(Gc *g)
     double Y = LW > LH ? BH + 24 : 110;
     double th, mh, lh;
     const char *msg = "Open apps will be closed for restart and power off";
-    int rows[PWR_ROWS], nr = 0, hib = pwr_hib_ok();
-    for (int i = 0; i < PWR_ROWS; i++) if (i != PWR_HIB || hib) rows[nr++] = i;
+    int rows[PWR_NROW], nr = 0, hib = pwr_hib_ok();
+    for (int i = 0; i < PWR_ROWS; i++) {
+        if (i != PWR_HIB || hib) rows[nr++] = i;
+        if (!strcmp(PWR[i].what, "reboot")) rows[nr++] = PWR_FULL;    /* "Restart fully" beside Restart */
+    }
     ui_text_w(g, &T->headFont, "Power", &th);
     double mw = ui_text_w(g, &T->dateFont, msg, &mh);
     (void)mw;
     ui_text_w(g, &T->lbl, "Ag", &lh);
-    char closes[160];
+    char closes[160], rsub[224];
     pwr_closes(closes, sizeof closes);
+    pwr_restart_sub(rsub, sizeof rsub, closes);
     TFont sf = ui_font_px(&T->dateFont, 12), nf = ui_font_px(&T->nameFont, 15);
-    double rowH[PWR_ROWS], h_rows = 0;
-    for (int r = 0; r < nr; r++) {
-        const int i = rows[r];
-        double nh, sh;
-        ui_text_w(g, &T->nameFont, PWR[i].name, &nh);
-        ui_text_w(g, &T->dateFont, PWR[i].sub ? PWR[i].sub : closes, &sh);
-        double c = 6 + nh + 4 + sh + 6;
-        rowH[r] = c > 68 ? c : 68;
-        h_rows += rowH[r];
-    }
     int tg[3], nt = 0;                  /* "Restart into": two columns, a third target on a row of its own */
     tg[nt++] = PWR_ROWS; tg[nt++] = PWR_ROWS + 1;
     if (st.pwr_menu) tg[nt++] = PWR_MENU;
     const int trows = (nt + 1) / 2;
     double hh = th + 2 + mh + 10 + T->headRuleW;
-    double H = 20 + hh + 18 + h_rows + 18 + lh + 8 + trows * 64 + (trows - 1) * 10 + 18 + 48 + 22;
+    double rowH[PWR_NROW], h_rows = 0, H = 0;
+    /* rows 68 high, or as low as their text (56 at least) where the card wouldn't fit
+     * between the bar and the bottom (a landscape screen with every row) */
+    for (double m = 68; m >= 56; m -= 12) {
+        h_rows = 0;
+        for (int r = 0; r < nr; r++) {
+            const int i = rows[r];
+            double nh, sh;
+            ui_text_w(g, &T->nameFont, PWR[i].name, &nh);
+            ui_text_w(g, &T->dateFont, PWR[i].sub ? PWR[i].sub : rsub, &sh);
+            double c = 6 + nh + 4 + sh + 6;
+            rowH[r] = c > m ? c : m;
+            h_rows += rowH[r];
+        }
+        H = 20 + hh + 18 + h_rows + 18 + lh + 8 + trows * 64 + (trows - 1) * 10 + 18 + 48 + 22;
+        if (H <= LH - 8 - (BH + 4)) break;
+    }
     if (Y + H > LH - 8) Y = LH - H - 8 > BH + 4 ? LH - H - 8 : BH + 4;   /* a landscape screen: up to the bar */
     card_frame(g, X, Y, W, H);
     double x0 = X + PX, y = Y + 20;
@@ -1693,7 +1761,7 @@ static void view_power(Gc *g)
         col fg = i == PWR_OFF ? T->pwrFg : T->ink;
         ui_box(g, x0, cy - 24, 48, 48, b);
         ui_icon(g, PWR[i].ic, 24, x0 + 24, cy, fg);
-        const char *sub = PWR[i].sub ? PWR[i].sub : closes;
+        const char *sub = PWR[i].sub ? PWR[i].sub : rsub;
         ui_text_w(g, &T->nameFont, PWR[i].name, &nh);
         ui_text_w(g, &T->dateFont, sub, &sh);
         double ty = cy - (nh + 4 + sh) / 2;
@@ -2523,7 +2591,7 @@ static void set_view(int v)
         query_wifi();
         query_vol();
     }
-    if (v == V_PWR) query_pwr_menu();
+    if (v == V_PWR) { query_pwr_menu(); query_restart(); }
     if (v == V_WS || v == V_DIV) be_read_desktop();
     LOG("view %d", v);
     if (v == V_IDLE && bar_up && now_ms() >= bar_up_due) bar_lower();  /* the raised bar's popup closed after its 5 s */
