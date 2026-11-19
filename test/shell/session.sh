@@ -49,6 +49,10 @@ done
 # a second copy started by `launch ID new` (its own app id: findable in the tree)
 printf '[Desktop Entry]\nType=Application\nName=Extra\nExec=foot -a extra sleep 600\nIcon=utilities-terminal-symbolic\n' > $HOME/.local/share/applications/extra.desktop
 printf '[Desktop Entry]\nType=Application\nName=Quiet\nExec=true\nIcon=utilities-terminal-symbolic\n' > $HOME/.local/share/applications/quiet.desktop
+# Settings: runs once (a second start turns its page, here: a second foot, closed by the test);
+# it maps after a moment, as a real app does (a window before its placeholder takes the screen it was started on)
+printf '#!/bin/sh\nsleep 0.5\nexec foot -a glassine-settings sleep 600\n' > $HOME/settings-standin; chmod +x $HOME/settings-standin
+printf '[Desktop Entry]\nType=Application\nName=Settings\nExec=%s/settings-standin\nIcon=preferences-system-symbolic\nSingleMainWindow=true\n' "$HOME" > $HOME/.local/share/applications/glassine-settings.desktop
 
 cat > /tmp/sway-$O.conf <<C
 output HEADLESS-1 resolution $RES scale 2 bg #ffffff solid_color
@@ -324,6 +328,61 @@ def views(n):
     for c in n.get("nodes",[]): yield from views(c)
 walk(json.load(sys.stdin))')" "1"
 sm -q "[app_id=extra] kill"; sleep 1
+# Settings from quick settings goes where a drawer tap would put it (Appearance >
+# Windows: a screen of its own by default), not beside the apps here
+sm -q "workspace number 1"; sleep 0.5
+mark; tap bar qs; tap pop qs-settings; sleep 3
+sent "Settings from quick settings: next new (a screen of its own)" "next new"
+expect "... and the placeholder made after it" "$(grep -o 'tile: next new\|placeholder for Settings' $L | tail -2 | cut -c1-4 | tr '\n' ' ')" "tile plac "
+expect "... its window alone on its screen" "$(swaymsg -t get_tree -r | python3 -c '
+import json,sys
+def walk(n,ws=None):
+    if n.get("type")=="workspace": ws=n
+    if n.get("app_id")=="glassine-settings": print(sum(1 for _ in views(ws)))
+    for c in n.get("nodes",[])+n.get("floating_nodes",[]): walk(c,ws)
+def views(n):
+    if n.get("app_id") or n.get("window_properties"): yield n
+    for c in n.get("nodes",[]): yield from views(c)
+walk(json.load(sys.stdin))')" "1"
+sm -q "workspace number 1"; sleep 0.5
+mark; tap bar qs; tap pop qs-settings; sleep 1.5
+expect "Settings again while it runs: no new place, its screen comes forward" "$(since | grep -c 'next ') $(swaymsg -t get_workspaces -r | python3 -c 'import json,sys; print([w["name"] for w in json.load(sys.stdin) if w["focused"]][0])' | grep -vc '^1$')" "0 1"
+sm -q "[app_id=glassine-settings] kill"; sleep 1
+mkdir -p $HOME/.config/glassine; touch $HOME/.config/glassine/app-shared-workspace
+sm -q "workspace number 1"; sleep 0.5
+mark; tap bar qs; tap pop qs-settings; sleep 3
+expect "Settings with apps sharing a screen (the setting off): no next new" "$(since | grep -c 'next new')" "0"
+sm -q "[app_id=glassine-settings] kill"; sleep 1
+rm -f $HOME/.config/glassine/app-shared-workspace
+
+# the bar (FR-002, FR-005): the screen button right of Home, the focused window's
+# title and its close button
+sm -q "workspace number 7; exec foot -a closeme sleep 600"; sleep 1.5
+CM=$(tree id closeme)
+expect "bar: a close button for the focused window" "$(python3 $T/hit.py --all $HITS/bar close | cut -d' ' -f2)" "$CM"
+expect "bar: the screen button starts right after Home" "$(python3 - $HITS/bar <<'PY'
+import sys
+h = {}
+for ln in open(sys.argv[1]):
+    p = ln.split()
+    if len(p) == 7: h[p[0]] = list(map(float, p[3:]))
+print(int(h["screen"][0] - (h["home"][0] + h["home"][2])))
+PY
+)" "6"
+send home 1 7; sleep 0.5
+expect "bar: no close button while Home is shown" "$(nh bar close)" "0"
+send home 0 0; sleep 0.5
+tap bar close; sleep 1.5
+expect "bar: the close button closes that window" "$(swaymsg -t get_tree -r | grep -c '"app_id": "closeme"')" "0"
+
+# Overview previews follow a change at once: a screen whose windows moved is put
+# together from its windows' pictures (no new still needed)
+sm -q "workspace number 1"; sleep 2.5      # a still of screen 1 (SNAP_IDLE_MS)
+tap bar screen
+mark; tap pop ov-pick - $TERM_; tap pop ov-new - $TERM_; sleep 1.5
+expect "Overview: a moved window's screen is drawn from its windows' pictures" "$(grep -c "put together from its windows' pictures" $L | awk '{ print ($1 > 0) }')" "1"
+key Escape; sleep 0.5
+
 send home 1 3
 mark; $B/glassine-shell launch quiet new; sleep 1; sent "launch with an empty screen under Home: next hole" "next hole"
 send home 0 0
