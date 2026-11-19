@@ -1092,8 +1092,12 @@ int be_init(void)
  * right before the overview opens when the visible screen has none or an old
  * one (be_snap_fresh, waits at most SNAP_WAIT_MS). Kept as an A8 coverage
  * mask (255 = ink) of the work area at 1/SNAP_DS, keyed by the screen's
- * windows and their places: a screen whose windows changed since shows its
- * tiles instead (ov_thumb). Hidden apps are frozen (glassine-bgprio), so a still is
+ * windows and their places. Each still is also cut into its windows' pictures
+ * (kept by window id): a screen whose windows changed since (an app moved,
+ * closed or resized, in Overview or elsewhere) is put together from those at
+ * the windows' places now, at once and without a copy; a window with no picture
+ * yet is blank there. Only a screen with no picture of any of its windows shows
+ * its tiles (ov_thumb). Hidden apps are frozen (glassine-bgprio), so a still is
  * the screen as it was when last seen; one switched away by a gesture keeps
  * the last still taken while it showed.
  * GLASSINE_SNAP_DUMP=DIR writes each still there as PNG (the harness).
@@ -1107,6 +1111,13 @@ int be_init(void)
 typedef struct { int n; WinId id[SNAP_WIN]; int r[SNAP_WIN][4]; } SnapKey;
 typedef struct { SnapKey k; cairo_surface_t *img; double t; } Snap;
 static Snap snaps[SNAP_MAX];
+/* a window's picture, cut from the last still it was in: its size there (device px) */
+#define WSNAP_MAX 24
+typedef struct { WinId id; int w, h; cairo_surface_t *img; double t; } WinSnap;
+static WinSnap wsnaps[WSNAP_MAX];
+/* a screen put together from its windows' pictures (be_snap), kept while its windows stay */
+typedef struct { SnapKey k; cairo_surface_t *img; double t; } Comp;
+static Comp comps[MAXDESK];
 static struct {
     struct zwlr_screencopy_frame_v1 *f;
     struct wl_buffer *buf;
@@ -1114,6 +1125,7 @@ static struct {
     uint32_t fmt; int w, h, stride, yinv;
     int busy, done;
     SnapKey k;
+    long d;                             /* the screen it is of */
 } cap;
 static guint snap_timer;
 
@@ -1163,6 +1175,51 @@ static inline int snap_luma(const uint8_t *p)
     /* the grey output (sway 0004) has its grey in one channel, the others 0
      * (grim's PNG of it is red): the brightest channel, = the grey for R=G=B */
     default: { int m = p[0] > p[1] ? p[0] : p[1]; return m > p[2] ? m : p[2]; }
+    }
+}
+
+static WinSnap *wsnap_of(WinId id)
+{
+    for (int i = 0; i < WSNAP_MAX; i++) if (wsnaps[i].img && wsnaps[i].id == id) return &wsnaps[i];
+    return NULL;
+}
+
+/* the still img (the work area at 1/SNAP_DS) cut into the pictures of the windows
+ * of key k as they were placed. A screen with a full-screen window: that one only
+ * (the others are hidden under it) */
+static void snap_cut(cairo_surface_t *img, const SnapKey *k, long d)
+{
+    int iw = cairo_image_surface_get_width(img), ih = cairo_image_surface_get_height(img);
+    WinId full = d >= 0 && d < MAXDESK ? lay[d].full : 0;
+    double t = now_ms();
+    for (int i = 0; i < k->n; i++) {
+        if (full && k->id[i] != full) continue;
+        int x = (k->r[i][0] - warea[0]) / SNAP_DS, y = (k->r[i][1] - warea[1]) / SNAP_DS;
+        int w = k->r[i][2] / SNAP_DS, h = k->r[i][3] / SNAP_DS;
+        if (x < 0) { w += x; x = 0; }
+        if (y < 0) { h += y; y = 0; }
+        if (x + w > iw) w = iw - x;
+        if (y + h > ih) h = ih - y;
+        if (w < 4 || h < 4) continue;
+        WinSnap *s = wsnap_of(k->id[i]);
+        if (!s) {                       /* a free slot, else the oldest (a closed window's first) */
+            s = &wsnaps[0];
+            for (int j = 0; j < WSNAP_MAX; j++) {
+                if (!wsnaps[j].img) { s = &wsnaps[j]; break; }
+                int gone = 1;
+                for (int c = 0; c < ncl; c++) if (cl[c].w == wsnaps[j].id) gone = 0;
+                if (gone) { s = &wsnaps[j]; break; }
+                if (wsnaps[j].t < s->t) s = &wsnaps[j];
+            }
+        }
+        cairo_surface_t *c = cairo_image_surface_create(CAIRO_FORMAT_A8, w, h);
+        cairo_t *cr = cairo_create(c);
+        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+        cairo_set_source_surface(cr, img, -x, -y);
+        cairo_paint(cr);
+        cairo_destroy(cr);
+        if (s->img) cairo_surface_destroy(s->img);
+        s->id = k->id[i]; s->img = c; s->w = k->r[i][2]; s->h = k->r[i][3]; s->t = t;
     }
 }
 
@@ -1230,6 +1287,7 @@ static void sc_ready(void *d, struct zwlr_screencopy_frame_v1 *f, uint32_t sh, u
             o[ty * os + tx] = 255 - sum / (SNAP_DS * SNAP_DS);
         }
     cairo_surface_mark_dirty(img);
+    snap_cut(img, &cap.k, cap.d);
     /* the slot: the same windows, else the oldest */
     Snap *s = snap_find(&cap.k);
     if (!s) {
@@ -1263,6 +1321,7 @@ static int snap_take(void)
     if (!scm || !out || cap.busy || pop.mapped) return 0;
     be_read_desktop();
     snap_key(curdesk, &cap.k);
+    cap.d = curdesk;
     if (!cap.k.n) return 0;
     for (int i = 0; i < cap.k.n; i++) {     /* a sway fullscreen window covers the bar: no still of the work area */
         Client *c = NULL;
@@ -1321,11 +1380,56 @@ void be_snap_fresh(void)
     LOG("snap: fresh still %s after %.0f ms", cap.busy ? "not ready" : "taken", now_ms() - t0);
 }
 
+/* screen d put together from its windows' pictures at their places now (key k);
+ * NULL: none of them has one */
+static cairo_surface_t *snap_compose(long d, const SnapKey *k)
+{
+    if (d < 0 || d >= MAXDESK || warea[2] < 8 * SNAP_DS || warea[3] < 8 * SNAP_DS) return NULL;
+    Comp *c = &comps[d];
+    if (c->img && snap_same(&c->k, k)) {
+        int newer = 0;              /* a window's picture taken since: again */
+        for (int i = 0; i < k->n; i++) { WinSnap *w = wsnap_of(k->id[i]); if (w && w->t > c->t) newer = 1; }
+        if (!newer) return c->img;
+    }
+    WinId full = lay[d].full;
+    int any = 0;
+    for (int i = 0; i < k->n; i++) if ((!full || k->id[i] == full) && wsnap_of(k->id[i])) any = 1;
+    if (!any) return NULL;
+    int tw = warea[2] / SNAP_DS, th = warea[3] / SNAP_DS;
+    cairo_surface_t *img = cairo_image_surface_create(CAIRO_FORMAT_A8, tw, th);   /* all 0: paper */
+    cairo_t *cr = cairo_create(img);
+    for (int i = 0; i < k->n; i++) {
+        if (full && k->id[i] != full) continue;
+        WinSnap *w = wsnap_of(k->id[i]);
+        if (!w) continue;
+        double x = (double)(k->r[i][0] - warea[0]) / SNAP_DS, y = (double)(k->r[i][1] - warea[1]) / SNAP_DS;
+        double rw = (double)k->r[i][2] / SNAP_DS, rh = (double)k->r[i][3] / SNAP_DS;
+        int sw = cairo_image_surface_get_width(w->img), sh = cairo_image_surface_get_height(w->img);
+        if (rw < 1 || rh < 1) continue;
+        cairo_save(cr);
+        cairo_rectangle(cr, x, y, rw, rh);
+        cairo_clip(cr);
+        cairo_translate(cr, x, y);
+        cairo_scale(cr, rw / sw, rh / sh);   /* a resized window: its old picture, stretched */
+        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+        cairo_set_source_surface(cr, w->img, 0, 0);
+        cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_GOOD);
+        cairo_paint(cr);
+        cairo_restore(cr);
+    }
+    cairo_destroy(cr);
+    cairo_surface_flush(img);
+    if (c->img) cairo_surface_destroy(c->img);
+    c->img = img; c->k = *k; c->t = now_ms();
+    LOG("snap: screen %ld put together from its windows' pictures (%d windows)", d + 1, k->n);
+    return img;
+}
+
 cairo_surface_t *be_snap(long d)
 {
     SnapKey k;
     snap_key(d, &k);
     if (!k.n) return NULL;
     Snap *s = snap_find(&k);
-    return s ? s->img : NULL;
+    return s ? s->img : snap_compose(d, &k);
 }

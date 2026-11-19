@@ -77,12 +77,17 @@ or opening an app hides it. Over a screen with no apps Home is shown without ask
 
 **Top bar**
 - **FR-001**: The bar's leftmost button shows and hides Home; it looks pressed while Home is shown.
-- **FR-002**: The bar's centre is the screen button: the screen's number and the screen count ("2/4") inside a
-  small screen frame with a thick top edge, then the icons of its apps in reading order. No layout glyph and
-  no focused-window title. It names the screen and does not change with focus.
+- **FR-002**: Right after the Home button, on the left, is the screen button: the screen's number and the screen
+  count ("2/4") inside a small screen frame with a thick top edge, then the icons of its apps in reading order;
+  it is as wide as what it shows. No layout glyph. It names the screen and does not change with focus.
 - **FR-003**: The screen button opens Overview and looks pressed while Overview is open. There is no separate
   Overview button and no screen menu.
 - **FR-004**: While a screen is empty under Home, the screen button shows its number and count with no icons.
+- **FR-005**: Between the screen button and the clock: the focused window's title (its app's name when the
+  window has none), cut short with an ellipsis where it does not fit, then a close button (×) that closes that
+  window. Neither shows while Home is shown, while Overview is open, or while no window on the current screen
+  has focus; the title alone is left out when the space is too narrow for a few characters. A title that keeps
+  changing repaints the bar at most once a second.
 
 **Overview**
 - **FR-010**: Screens show as previews, four per page (two by two), paged in the header ("‹ 1/2 ›") and by
