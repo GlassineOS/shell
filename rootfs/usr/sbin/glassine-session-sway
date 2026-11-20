@@ -39,7 +39,9 @@
 # press; the 3-finger swipe is in sway, 0002-glassine-touch-gestures.patch).
 U=${GLASSINE_USER:-user}
 SWAY=/usr/bin/sway-glassine
-EPID= SEPID= SPID=
+EPID= SEPID= SPID= BGPID= SL=
+alive() { local s; { read -r s < /proc/$1/stat; } 2>/dev/null || return 1; s=${s##*) }; [ "${s%% *}" != Z ]; }
+END_TENTHS=20           # cleanup: sway, seatd, epdd, bgprio end within 2 s, else KILL
 cleanup() {
     # first: a stop is a clean end even if the rest is slow or gets killed
     # (rc-service restart started the next session while this one still
@@ -49,7 +51,17 @@ cleanup() {
     pkill -u "$U" 2>/dev/null
     [ -n "$SEPID" ] && kill $SEPID 2>/dev/null
     [ -n "$EPID" ] && kill $EPID 2>/dev/null
-    sleep 1
+    [ -n "$BGPID" ] && kill $BGPID 2>/dev/null
+    [ -n "$SL" ] && kill $SL 2>/dev/null
+    # done as soon as they are gone (no fixed wait), at most END_TENTHS
+    i=0
+    while [ $i -lt $END_TENTHS ]; do
+        left=
+        for p in $SPID $SEPID $EPID $BGPID; do alive $p && left="$left $p"; done
+        [ -z "$left" ] && break
+        sleep 0.1; i=$((i + 1))
+    done
+    [ -n "$left" ] && { echo "glassine-session-sway: $(date) still running after 2 s:$left: killed"; kill -KILL $left 2>/dev/null; }
     wait
     rm -f /var/lib/glassine/gles-running
 }
@@ -411,8 +423,7 @@ start_sway
 # (its sway side: waits for the user's sway socket, exits with sway; not
 # supervised)
 BGPRIO=/usr/sbin/glassine-bgprio; [ -x $BGPRIO-wl ] && [ $BGPRIO-wl -nt $BGPRIO ] && BGPRIO=$BGPRIO-wl   # as glassine-epdd-desktop-wl
-[ "${GLASSINE_SESSION:-}" = setup ] || $BGPRIO -sway >>/var/log/glassine-bgprio.log 2>&1 &
-alive() { local s; { read -r s < /proc/$1/stat; } 2>/dev/null || return 1; s=${s##*) }; [ "${s%% *}" != Z ]; }
+[ "${GLASSINE_SESSION:-}" = setup ] || { $BGPRIO -sway >>/var/log/glassine-bgprio.log 2>&1 & BGPID=$!; }
 while :; do
     # wait -n bounded by a sleep job: busybox ash can reap two children that
     # exit together (sway's su + glassine-bgprio, which ends with sway) in one wait,
