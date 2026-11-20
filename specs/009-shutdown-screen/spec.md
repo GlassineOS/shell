@@ -127,7 +127,7 @@ holding the screen does nothing, and nothing is written to the splash store.
   waits for the shell's answer for at most three seconds. It never waits more than five
   seconds in all, never fails a shutdown (exit 0 whatever happens) and does nothing
   where no session's shell runs.
-- **FR-006** It acts once per kernel run: a second call (any target) does nothing. Before
+- **FR-006** It acts once per start of the system (a soft restart is a new start: its runtime files are new): a second call (any target) does nothing. Before
   it asks the shell, it marks the shutdown as started (FR-013).
 - **FR-007** The power menu's root helper (`glassine-power-root`) runs it first, before
   anything that can take time, for `poweroff`, `reboot` and `reboot-full` (`restart`), and

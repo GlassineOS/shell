@@ -487,6 +487,8 @@ if [ "$O" = landscape ]; then mv /run/glassine-epdd-desktop.ctl /run/epdd-ctl.aw
 EL=$(wc -l < /out/epdd-ctl.log)
 $B/glassine-shell shutdown-screen "Restarting…"; sleep 2
 expect "shutdown screen: the answer is $want" "$(cat $XDG_RUNTIME_DIR/glassine-shutdown-screen.shown 2>/dev/null)" "$want"
+ms=$(sed -n 's/.*shutdown screen [a-z]*, \([0-9]*\) ms after the request.*/\1/p' $L | tail -1)
+expect "shutdown screen: answered within a second ($ms ms)" "$([ -n "$ms" ] && [ "$ms" -lt 1000 ] && echo yes)" "yes"
 grim -t ppm -o HEADLESS-1 /tmp/shut-$O.ppm; grim -o HEADLESS-1 /out/shots/shutdown-$O.png
 if r=$(python3 $T/check_shutdown.py /tmp/shut-$O.ppm 2>&1); then ok "shutdown screen: the mark and the line, over the windows, the bar and the popup"
 else bad "shutdown screen: the picture" "$r"; fi

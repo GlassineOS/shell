@@ -9,7 +9,7 @@
 # the shutdown), else a soft restart's record (restart), else the power menu's power-off
 # mark (poweroff), else unknown.
 #
-# Once per kernel run: the first call marks the shutdown as started
+# Once per start of the system: the first call marks the shutdown as started
 # (/run/glassine-shutdown-screen.lock: power daemons suspend no more, FR-013) and asks
 # the session's glassine-shell to show the overlay ("shutdown-screen LINE" on its
 # request socket). The shell shows it, holds the screen where the display keeps its

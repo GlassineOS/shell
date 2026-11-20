@@ -2527,7 +2527,7 @@ static struct {
     int on;                             /* the overlay is up: nothing else is drawn or taken */
     int phase;                          /* 1 wait for the frame, 2 settle, 3 refresh, 0 done */
     int presented, held;
-    double due;
+    double due, t0;                     /* t0: the request */
     char line[160];
 } sd;
 static struct {
@@ -3458,7 +3458,7 @@ static void shut_answer(const char *what)
     if (!f) return;
     fprintf(f, "%s\n", what);
     if (fclose(f) || rename(t, p)) unlink(t);
-    fprintf(stderr, "glassine-shell: shutdown screen %s\n", what);
+    fprintf(stderr, "glassine-shell: shutdown screen %s, %.0f ms after the request\n", what, now_ms() - sd.t0);
 }
 
 /* the mark's greys: the boot splash's (ink, highlight, pen on white) */
@@ -3524,6 +3524,7 @@ static void shutdown_screen(const char *line)
 {
     if (sd.on) return;
     sd.on = 1;
+    sd.t0 = now_ms();
     snprintf(sd.line, sizeof sd.line, "%s", line ? line : "");
     if (st.view != V_IDLE) set_view(V_IDLE);
     if (st.drag) { st.drag = 0; surf_hide(&rail); }
@@ -3753,6 +3754,7 @@ int main(int argc, char **argv)
     while (!quit) {
         be_dispatch();
         be_flush();
+        if (sd.on) shutdown_step(now_ms());     /* (a frame callback just dispatched: on at once) */
         /* timers */
         double t = now_ms();
         time_t wall = time(NULL);
