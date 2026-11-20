@@ -51,6 +51,7 @@ $(OUT)/libglassine-ink.so: $(S)/wayland/glassine-ink-gtk.c $(S)/wayland/protocol
 check:
 	python3 "$$(sh test/ui.sh)/tools/gen-apps" --check rootfs
 	sh test/sleep-pill/test.sh
+	sh test/shutdown-screen/test.sh
 	sh test/ink/test.sh
 	sh test/swayd/test.sh
 	sh test/shell/test.sh

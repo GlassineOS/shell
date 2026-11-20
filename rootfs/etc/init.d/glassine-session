@@ -17,3 +17,13 @@ depend() {
 	use udev networkmanager bluetooth
 	after bootmisc
 }
+
+# The system goes down (not a plain stop or restart of the service): the shutdown screen
+# (spec 009) as the stop begins, before the session ends; worded by the shutdown record.
+# It does nothing when the power menu showed it already.
+stop_pre() {
+	if yesno "${RC_GOINGDOWN:-NO}" && [ -x /usr/sbin/glassine-shutdown-screen ]; then
+		/usr/sbin/glassine-shutdown-screen
+	fi
+	return 0
+}
