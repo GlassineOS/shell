@@ -1,0 +1,63 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# glassine-shutdown-screen [TARGET] — the shutdown screen (spec 009): the GlassineOS mark
+# and one line on the e-ink panel, from the moment a restart or a power-off starts.
+#
+# TARGET: restart, poweroff, recovery, menu, other (the device's other system),
+# bootloader. Without one: the shutdown record's next= (GlassineOS/boot, written by
+# reboot, poweroff, glassine-reboot-clean and glassine-deploy restart before they start
+# the shutdown), else a soft restart's record (restart), else the power menu's power-off
+# mark (poweroff), else unknown.
+#
+# Once per session: the first call renders the picture (glassine-sleep-pill -m screen)
+# and asks the panel daemon to show it ("shutdown-screen" on its control FIFO: one
+# whole-panel GC16, then the daemon writes nothing more to the panel); every later call
+# does nothing. Where the daemon took the line it leaves /run/glassine-shutdown-screen
+# (the target), which tells a device's own power-off screen that the panel already says
+# so, and, for the targets that end in GlassineOS's loader (restart, menu, recovery), also
+# /run/glassine/screen-keep: the cold shutdown writes the splash store's "leave the
+# screen" override from it (GlassineOS/boot 011), so the next start doesn't draw over the
+# picture. No panel daemon (a PC): nothing drawn, nothing left.
+#
+# Called by glassine-power-root before anything slow, and by the session's service as
+# its stop begins while the system goes down. Never fails a shutdown: exit 0, at most
+# about five seconds.
+RUN=${GLASSINE_RUN:-/run}
+CTL=${GLASSINE_EPDD_CTL:-$RUN/glassine-epdd-desktop.ctl}
+RENDER=${GLASSINE_SLEEP_PILL:-/usr/bin/glassine-sleep-pill}
+DONE=$RUN/glassine-shutdown-screen
+PIC=$RUN/glassine-shutdown-screen.pgm
+
+t=${1:-}
+if [ -z "$t" ]; then
+	t=$(sed -n 's/^next=\([a-z0-9-]*\)$/\1/p' "$RUN/glassine/shutdown" 2>/dev/null | tail -n 1)
+	[ -n "$t" ] || { [ -e "$RUN/glassine/restarting" ] && t=restart; }
+	[ -n "$t" ] || { [ -e "$RUN/glassine-poweroff" ] && t=poweroff; }
+fi
+
+# the words, one table (spec 009 FR-003); BAR: the daemon's fallback when the picture
+# can't be drawn (capitals of its bar font only)
+bar=''
+case $t in
+	restart|menu|bootloader) line='Restarting…' bar=RESTARTING ;;
+	recovery) line='Starting recovery…' ;;
+	other) line='Starting Android…' ;;
+	poweroff) line='Powered off' bar='POWERED OFF' ;;
+	*) t=unknown line='Shutting down…' ;;
+esac
+
+# once: the first caller wins
+mkdir "$DONE.lock" 2>/dev/null || exit 0
+
+rm -f "$PIC"
+timeout 3 "$RENDER" -m screen -s "$line" "$PIC" >/dev/null 2>&1 || rm -f "$PIC"
+
+# the daemon: only an existing FIFO, the write bounded (a FIFO nobody reads blocks the open)
+[ -p "$CTL" ] || exit 0
+timeout 2 sh -c 'printf "%s\n" "$1" > "$2"' sh "shutdown-screen${bar:+ $bar}" "$CTL" 2>/dev/null || exit 0
+echo "$t" > "$DONE"
+case $t in
+	restart|menu|recovery)
+		mkdir -p "$RUN/glassine" 2>/dev/null && : > "$RUN/glassine/screen-keep" ;;
+esac
+exit 0

@@ -115,9 +115,12 @@ neither slower nor different from one without this feature.
   target) does nothing. The first call records the target it drew in
   `/run/glassine-shutdown-screen`.
 - **FR-007** The power menu's root helper (`glassine-power-root`) runs it first, before
-  anything that can take time, for `poweroff`, `reboot`, `reboot-full`, `android`
-  (`other`), `recovery` and `menu`. A request that is refused before the shutdown starts
-  (the start menu on a loader that takes no request, no second system) shows nothing.
+  anything that can take time, for `poweroff`, `reboot` and `reboot-full` (`restart`),
+  and for `android` (`other`) once the slot switch is written. Since the panel daemon
+  draws nothing after the screen, it is never shown for a request that can still be
+  refused before the shutdown starts: `recovery` and `menu` (their requests may be
+  refused) are shown by FR-008 once the shutdown has started, worded by the shutdown
+  record; a refused `android` (no second system, a failed switch) shows nothing.
 - **FR-008** The session's service runs it as its stop begins, when the system goes down
   (not on a plain restart of the service), before it ends the session: that covers every
   shutdown that doesn't come through the power menu (Scenario 3).
@@ -133,17 +136,18 @@ neither slower nor different from one without this feature.
 
 ### Keeping it through the next start
 
-- **FR-011** For the targets `restart`, `menu` and `recovery`, once the panel daemon was
+- **FR-011** For the targets `restart`, `menu` and `recovery` (the next start is the
+  loader's), once the panel daemon was
   asked to show the screen, the command leaves `/run/glassine/screen-keep`. The system's
   cold shutdown step turns that into the splash store's "leave the screen" override
   (GlassineOS/boot 011 FR-014); a soft restart writes none (013 FR-032). For `poweroff`,
-  `other` and unknown it leaves no such file.
+  `other`, `bootloader` and unknown it leaves no such file.
 
 ## Contracts
 
 | Contract | Owned / consumed | Spec location |
 |---|---|---|
-| `glassine-shutdown-screen [restart\|poweroff\|recovery\|menu\|other]` | owned (new) | README, "Runtime interfaces" |
+| `glassine-shutdown-screen [restart\|poweroff\|recovery\|menu\|other\|bootloader]` | owned (new) | README, "Runtime interfaces" |
 | `glassine-sleep-pill -m screen` and its P5 output | owned (added mode) | README, "Runtime interfaces" |
 | `/run/glassine-shutdown-screen.pgm`, `/run/glassine-shutdown-screen` | owned (new) | README, "Runtime interfaces" |
 | `/run/glassine/screen-keep` | owned (new); read by GlassineOS/boot's cold shutdown step | boot `docs/deployments.md`, "Runtime directory" |
@@ -172,8 +176,8 @@ neither slower nor different from one without this feature.
   the FIFO gets one `shutdown-screen` line, a second call sends nothing, every target gets
   its words, `screen-keep` exists exactly for `restart`, `menu` and `recovery`, a FIFO
   nobody reads costs at most five seconds and exits 0.
-- **SC-003** The root helper's host test: every shutdown verb runs the command before
-  the rest; a refused request runs it not.
+- **SC-003** The root helper's host test: `poweroff`, `reboot`, `reboot-full` and
+  `android` run the command before the shutdown; a refused `android` runs it not.
 - **SC-004** In GlassineOS/epd's host test, after `shutdown-screen` the policy sends one
   full-panel GC16 and nothing more for any later input or command.
 - **SC-005** On the device, with the person's go: from the power menu and from a terminal,

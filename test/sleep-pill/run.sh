@@ -67,4 +67,29 @@ if GLASSINE_EPD_CONF=$T/epd.conf $P -m nap -t white $T/p.pam 2>/dev/null; then b
 # the default time text: "Since HH:MM" now (the text itself is in the pixels; only the run is checked)
 GLASSINE_EPD_CONF=$T/epd.conf $P -t white $T/p.pam >/dev/null && ok "default time text" || bad "default time text"
 
+# the shutdown screen (-m screen, spec 009): the whole logical screen as a P5, every voice
+# and turn, with and without the line; a P5 of -W/-H; the usual failures leave no file
+for v in white editorial stationery; do
+    for r in 0 90 180 270; do
+        rm -f $T/s.pgm
+        if GLASSINE_EPD_CONF=$T/epd.conf $P -m screen -t $v -r $r -s "Restarting…" -p /out/$v-screen-$r.png $T/s.pgm >/dev/null &&
+            python3 /r/test/sleep-pill/check_screen.py $T/s.pgm 1404 1872 $r; then
+            ok "$v, shutdown screen, turn $r"
+        else
+            bad "$v, shutdown screen, turn $r"
+        fi
+        [ ! -e $T/s.pgm.tmp ] || bad "$v, shutdown screen, turn $r: a .tmp file is left"
+    done
+done
+rm -f $T/s.pgm
+GLASSINE_EPD_CONF=$T/epd.conf $P -m screen -t white -r 0 $T/s.pgm >/dev/null &&
+    python3 /r/test/sleep-pill/check_screen.py $T/s.pgm 1404 1872 0 - && ok "shutdown screen without a line: the mark alone" || bad "shutdown screen without a line"
+rm -f $T/s.pgm
+GLASSINE_EPD_CONF=$T/epd.conf $P -m screen -t white -W 600 -H 800 -r 90 -s "Powered off" $T/s.pgm >/dev/null &&
+    python3 /r/test/sleep-pill/check_screen.py $T/s.pgm 600 800 90 && ok "shutdown screen: -W/-H" || bad "shutdown screen: -W/-H"
+rm -f $T/s.pgm
+if GLASSINE_EPD_CONF=$T/missing.conf $P -m screen -s x $T/s.pgm 2>/dev/null; then bad "shutdown screen, no adapter: exit 0"; else ok "shutdown screen, no adapter: exit != 0"; fi
+[ ! -e $T/s.pgm ] && [ ! -e $T/s.pgm.tmp ] || bad "shutdown screen, no adapter: a file is left"
+if GLASSINE_EPD_CONF=$T/epd.conf $P -m screen -s x $T/nodir/s.pgm 2>/dev/null; then bad "shutdown screen, unwritable: exit 0"; else ok "shutdown screen, unwritable output: exit != 0"; fi
+
 exit $fail

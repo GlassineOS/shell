@@ -4,6 +4,10 @@
 # deployment (GlassineOS/boot glassine-switch-hook; absent on the plain layout).
 # Anyone: sleep, hibernate, poweroff, reboot, reboot-full, restart-check, android, recovery, menu (no prompt: like the
 # recovery, the loader's start menu offers only this machine's own systems and recovery).
+# The shutdown screen (spec 009) first, before anything that takes time; only where the
+# shutdown can't be refused any more (recovery and menu get it from the session's stop).
+SCREEN=${GLASSINE_SHUTDOWN_SCREEN:-/usr/sbin/glassine-shutdown-screen}
+screen() { [ ! -x "$SCREEN" ] || "$SCREEN" "$1"; }
 user_shutdown() { command -v glassine-switch-hook >/dev/null && glassine-switch-hook --user-shutdown; return 0; }
 # GlassineOS/boot's restart step (glassine-deploy restart, spec 013): soft where the
 # deployments allow (the apps close, the kernel keeps running), else cold; it runs the
@@ -14,9 +18,10 @@ has_restart() {
 	case $? in 0|9) return 0 ;; *) return 1 ;; esac
 }
 case "$1" in
-	poweroff) : > /run/glassine-poweroff; user_shutdown; exec poweroff ;;   # glassine-splash shows the power-off screen
+	poweroff) : > /run/glassine-poweroff; screen poweroff; user_shutdown; exec poweroff ;;
 	reboot)   # "Restart": soft where it can be; a restart the step refuses (busy, no space for the
 	          # switch) is an ordinary one, as the person asked to restart
+		screen restart
 		if has_restart; then
 			/usr/sbin/glassine-deploy restart
 			# it returned while its restart runs (the stop ended it): nothing more to do
@@ -24,6 +29,7 @@ case "$1" in
 		fi
 		user_shutdown; exec reboot ;;
 	reboot-full) # "Restart fully": always cold, through the firmware
+		screen restart
 		if has_restart; then /usr/sbin/glassine-deploy restart --cold; fi
 		user_shutdown; exec reboot ;;
 	restart-check) # what "Restart" would be: the step's porcelain record (nothing where it has none)
@@ -38,6 +44,7 @@ case "$1" in
 		s=$(sed -n 's/^ANDROID_SLOT=\([ab]\)$/\1/p' "${GLASSINE_SLOTS_CONF:-/etc/glassine/slots.conf}" 2>/dev/null | tail -n 1)
 		[ -n "$s" ] || { echo "$0: no second system on this device" >&2; exit 3; }
 		/usr/sbin/glassine-slot set-active "$s" --successful || exit
+		screen other
 		exec reboot ;;
 	recovery) exec /usr/sbin/glassine-reboot-clean recovery ;;   # p9 (TWRP or a mainline test image); its "Reboot" comes back here
 	menu)     # the loader's start menu at the next start (GlassineOS/boot: request=menu in the
