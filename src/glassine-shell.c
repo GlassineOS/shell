@@ -141,7 +141,8 @@ enum {
     A_N_CLEAR, A_N_OPEN, A_N_DISMISS,
     A_DIV_SWAP, A_DIV_DIR, A_DIV_CROSS,
 };
-Surf bar, pop, rail;
+Surf bar, pop, rail, shut;
+static const char *surf_name(const Surf *s) { return s == &bar ? "bar" : s == &pop ? "pop" : s == &shut ? "shut" : "rail"; }
 
 static Surf *cur_s;
 static Gc *cur_g;
@@ -174,7 +175,7 @@ static void surf_hide(Surf *s)
     be_surf_unmap(s);
     s->mapped = 0;
     s->nhit = 0;
-    hits_dump(s, s == &bar ? "bar" : s == &pop ? "pop" : "rail");
+    hits_dump(s, surf_name(s));
 }
 
 static void surf_alloc(Surf *s, int x, int y, int w, int h)
@@ -334,7 +335,7 @@ static void surf_render(Surf *s, View v)
                 if (p[(size_t)y * stride + x] >> 24) p[(size_t)y * stride + x] ^= 0x00ffffff;
     }
     cairo_surface_mark_dirty(s->img);
-    hits_dump(s, s == &bar ? "bar" : s == &pop ? "pop" : "rail");
+    hits_dump(s, surf_name(s));
     double t_drawn = now_ms();
     surf_put(s);
     if (!s->mapped) {
@@ -827,12 +828,14 @@ static void set_fluid(int k)
 
 static struct { double x, w; } slider_geo[3];     /* the quick-settings sliders as drawn (view_qs) */
 
-void epdd(const char *cmd)
+int epdd(const char *cmd)
 {
     int fd = open(EPDD_CTL, O_WRONLY | O_NONBLOCK);
-    if (fd < 0) { LOG(EPDD_CTL ": %s", strerror(errno)); return; }
-    if (write(fd, cmd, strlen(cmd)) < 0) LOG(EPDD_CTL ": %s", strerror(errno));
+    if (fd < 0) { LOG(EPDD_CTL ": %s", strerror(errno)); return 0; }
+    int ok = write(fd, cmd, strlen(cmd)) == (ssize_t)strlen(cmd);
+    if (!ok) LOG(EPDD_CTL ": %s", strerror(errno));
     close(fd);
+    return ok;
 }
 
 static char bt_path[128];
@@ -2519,6 +2522,14 @@ static double refresh_due, press_long_due;
  * lift -- HOLD_MS after a raw press still down, a gesture that pressed a
  * workspace button is a hold: the workspaces open, no tap follows. */
 static double ws_hold_due;
+/* the shutdown screen (spec 009, see shutdown_screen) */
+static struct {
+    int on;                             /* the overlay is up: nothing else is drawn or taken */
+    int phase;                          /* 1 wait for the frame, 2 settle, 3 refresh, 0 done */
+    int presented, held;
+    double due;
+    char line[160];
+} sd;
 static struct {
     int raw, down, held, pending;   /* raw: raw events arrive; pending: a workspace tap waits for the lift */
     unsigned seq, acted, ws;        /* the gesture; the last one the bar acted in; the last to press a ws button */
@@ -3219,6 +3230,7 @@ static void held(int a, int arg)
 /* a right click (a mouse's right button) = a long press */
 void ev_long_press(int rx_dev, int ry_dev)
 {
+    if (sd.on) return;
     double x = rx_dev / S, y = ry_dev / S;
     Surf *s = y < BH ? &bar : &pop;
     if (s == &pop && !pop.mapped) return;
@@ -3242,6 +3254,7 @@ static void bar_act(const Hit *c, double x)
 
 void ev_pointer(int down, int rx_dev, int ry_dev)
 {
+    if (sd.on) return;                  /* the shutdown screen takes all input: nothing happens */
     double x = rx_dev / S, y = ry_dev / S;
     Surf *s = y < BH ? &bar : &pop;
     const Hit *h = hit_at(s, x, y);
@@ -3300,6 +3313,7 @@ void ev_motion(int rx_dev, int ry_dev) { (void)rx_dev; (void)ry_dev; }
 
 void ev_raw(int down, int up)
 {
+    if (sd.on) return;
     gest.raw = 1;
     if (down && !gest.down) {
         gest.seq++; gest.down = 1; gest.held = 0; gest.pending = 0;
@@ -3343,6 +3357,7 @@ static const Hit *focus_hit(void)
 
 void ev_key(int k, const char *b, int n)
 {
+    if (sd.on) return;
     if (st.view == V_IDLE) return;
     if (k == SK_ESC) {                  /* the top one: a move, then the panel (FR-050) */
         if (st.mv) { st.mv = 0; st.ov_page = -1; st.focus = -1; render_pop(); }
@@ -3416,6 +3431,134 @@ void ev_title(void)
 }
 
 /* ============================================================================
+ * the shutdown screen (spec 009)
+ * ========================================================================== */
+/* "shutdown-screen LINE" (glassine-shutdown-screen, as the system goes down): the
+ * overlay -- a white page, the boot splash's mark and LINE beneath it -- above
+ * everything, taking all input; from then on the shell takes no request and draws
+ * nothing else. Once the compositor reports its first frame on screen, the screen
+ * is held (display_hold), then the answer goes to $XDG_RUNTIME_DIR/glassine-shutdown-screen.shown:
+ * "held" or "shown" (FR-009). */
+#define SHUT_FRAME_MAX_MS 1500          /* no frame reported by then: shown, not held */
+
+/* holding the screen (FR-010): on a display that keeps its picture (where the panel
+ * daemon's control FIFO is), one full refresh of what is shown, then the panel paused;
+ * elsewhere nothing. Separate writes: "pause" in the same read as "full" would win */
+#define HOLD_SETTLE_MS 150              /* the frame on screen -> the panel daemon has it */
+#define HOLD_REFRESH_MS 300             /* "full" -> its refresh has started ("pause" lets it finish) */
+
+
+static void shut_answer(const char *what)
+{
+    const char *d = getenv("XDG_RUNTIME_DIR");
+    char p[512], t[520];
+    snprintf(p, sizeof p, "%s/glassine-shutdown-screen.shown", d && *d ? d : "/tmp");
+    snprintf(t, sizeof t, "%s.tmp", p);
+    FILE *f = fopen(t, "w");
+    if (!f) return;
+    fprintf(f, "%s\n", what);
+    if (fclose(f) || rename(t, p)) unlink(t);
+    fprintf(stderr, "glassine-shell: shutdown screen %s\n", what);
+}
+
+/* the mark's greys: the boot splash's (ink, highlight, pen on white) */
+#define MARK_INK (26 / 255.0)
+#define MARK_LEAF (208 / 255.0)
+
+static void mark_rrect(cairo_t *cr, double x, double y, double w, double h, double r)
+{
+    cairo_new_sub_path(cr);
+    cairo_arc(cr, x + w - r, y + r, r, -M_PI / 2, 0);
+    cairo_arc(cr, x + w - r, y + h - r, r, 0, M_PI / 2);
+    cairo_arc(cr, x + r, y + h - r, r, M_PI / 2, M_PI);
+    cairo_arc(cr, x + r, y + r, r, M_PI, 3 * M_PI / 2);
+    cairo_close_path(cr);
+}
+
+/* the GlassineOS mark (the boot splash's shapes, from the documentation site's logo) in
+ * its 48-unit view box, drawn at unit px per unit from (ox, oy): a sheet's outline, a
+ * second sheet turned 6 degrees over it, a pen stroke on that sheet */
+static void mark(cairo_t *cr, double ox, double oy, double unit)
+{
+    cairo_save(cr);
+    cairo_translate(cr, ox, oy);
+    cairo_scale(cr, unit, unit);
+    mark_rrect(cr, 2, 4, 30, 34, 5);    /* the sheet: x=2 y=4 30x34 rx 5, outline 2.5 wide */
+    cairo_set_line_width(cr, 2.5);
+    cairo_set_source_rgb(cr, MARK_INK, MARK_INK, MARK_INK);
+    cairo_stroke(cr);
+    cairo_translate(cr, 29, 27);        /* the leaf: x=14 y=10 30x34 rx 5, turned 6 degrees about (29, 27) */
+    cairo_rotate(cr, 6 * M_PI / 180);
+    cairo_translate(cr, -29, -27);
+    mark_rrect(cr, 14, 10, 30, 34, 5);
+    cairo_set_source_rgb(cr, MARK_LEAF, MARK_LEAF, MARK_LEAF);
+    cairo_fill_preserve(cr);
+    cairo_clip(cr);
+    cairo_move_to(cr, 20, 30);          /* the pen stroke on the leaf, 3 wide, round ends */
+    cairo_curve_to(cr, 26, 24, 30, 34, 38, 26);
+    cairo_set_line_width(cr, 3);
+    cairo_set_line_cap(cr, CAIRO_LINE_CAP_ROUND);
+    cairo_set_source_rgb(cr, MARK_INK, MARK_INK, MARK_INK);
+    cairo_stroke(cr);
+    cairo_restore(cr);
+}
+
+/* the whole screen (logical px): white, the mark centred with its centre at 44 % of the
+ * height, 41 % of the narrow side wide; the line beneath it in the heading font (FR-001) */
+static void view_shut(Gc *g)
+{
+    bound(0, 0, LW, LH, 0);
+    cairo_t *cr = g->cr;
+    cairo_set_source_rgb(cr, 1, 1, 1);
+    cairo_paint(cr);
+    double unit = fmin(LW, LH) * 0.41 / 48.0;
+    double ox = (LW - 48 * unit) / 2.0, oy = LH * 0.44 - 24 * unit;
+    mark(cr, ox, oy, unit);
+    if (!sd.line[0]) return;
+    UiFont f = ui_font_px(&T->headFont, 30);
+    /* beneath the mark (its view box ends at 48 units; the turned leaf a little lower) */
+    ui_text(g, &f, sd.line, LW / 2, oy + 50 * unit + 40, 1, LW - 48, T->ink, NULL);
+}
+
+static void shutdown_screen(const char *line)
+{
+    if (sd.on) return;
+    sd.on = 1;
+    snprintf(sd.line, sizeof sd.line, "%s", line ? line : "");
+    if (st.view != V_IDLE) set_view(V_IDLE);
+    if (st.drag) { st.drag = 0; surf_hide(&rail); }
+    refresh_due = press_long_due = ws_hold_due = 0;
+    press.s = NULL; press.down = 0;
+    run(be_osk_cmd(0), NULL);
+    be_surf_frame(&shut, &sd.presented);
+    surf_render(&shut, view_shut);
+    be_grab_keyboard(&shut);            /* keys to it: they do nothing */
+    sd.phase = 1;
+    sd.due = now_ms() + SHUT_FRAME_MAX_MS;
+    LOG("shutdown screen: \"%s\"", sd.line);
+}
+
+/* the steps after the overlay is up (main loop); returns the next due time, 0: none */
+static double shutdown_step(double t)
+{
+    if (sd.phase == 1 && sd.presented) { sd.phase = 2; sd.due = t + HOLD_SETTLE_MS; }
+    if (sd.phase == 1 && t >= sd.due) {
+        sd.phase = 0;
+        shut_answer("shown");           /* (no frame reported: nothing held, a late frame still shows) */
+    }
+    if (sd.phase == 2 && t >= sd.due) {
+        if (access(EPDD_CTL, F_OK) == 0 && epdd("full\n")) { sd.phase = 3; sd.due = t + HOLD_REFRESH_MS; }
+        else { sd.phase = 0; shut_answer("shown"); }    /* no panel control: the overlay alone */
+    }
+    if (sd.phase == 3 && t >= sd.due) {
+        sd.phase = 0;
+        sd.held = epdd("pause\n");
+        shut_answer(sd.held ? "held" : "shown");
+    }
+    return sd.phase ? sd.due : 0;
+}
+
+/* ============================================================================
  * requests
  * ========================================================================== */
 static void request(char *msg, int len)
@@ -3425,7 +3568,9 @@ static void request(char *msg, int len)
     msg[len] = 0;
     for (char *p = msg; n < 16 && p < msg + len; p += strlen(p) + 1) w[n++] = p;
     if (!n) return;
+    if (sd.on) { LOG("request %s: the shutdown screen is up, ignored", w[0]); return; }
     LOG("request %s", w[0]);
+    if (!strcmp(w[0], "shutdown-screen")) { shutdown_screen(n > 1 ? w[1] : ""); return; }
     if (!strcmp(w[0], "toggle") && n > 1) {
         /* "launcher": the sway session's gesture action of that name (Home replaced the launcher) */
         if (!strcmp(w[1], "home") || !strcmp(w[1], "launcher")) { home_toggle(); return; }
@@ -3549,7 +3694,7 @@ int main(int argc, char **argv)
     if (argc > 1 && (!strcmp(argv[1], "toggle") || !strcmp(argv[1], "close") || !strcmp(argv[1], "verbose") || !strcmp(argv[1], "home") ||
                      !strcmp(argv[1], "bar") ||
                      !strcmp(argv[1], "status") || !strcmp(argv[1], "launch") || !strcmp(argv[1], "open") ||
-                     !strcmp(argv[1], "light")))
+                     !strcmp(argv[1], "light") || !strcmp(argv[1], "shutdown-screen")))
         return send_request(argc - 1, argv + 1);
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "-v")) verbose = 1;
 
@@ -3618,6 +3763,7 @@ int main(int argc, char **argv)
         if (st.opening >= 0 && st.opening_t + 1000 < due) due = st.opening_t + 1000;
         if (ws_hold_due && ws_hold_due < due) due = ws_hold_due;
         if (bar_up && st.view == V_IDLE && bar_up_due < due) due = bar_up_due;     /* (a popup open: until it closes) */
+        if (sd.on) due = sd.phase ? sd.due : t + 60000;    /* the shutdown screen: only its own steps */
         struct pollfd pf[10 + NGFD] = { { be_fd(), POLLIN, 0 }, { sfd, POLLIN, 0 } };
         int np = 2, jix[8];
         for (int i = 0; i < 8; i++) if (jobs[i].pid) { pf[np] = (struct pollfd){ jobs[i].fd, POLLIN, 0 }; jix[np - 2] = i; np++; }
@@ -3654,6 +3800,7 @@ int main(int argc, char **argv)
             d(out);
         }
         while (waitpid(-1, NULL, WNOHANG) > 0) ;
+        if (sd.on) { shutdown_step(t); continue; }
         if (refresh_due && t >= refresh_due) { refresh_due = 0; epdd("full\n"); }
         if (press_long_due && t >= press_long_due && press.s == &pop &&
             (press.act == A_QS_TOGGLE || press.act == A_QS_SLABEL)) {
