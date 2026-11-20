@@ -80,4 +80,23 @@ rm -f /run/glassine/restarting
 printf '#!/bin/sh\necho "deploy $*" >> /tmp/ran\nexit 2\n' > /usr/sbin/glassine-deploy; : > /tmp/ran
 ok "an older glassine-deploy (no restart: usage 2): the reboot alone" "as kid $P reboot && ! grep -qx 'deploy restart' /tmp/ran && grep -qx -- --user-shutdown /tmp/ran && [ -z \"\$(DOAS_USER=kid $P restart-check)\" ]"
 rm -f /usr/sbin/glassine-deploy /usr/sbin/glassine-switch-hook
+# ---- the shutdown screen (spec 009): first, before the shutdown; never for a request that can still be refused ----
+printf '#!/bin/sh\necho "screen $*" >> /tmp/ran\n' > /usr/sbin/glassine-shutdown-screen; chmod +x /usr/sbin/glassine-shutdown-screen
+cp /usr/sbin/glassine /usr/sbin/poweroff; cp /usr/sbin/glassine /usr/sbin/glassine-switch-hook
+first() { [ "$(head -n 1 /tmp/ran)" = "$1" ]; }
+: > /tmp/ran
+ok "screen: Power off shows it first (poweroff), then the hook and poweroff" "as kid $P poweroff && first 'screen poweroff' && grep -qx -- --user-shutdown /tmp/ran && [ \"\$(sed -n 3p /tmp/ran)\" = '' ] && [ -e /run/glassine-poweroff ]"
+: > /tmp/ran
+ok "screen: Restart shows it first (restart)" "as kid $P reboot && first 'screen restart'"
+: > /tmp/ran
+ok "screen: Restart fully shows it first (restart)" "as kid $P reboot-full && first 'screen restart'"
+cp /usr/sbin/glassine /usr/sbin/glassine-slot; echo ANDROID_SLOT=a > /etc/glassine/slots.conf; : > /tmp/ran
+ok "screen: Android after the slot switch (other)" "as kid $P android && first 'set-active a --successful' && grep -qx 'screen other' /tmp/ran"
+printf '#!/bin/sh\nexit 1\n' > /usr/sbin/glassine-slot; : > /tmp/ran
+ok "screen: a failed Android switch shows nothing" "as kid $P android; ! grep -q screen /tmp/ran"
+rm -f /etc/glassine/slots.conf; : > /tmp/ran
+ok "screen: no second system shows nothing" "as kid $P android; ! grep -q screen /tmp/ran"
+: > /tmp/ran
+ok "screen: recovery and menu leave it to the session's stop (their request may be refused)" "as kid $P recovery && as kid $P menu && ! grep -q screen /tmp/ran"
+rm -f /usr/sbin/glassine-shutdown-screen /usr/sbin/poweroff /usr/sbin/glassine-switch-hook
 echo "$F failed"; [ $F = 0 ]
