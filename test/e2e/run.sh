@@ -327,7 +327,9 @@ for bad_ in "badx:/tmp/no-such-program" "badv:FOO=1"; do
     $B/glassine-shell launch $a here; sleep 1.5
     expect "an Exec that can't run ($w): logged with the reason, nothing started" \
         "$(logsince | grep -c "can't run \"$w\": No such file or directory") $(ls /out/argv-* 2>/dev/null | wc -l)" "1 0"
-    sleep 6                            # the placeholder of a process that is gone leaves by itself (PH_GONE_S)
+    # the placeholder of a process that is gone leaves by itself (PH_GONE_S, 5 s after the
+    # exit is seen): waited for up to 15 s (a slow runner sees the exit late)
+    n=0; while [ "$(tree count)" != "2 3 4" ] && [ $n -lt 30 ]; do sleep 0.5; n=$((n + 1)); done
     expect "... its placeholder went" "$(tree count)" "2 3 4"
 done
 

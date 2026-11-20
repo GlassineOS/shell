@@ -95,6 +95,7 @@ typedef struct {
     int stale;                          /* unmapping: configures sent before it are not acked */
     int w, h;                           /* buffer size, device px */
     Buf buf[NBUF]; int cur;             /* cur: the buffer with the latest image (-1: none) */
+    int *frame_done;                    /* be_surf_frame: set when the next show's frame is on screen */
 } WSurf;
 static WSurf backdrop, backdrop_ov;    /* on the top layer / the overlay one (over an immersive app) */
 static WSurf *bd;                       /* the one mapped (be_grab_pointer), NULL: none */
@@ -190,9 +191,23 @@ static Buf *wsurf_free_buf(WSurf *w)
     return NULL;
 }
 
+static void frame_done(void *data, struct wl_callback *cb, uint32_t t)
+{
+    (void)t;
+    *(int *)data = 1;
+    wl_callback_destroy(cb);
+}
+static const struct wl_callback_listener frame_lis = { frame_done };
+
 static void wsurf_show(WSurf *w, int x, int y, int ww, int hh)
 {
     wsurf_configure(w);
+    if (w->frame_done) {                /* (on the default queue: be_dispatch runs it) */
+        struct wl_callback *cb = wl_surface_frame(w->s);
+        wl_proxy_set_queue((struct wl_proxy *)cb, NULL);
+        wl_callback_add_listener(cb, &frame_lis, w->frame_done);
+        w->frame_done = NULL;
+    }
     wl_surface_attach(w->s, w->buf[w->cur].b, 0, 0);
     wl_surface_damage_buffer(w->s, x, y, ww, hh);
     wl_surface_commit(w->s);
@@ -306,6 +321,12 @@ void be_surf_map(Surf *s)
     if (b->cur < 0) return;
     popup_hint(s, 0);                   /* first: the policy knows before the frame */
     wsurf_show(b, 0, 0, b->w, b->h);
+}
+
+void be_surf_frame(Surf *s, int *done)
+{
+    *done = 0;
+    ws_of(s)->frame_done = done;
 }
 
 void be_surf_unmap(Surf *s)

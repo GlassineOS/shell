@@ -478,6 +478,40 @@ tap bar screen
 expect "17 windows on one screen: the bar and Overview draw them, the shell still runs" "$(view) $(kill -0 $SHELLPID 2>/dev/null && echo runs)" "2 runs"
 key Escape
 
+# ---- the shutdown screen (spec 009, SC-001): last, the shell takes nothing after it --------
+# portrait: with the panel daemon's control FIFO (held: "full", then "pause" in a read of its
+# own); landscape: without it (a PC: shown, nothing written)
+sm -q "workspace number 2"; sleep 0.5
+tap bar qs; sleep 0.5                   # a popup open under it
+if [ "$O" = landscape ]; then mv /run/glassine-epdd-desktop.ctl /run/epdd-ctl.away; want=shown; else want=held; fi
+EL=$(wc -l < /out/epdd-ctl.log)
+$B/glassine-shell shutdown-screen "Restarting…"; sleep 2
+expect "shutdown screen: the answer is $want" "$(cat $XDG_RUNTIME_DIR/glassine-shutdown-screen.shown 2>/dev/null)" "$want"
+ms=$(sed -n 's/.*shutdown screen [a-z]*, \([0-9]*\) ms after the request.*/\1/p' $L | tail -1)
+expect "shutdown screen: answered within a second ($ms ms)" "$([ -n "$ms" ] && [ "$ms" -lt 1000 ] && echo yes)" "yes"
+grim -t ppm -o HEADLESS-1 /tmp/shut-$O.ppm; grim -o HEADLESS-1 /out/shots/shutdown-$O.png
+if r=$(python3 $T/check_shutdown.py /tmp/shut-$O.ppm 2>&1); then ok "shutdown screen: the mark and the line, over the windows, the bar and the popup"
+else bad "shutdown screen: the picture" "$r"; fi
+mark
+ptr tap $(python3 $T/hit.py $HITS/bar screen - - 0 2>/dev/null || echo 100 20); sleep 1
+key Escape; send toggle quick; $B/glassine-shell shutdown-screen "Powered off"; sleep 1.5
+grim -t ppm -o HEADLESS-1 /tmp/shut2-$O.ppm
+expect "shutdown screen: a tap, a key, a request, a second shutdown-screen change nothing" \
+    "$(cmp -s /tmp/shut-$O.ppm /tmp/shut2-$O.ppm && echo same)|$(since)" "same|"
+expect "shutdown screen: the later request is ignored" "$(grep -c 'the shutdown screen is up, ignored' $L | awk '{ print ($1 >= 2) }')" "1"
+if [ "$O" = landscape ]; then
+    mv /run/epdd-ctl.away /run/glassine-epdd-desktop.ctl
+else
+    hold=$(tail -n +$((EL + 1)) /out/epdd-ctl.log | python3 -c '
+import sys
+reads = [r.strip().split("\n") for r in sys.stdin.read().split("\n--\n")]
+f = [i for i, r in enumerate(reads) if "full" in r]
+p = [i for i, r in enumerate(reads) if "pause" in r]
+pop = [i for i, r in enumerate(reads) if any(l.startswith("popup 0 0 ") for l in r)]
+print("ok" if len(f) == 1 and len(p) == 1 and f[0] < p[0] and pop and pop[0] <= f[0] else f"full {f} pause {p} overlay {pop} of {len(reads)}")')
+    expect "shutdown screen: the overlay, then \"full\", then \"pause\" in a read of its own" "$hold" "ok"
+fi
+
 grep -q 'glassine-shell: ' $L || bad "the shell logged nothing" ""
 kill $SWAYPID 2>/dev/null
 sleep 0.5
