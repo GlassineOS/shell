@@ -12,7 +12,7 @@ extern int verbose;
 #define LOG(...) do { if (verbose) { fprintf(stderr, "glassine-shell: " __VA_ARGS__); fputc('\n', stderr); } } while (0)
 double now_ms(void);
 
-void epdd(const char *cmd);             /* a line to glassine-epdd-desktop's FIFO */
+int epdd(const char *cmd);              /* a line to glassine-epdd-desktop's FIFO: 1 = written whole */
 extern double S;                        /* device px per logical px (2) */
 extern int SW, SH;                      /* the screen, device px */
 #define BH 52.0                         /* bar height, logical */
@@ -28,7 +28,7 @@ typedef struct {
     Hit hit[MAXHIT]; int nhit;
     void *be;                           /* the backend's */
 } Surf;
-extern Surf bar, pop, rail;
+extern Surf bar, pop, rail, shut;      /* shut: the shutdown screen (spec 009) */
 
 /* at x,y, w x h (device px); resized: img is new (the old one freed) */
 void be_surf_config(Surf *s, int x, int y, int w, int h, int resized);
@@ -42,6 +42,8 @@ void surf_harden(Surf *s, unsigned char *mask);
 extern int be_align;                    /* surfaces at multiples of this (device px) */
 void be_surf_map(Surf *s);              /* shown, on top */
 void be_surf_unmap(Surf *s);
+/* *done = 1 once the compositor reports the frame of s's next show (map or put) on screen */
+void be_surf_frame(Surf *s, int *done);
 int be_grab_pointer(Surf *s);           /* all presses to s; 0: failed */
 void be_bar_over(int on);               /* the bar above an immersive app (on) or back under it */
 void be_ungrab_pointer(void);

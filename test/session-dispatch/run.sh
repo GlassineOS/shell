@@ -74,5 +74,41 @@ run "die die long die die long die die" 9
 is "deaths around a lasting session: no failed round" "$(got)" ""
 is "deaths around a lasting session: not marked" "$(marked)" no
 
+# the stop (supervise-daemon'"'"'s TERM): real sleep, pkill and pgrep; returns within about
+# a second whatever runs (the session, a pause between starts), and no process of the
+# desktop user is left, not even one that ignores TERM
+adduser -D -u 1100 user 2>/dev/null
+stoprun() {   # $1: session (a session that runs, with a leftover that ignores TERM) or die (dies at once: the loop pauses)
+    rm -rf /t; mkdir -p /t/sbin /run; rm -f /run/glassine-session-failed
+    if [ "$1" = session ]; then
+        printf "#!/bin/sh\ntrap \"exit 0\" TERM\nsu -s /bin/sh user -c \"trap \\\"\\\" TERM; exec /bin/sleep 100\" &\n/bin/sleep 100 & wait \$!\n" > /t/sbin/glassine-session-sway
+    else
+        printf "#!/bin/sh\nexit 1\n" > /t/sbin/glassine-session-sway
+    fi
+    chmod +x /t/sbin/*
+    sed "s|/usr/sbin/glassine-session-|/t/sbin/glassine-session-|g" /o/usr/sbin/glassine-session > /t/glassine-session
+    GLASSINE_USER=user sh /t/glassine-session > /t/out 2>&1 &
+    M=$!
+    if [ "$1" = session ]; then /bin/sleep 1.5; else   # three quick deaths: the 30 s pause
+        i=0; until grep -q "trying again in 30 s" /t/out || [ $i -ge 100 ]; do /bin/sleep 0.1; i=$((i + 1)); done
+        /bin/sleep 0.3
+    fi
+    [ "$1" = session ] && { pgrep -u user >/dev/null || echo "FAIL $1: the leftover never started"; }
+    read -r u0 x < /proc/uptime; kill -TERM $M
+    i=0; while [ -e /proc/$M ] && [ "$(cut -d" " -f3 /proc/$M/stat)" != Z ] && [ $i -lt 100 ]; do /bin/sleep 0.05; i=$((i + 1)); done
+    read -r u1 x < /proc/uptime
+    ms=$(awk -v a=$u0 -v b=$u1 "BEGIN { printf \"%d\", (b - a) * 1000 }")
+    wait $M 2>/dev/null
+    pgrep -u user >/dev/null && left=yes || left=no
+    pkill -KILL -u user 2>/dev/null; pkill -KILL -f "sleep 100" 2>/dev/null
+}
+stoprun session
+is "stop with the session running and a leftover that ignores TERM: done within 1.8 s ($ms ms)" "$([ $ms -lt 1800 ] && echo yes)" yes
+is "stop: no process of the desktop user left" "$left" no
+grep -q "still running as user after TERM: .*sleep" /t/out && echo "ok   stop: the leftover named in the log" || { echo "FAIL stop: the leftover not named"; cat /t/out; fail=1; }
+stoprun die
+grep -q "trying again in 30 s" /t/out || { echo "FAIL stop: never reached the pause"; fail=1; }
+is "stop during the 30 s pause after a failed round: done within 0.8 s ($ms ms)" "$([ $ms -lt 800 ] && echo yes)" yes
+
 exit $fail
 '

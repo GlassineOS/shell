@@ -47,12 +47,35 @@ fi
 U=${U:-user}
 export GLASSINE_USER="$U"     # glassine-session-sway runs the session as this user
 
-CHILD= CLEAR=
+CHILD= CLEAR= SLP=
 quick=0
 pause=30
-# supervise-daemon signals this script: take the sway session down with it
-# (and whatever of the desktop user's it left behind)
-trap '[ -n "$CHILD" ] && kill $CHILD 2>/dev/null; [ -n "$CLEAR" ] && kill $CLEAR 2>/dev/null; wait; pkill -u "$U" 2>/dev/null; exit 0' TERM INT
+END_TENTHS=10           # the desktop user's processes: TERM, at most 1 s, then KILL
+# end_user: every process of the desktop user ends (also one the session didn't start,
+# a D-Bus activated helper, or one slow to act on TERM); what is still there after
+# END_TENTHS is named and killed, twice (one may have been started meanwhile)
+end_user() {
+    pkill -u "$U" 2>/dev/null
+    for r in 1 2; do
+        i=0
+        while pgrep -u "$U" >/dev/null 2>&1 && [ $i -lt $END_TENTHS ]; do sleep 0.1; i=$((i + 1)); done
+        pgrep -u "$U" >/dev/null 2>&1 || return 0
+        echo "glassine-session: $(date) still running as $U after TERM: $(pgrep -l -u "$U" 2>/dev/null | tr '\n' ' ')- killed"
+        pkill -KILL -u "$U" 2>/dev/null
+    done
+}
+# pause N: a sleep a stop ends at once
+pause_s() { sleep "$1" & SLP=$!; wait $SLP; SLP=; }
+# supervise-daemon signals this script: take the sway session down with it and end
+# whatever of the desktop user's is left, then exit at once (no timer or pause waited for)
+stop() {
+    [ -n "$SLP" ] && kill $SLP 2>/dev/null
+    [ -n "$CLEAR" ] && { pkill -P $CLEAR 2>/dev/null; kill $CLEAR 2>/dev/null; }
+    if [ -n "$CHILD" ]; then kill $CHILD 2>/dev/null; wait $CHILD 2>/dev/null; fi
+    end_user
+    exit 0
+}
+trap stop TERM INT
 while :; do
     t0=$(date +%s)
     if [ -x /usr/sbin/glassine-session-sway ]; then
@@ -65,7 +88,7 @@ while :; do
         wait $CHILD
         rc=$?
         CHILD=
-        kill $CLEAR 2>/dev/null
+        pkill -P $CLEAR 2>/dev/null; kill $CLEAR 2>/dev/null; CLEAR=
     else
         echo "glassine-session: /usr/sbin/glassine-session-sway missing"
         rc=127
@@ -80,9 +103,9 @@ while :; do
         touch $FAILED
         pkill -u "$U" 2>/dev/null
         quick=0
-        sleep $pause
+        pause_s $pause
         pause=$((pause * 2)); [ $pause -gt 300 ] && pause=300
         continue
     fi
-    sleep 2
+    pause_s 2
 done

@@ -23,8 +23,11 @@ wayland-scanner client-header $X $G/wlr-virtual-pointer-unstable-v1-client-proto
     wayland-scanner private-code $X $G/wlr-virtual-pointer-unstable-v1-protocol.c &&
     gcc -O2 -Wall -I$G -o $B/vptr $T/vptr.c $G/wlr-virtual-pointer-unstable-v1-protocol.c $(pkg-config --cflags --libs wayland-client) || exit 1
 cp /usr/bin/sway $B/sway             # the package has cap_sys_nice: no exec in a container
-mkfifo /run/glassine-epdd-desktop.ctl  # the hints of glassine-swayd and the shell, read and dropped
-(while :; do cat /run/glassine-epdd-desktop.ctl; done) >/dev/null 2>&1 &
+# the panel daemon's control FIFO: the hints of glassine-swayd and the shell, and the shutdown
+# screen's hold; every read (all writes until the writers close) logged, "--" after each
+mkfifo /run/glassine-epdd-desktop.ctl
+: > /out/epdd-ctl.log
+(while :; do c=$(cat /run/glassine-epdd-desktop.ctl); printf '%s\n--\n' "$c"; done) >> /out/epdd-ctl.log 2>/dev/null &
 fail=0
 for o in $ORIENTS; do ORIENT=$o sh $T/session.sh || fail=1; done
 n=$(ls /out/shots/*.png 2>/dev/null | wc -l)
