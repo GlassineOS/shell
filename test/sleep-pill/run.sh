@@ -8,9 +8,12 @@ mkdir -p $T
 fail=0
 ok() { echo "ok   $*"; }
 bad() { echo "FAIL $*"; fail=1; }
+expect() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1: got $2, want $3"; fi; }
 
-# a panel adapter as a device ships it: a landscape panel mounted turned, so the UI is portrait
-printf '# a panel\npanel_width=1872 # px\npanel_height=1404\nrotation=ccw\n' > $T/epd.conf
+# a panel adapter as a device ships it: a landscape panel mounted turned, so the UI is portrait;
+# its size in mm (spec 012: 8.943 px/mm, whose Default factor is 2)
+printf '# a panel\npanel_width=1872 # px\npanel_height=1404\npanel_width_mm=209\npanel_height_mm=157\nrotation=ccw\n' > $T/epd.conf
+export GLASSINE_USER_RUN=/tmp/no-users   # (no session's output-scale unless a case makes one)
 for v in white editorial stationery; do
     for r in 0 90 180 270; do
         rm -f $T/p.pam
@@ -37,7 +40,7 @@ out=$(HOME=/nonexistent GLASSINE_EPD_CONF=$T/epd.conf $P -r 0 $T/p.pam)
 case $out in *"(white, "*) ok "no theme file: White" ;; *) bad "no theme file: $out" ;; esac
 
 # rotation none: the panel's own size is the screen
-printf 'panel_width=1404\npanel_height=1872\nrotation=none\n' > $T/upright.conf
+printf 'panel_width=1404\npanel_height=1872\npanel_width_mm=157\npanel_height_mm=209\nrotation=none\n' > $T/upright.conf
 rm -f $T/p.pam
 GLASSINE_EPD_CONF=$T/upright.conf $P -t white -r 0 $T/p.pam >/dev/null &&
     python3 /r/test/sleep-pill/check.py $T/p.pam 1404 1872 0 && ok "rotation=none keeps the panel's size" || bad "rotation=none"
@@ -79,6 +82,30 @@ for v in white editorial stationery; do
 done
 cmp -s /out/white-resume-0.png /out/white-hibernate.png && bad "resume draws the hibernate pill" || ok "resume's pill differs from hibernate's"
 
+# the size of the interface (spec 012 FR-025): the pill's box ("WxH") by where its factor comes from
+box() { sed -n 's/^WIDTH //p;s/^HEIGHT //p' "$1" | tr '\n' x | sed 's/x$//'; }
+pill() { rm -f $T/z.pam; env "$@" $P -t white -r 0 -s "Since 20:11" $T/z.pam >/dev/null && box $T/z.pam; }
+d=$(pill GLASSINE_EPD_CONF=$T/epd.conf)
+printf 'panel_width=1872\npanel_height=1404\nrotation=ccw\n' > $T/nomm.conf
+f1=$(pill GLASSINE_EPD_CONF=$T/nomm.conf)
+expect_half=$(echo "$d" | awk -Fx '{ printf "%d", $1 / 2 }')
+[ "${f1%x*}" -ge $((expect_half - 2)) ] && [ "${f1%x*}" -le $((expect_half + 2)) ] &&
+    ok "no panel_width_mm/panel_height_mm: the fallback density, factor 1 ($f1, Default $d)" || bad "no panel mm: $f1 (Default $d)"
+mkdir -p /tmp/users/1000/glassine
+printf '1.6 8.943 reported Make Model Serial\n2 3.6 measured Other\n' > /tmp/users/1000/glassine/output-scale
+f16=$(pill GLASSINE_EPD_CONF=$T/epd.conf GLASSINE_USER_RUN=/tmp/users)
+w16=$(echo "$d" | awk -Fx '{ printf "%d", $1 * 0.8 }')
+[ "${f16%x*}" -ge $((w16 - 3)) ] && [ "${f16%x*}" -le $((w16 + 3)) ] &&
+    ok "the session's factor (the desktop user's output-scale, its first line): 1.6 ($f16)" || bad "output-scale 1.6: $f16 (Default $d)"
+mkdir -p /tmp/rt-pill/glassine && printf '2 8.943 reported EPD-1\n' > /tmp/rt-pill/glassine/output-scale
+expect "XDG_RUNTIME_DIR's output-scale first" "$(pill GLASSINE_EPD_CONF=$T/epd.conf GLASSINE_USER_RUN=/tmp/users XDG_RUNTIME_DIR=/tmp/rt-pill)" "$d"
+f1u=$(pill GLASSINE_EPD_CONF=$T/nomm.conf GLASSINE_USER_RUN=/tmp/users)
+expect "the session's factor over the adapter's (no mm there)" "$f1u" "$f16"
+mkdir -p $T/tsz/.config/glassine && echo 150 > $T/tsz/.config/glassine/text-size
+f150=$(pill GLASSINE_EPD_CONF=$T/epd.conf HOME=$T/tsz)
+[ "${f150#*x}" -gt "${d#*x}" ] && ok "text size 150 %: a taller pill ($f150, Default $d)" || bad "text size 150: $f150 (Default $d)"
+rm -rf /tmp/users /tmp/rt-pill
+
 # over a picture (-b, spec 010's start picture): the frame is the upright picture turned
 # back by the transform, the picture exact outside the notice; grey stays grey, RGB RGB
 python3 - $T <<'PY'
@@ -97,6 +124,7 @@ pic("side-grey.pnm", "P5", 1872, 1404)
 pic("up-rgb.pnm", "P6", 600, 800)
 pic("side-rgb.pnm", "P6", 800, 600)
 PY
+export GLASSINE_EPD_CONF=$T/epd.conf   # (the panel's size: the start pictures at its Default factor)
 for c in "up-grey 0 1404 1872" "side-grey 90 1404 1872" "up-grey 180 1404 1872" "side-grey 270 1404 1872" \
          "up-rgb 0 600 800" "side-rgb 90 600 800" "side-rgb 270 600 800"; do
     set -- $c

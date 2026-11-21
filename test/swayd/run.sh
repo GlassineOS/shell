@@ -4,6 +4,10 @@ set -u
 make -s -C /ui install O=/tmp/ui-out PREFIX=/usr >/dev/null || exit 1   # (its own out: never the checkout's)
 sh /src/wayland/build-swayd.sh /src /tmp/glassine-swayd || exit 1
 export XDG_RUNTIME_DIR=/tmp/rt; mkdir -p -m 700 $XDG_RUNTIME_DIR
+# the output's size: a headless output reports none, so its density is a kept one (spec
+# 011's file): a panel of 8.943 px/mm, whose Default factor is 2, the config's scale
+export HOME=/tmp/home XDG_CONFIG_HOME=/tmp/home/.config; mkdir -p $XDG_CONFIG_HOME/glassine
+printf '8.943 HEADLESS-1\n' > $XDG_CONFIG_HOME/glassine/output-density
 printf 'output HEADLESS-1 resolution 1404x1872 scale 2\ndefault_border none\ndefault_floating_border none\ngaps inner 20\ngaps outer -20\nsmart_gaps on\nfor_window [app_id="dlg"] floating enable\n' > /tmp/c
 # a top bar (swaybar) for the dialog cases: invisible (no exclusive zone) until they dock it
 printf 'bar {\n id top\n position top\n mode invisible\n}\n' >> /tmp/c

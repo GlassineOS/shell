@@ -22,7 +22,11 @@ LW=702 LH=936
 export HOME=/tmp/home XDG_RUNTIME_DIR=/tmp/rt
 RT2=/tmp/rt2                            # glassine-swayd's runtime dir: its socket behind proxy.py (the verbs log)
 mkdir -p -m 700 $XDG_RUNTIME_DIR $RT2
-mkdir -p $HOME/.local/share/applications
+mkdir -p $HOME/.local/share/applications $HOME/.config/glassine
+# the panel's density (a headless output reports no size): 8.943 px/mm, Default factor 2, so
+# glassine-swayd keeps the scale 2; its output-scale seen by the shell (in its runtime dir)
+printf '8.943 HEADLESS-1\n' > $HOME/.config/glassine/output-density
+mkdir -p -m 700 $RT2/glassine && ln -sfn $RT2/glassine $XDG_RUNTIME_DIR/glassine
 HITS=$XDG_RUNTIME_DIR/hits VERBS=/out/verbs.log L=/out/shell.log SL=/out/swayd.log
 mkdir -p $HITS; : > $VERBS
 fail=0

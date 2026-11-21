@@ -15,10 +15,10 @@ all: $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/g
 	$(OUT)/glassine-sleep-pill $(OUT)/libglassine-ink.so $(OUT)/glassine-rotd $(OUT)/glassine-predict \
 	$(OUT)/glassine-screen-picture
 
-$(OUT)/glassine-shell: $(wildcard $(S)/glassine-shell*) $(S)/wayland/sway-ipc.c $(S)/wayland/build-shell.sh
+$(OUT)/glassine-shell: $(wildcard $(S)/glassine-shell*) $(S)/wayland/sway-ipc.c $(S)/wayland/swayd-size.c $(S)/wayland/swayd-size.h $(S)/wayland/build-shell.sh
 	sh $(S)/wayland/build-shell.sh $(S) $@
 
-$(OUT)/glassine-swayd: $(S)/glassine-swayd.c $(S)/glassine-popupd.h $(S)/wayland/swayd-handles.c $(S)/wayland/sway-ipc.c $(S)/wayland/build-swayd.sh
+$(OUT)/glassine-swayd: $(S)/glassine-swayd.c $(S)/glassine-popupd.h $(S)/wayland/swayd-handles.c $(S)/wayland/swayd-handles.h $(S)/wayland/swayd-size.c $(S)/wayland/swayd-size.h $(S)/wayland/sway-ipc.c $(S)/wayland/build-swayd.sh
 	sh $(S)/wayland/build-swayd.sh $(S) $@
 
 # needs json-c-dev
@@ -41,8 +41,8 @@ predict-model:
 	for l in $(PREDICT_LANGS); do sh tools/predict-model/build.sh $$l || exit 1; done
 
 # needs GlassineOS/ui (pkg-config glassine-ui) and pango-dev
-$(OUT)/glassine-sleep-pill: $(S)/glassine-sleep-pill.c
-	$(CC) $(CFLAGS) -o $@ $(S)/glassine-sleep-pill.c `pkg-config --cflags --libs glassine-ui pangocairo` -lm
+$(OUT)/glassine-sleep-pill: $(S)/glassine-sleep-pill.c $(S)/wayland/swayd-size.c $(S)/wayland/swayd-size.h
+	$(CC) $(CFLAGS) -o $@ $(S)/glassine-sleep-pill.c $(S)/wayland/swayd-size.c `pkg-config --cflags --libs glassine-ui pangocairo` -lm
 
 # needs wayland-dev; the protocol is the copy in wayland/protocols
 $(OUT)/glassine-screen-picture: $(S)/glassine-screen-picture.c $(S)/wayland/build-picture.sh
@@ -61,6 +61,7 @@ check:
 	sh test/ink/test.sh
 	sh test/swayd/test.sh
 	sh test/shell/test.sh
+	sh test/size/test.sh
 	sh test/e2e/test.sh
 	sh test/settings/test.sh
 	sh test/setup/test.sh

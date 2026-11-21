@@ -4,8 +4,13 @@
  * the top layer, anchored to the top edge with an exclusive zone (sway's
  * windows start below it); popups and the resize rail are on the overlay
  * layer at an absolute position (exclusive zone -1). Pixels go out as wl_shm
- * buffers at the output's scale (device px); a surface is a multiple of the
- * scale in size and place (be_align). The popup's pointer grab is a
+ * buffers in the output's device px: the shell draws at its output's factor (spec
+ * 012), the preferred fractional scale sway gives a new surface (fractional-scale-v1),
+ * with a viewport (viewporter) of the surface's logical size; a surface sits on whole
+ * logical px, its buffer spans the device px sway puts that box on (each edge
+ * rounded). Without those protocols: the output's whole scale as the buffer scale. A
+ * new factor or logical size of the output (an interface size step, glassine-swayd)
+ * or the output gone: the shell starts again (RESIZE_EXIT, as for a turn). The popup's pointer grab is a
  * transparent full-screen surface ("backdrop"): a tap outside the popup lands
  * there (the bar region included: the common part picks the bar by y), as with
  * the grab. It is on the top layer, or over an immersive app (sway's fullscreen
@@ -55,8 +60,11 @@
 #include "wlr-screencopy-unstable-v1-client-protocol.h"
 #include "xdg-shell-client-protocol.h"
 #include "cursor-shape-v1-client-protocol.h"
+#include "viewporter-client-protocol.h"
+#include "fractional-scale-v1-client-protocol.h"
 #include "glassine-shell-be.h"
 #include "wayland/sway-ipc.h"
+#include "wayland/swayd-size.h"
 
 int be_align = 1;
 static struct wl_display *wd;
@@ -77,6 +85,15 @@ static struct xkb_context *xkb;
 static struct xkb_keymap *keymap;
 static struct xkb_state *xst;
 static int out_w, out_h, out_tr, osc = 1;      /* out_tr: the output transform (mode is untransformed) */
+static int out_mmw, out_mmh;            /* its physical size, mm (wl_output geometry; 0: none) */
+static char out_name[64];               /* its name (wl_output v4) */
+static struct wp_viewporter *vpr;
+static struct wp_fractional_scale_manager_v1 *fsm;
+static double fsc = 1;                  /* the factor: device px per logical px */
+static int fs120;                       /* the same in 120ths (sway keeps a scale so) */
+int be_lw, be_lh;                       /* the output's logical size (sway's rect) */
+char be_out_key[256];                   /* its output key (spec 011) */
+int be_mode_w, be_mode_h, be_mm_w, be_mm_h;
 static int epfd = -1, ipc_cmd = -1, ipc_ev = -1;
 /* the layer surfaces' configures and the buffer releases: a queue of their own,
  * so waiting for them (inside a render) never runs an input handler */
@@ -94,6 +111,9 @@ typedef struct {
     int configured, mapped, kbd;
     int stale;                          /* unmapping: configures sent before it are not acked */
     int w, h;                           /* buffer size, device px */
+    struct wp_viewport *vp;             /* its logical size (NULL: buffer scale osc) */
+    struct wp_fractional_scale_v1 *fs;
+    int pref120;                        /* the preferred scale sway gave it, 120ths (0: none yet) */
     Buf buf[NBUF]; int cur;             /* cur: the buffer with the latest image (-1: none) */
     int *frame_done;                    /* be_surf_frame: set when the next show's frame is on screen */
 } WSurf;
@@ -144,11 +164,33 @@ static void ls_closed(void *data, struct zwlr_layer_surface_v1 *ls)
 }
 static const struct zwlr_layer_surface_v1_listener ls_lis = { ls_configure, ls_closed };
 
+#define RESIZE_EXIT 75
+static void fs_preferred(void *data, struct wp_fractional_scale_v1 *f, uint32_t scale)
+{
+    (void)f;
+    WSurf *w = data;
+    int was = w->pref120;
+    w->pref120 = (int)scale;
+    /* a layer surface keeps its output: another scale there is a new factor (sway
+     * sends the scale a new surface gets; this is in case it sends a change too) */
+    if (was && was != (int)scale && fs120 && (int)scale != fs120) {
+        fprintf(stderr, "glassine-shell: the output's scale is now %.4f (was %.4f): restart\n", scale / 120.0, fsc);
+        exit(RESIZE_EXIT);
+    }
+}
+static const struct wp_fractional_scale_v1_listener fs_lis = { fs_preferred };
+
 static void wsurf_create(WSurf *w, uint32_t layer)
 {
     w->s = wl_compositor_create_surface(comp);
     wl_surface_set_user_data(w->s, w);
-    wl_surface_set_buffer_scale(w->s, osc);
+    if (vpr) {
+        w->vp = wp_viewporter_get_viewport(vpr, w->s);
+        if (fsm) {
+            w->fs = wp_fractional_scale_manager_v1_get_fractional_scale(fsm, w->s);
+            wp_fractional_scale_v1_add_listener(w->fs, &fs_lis, w);
+        }
+    } else wl_surface_set_buffer_scale(w->s, osc);
     w->ls = zwlr_layer_shell_v1_get_layer_surface(lsh, w->s, out, layer, "glassine-shell");
     wl_proxy_set_queue((struct wl_proxy *)w->ls, sq);
     zwlr_layer_surface_v1_add_listener(w->ls, &ls_lis, w);
@@ -259,7 +301,15 @@ static void shell_hint(const Surf *s, const Surf *at, int gone)
     epdd(c);
 }
 
-void be_surf_config(Surf *s, int x, int y, int w, int h, int resized)
+/* a device px rect -> the logical px it covers (whole px: floor of the start, ceil of the end) */
+static void dev_logical(const int r[4], int ox, int oy, int o[4])
+{
+    double x0 = (r[0] - ox) / fsc, y0 = (r[1] - oy) / fsc, x1 = (r[0] + r[2] - ox) / fsc, y1 = (r[1] + r[3] - oy) / fsc;
+    o[0] = (int)floor(x0 + 1e-6); o[1] = (int)floor(y0 + 1e-6);
+    o[2] = (int)ceil(x1 - 1e-6) - o[0]; o[3] = (int)ceil(y1 - 1e-6) - o[1];
+}
+
+void be_surf_config(Surf *s, int x, int y, int w, int h, const int l[4], int resized)
 {
     WSurf *b = ws_of(s);
     int moved = s->x != x || s->y != y;
@@ -273,14 +323,15 @@ void be_surf_config(Surf *s, int x, int y, int w, int h, int resized)
         b->cur = -1;
         b->w = w; b->h = h;
     }
-    zwlr_layer_surface_v1_set_size(b->ls, w / osc, h / osc);
+    zwlr_layer_surface_v1_set_size(b->ls, l[2], l[3]);
+    if (b->vp) wp_viewport_set_destination(b->vp, l[2], l[3]);
     if (s->dock) {
         zwlr_layer_surface_v1_set_anchor(b->ls, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT |
                                                 ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
-        zwlr_layer_surface_v1_set_exclusive_zone(b->ls, h / osc);
+        zwlr_layer_surface_v1_set_exclusive_zone(b->ls, l[3]);
     } else {
         zwlr_layer_surface_v1_set_anchor(b->ls, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT);
-        zwlr_layer_surface_v1_set_margin(b->ls, y / osc, 0, 0, x / osc);
+        zwlr_layer_surface_v1_set_margin(b->ls, l[1], 0, 0, l[0]);
         zwlr_layer_surface_v1_set_exclusive_zone(b->ls, -1);
     }
     if (b->mapped && moved && !resized) wl_surface_commit(b->s);    /* a put follows a resize, not a move */
@@ -344,6 +395,7 @@ static void backdrop_make(WSurf *b, uint32_t layer)
     zwlr_layer_surface_v1_set_anchor(b->ls, ZWLR_LAYER_SURFACE_V1_ANCHOR_TOP | ZWLR_LAYER_SURFACE_V1_ANCHOR_BOTTOM |
                                             ZWLR_LAYER_SURFACE_V1_ANCHOR_LEFT | ZWLR_LAYER_SURFACE_V1_ANCHOR_RIGHT);
     zwlr_layer_surface_v1_set_exclusive_zone(b->ls, -1);
+    if (b->vp) wp_viewport_set_destination(b->vp, be_lw, be_lh);
     b->w = SW; b->h = SH;
 }
 
@@ -406,9 +458,10 @@ static void wsurf_input(WSurf *w, int all, const int (*r)[4], int n, int ox, int
         struct wl_region *g = wl_compositor_create_region(comp);
         if (all) wl_region_add(g, 0, 0, INT32_MAX, INT32_MAX);
         for (int i = 0; i < n; i++) {
-            int x = (r[i][0] - ox) / osc, y = (r[i][1] - oy) / osc, ww = r[i][2] / osc, hh = r[i][3] / osc;
-            if (all) wl_region_subtract(g, x, y, ww, hh);
-            else wl_region_add(g, x, y, ww, hh);
+            int q[4];
+            dev_logical(r[i], ox, oy, q);
+            if (all) wl_region_subtract(g, q[0], q[1], q[2], q[3]);
+            else wl_region_add(g, q[0], q[1], q[2], q[3]);
         }
         wl_surface_set_input_region(w->s, g);
         wl_region_destroy(g);
@@ -455,7 +508,7 @@ static struct { struct wl_surface *s; double x, y; } pt;        /* the pointer: 
 static void pt_dev(int *x, int *y)
 {
     origin(pt.s, x, y);
-    *x += (int)(pt.x * osc); *y += (int)(pt.y * osc);
+    *x += (int)(pt.x * fsc); *y += (int)(pt.y * fsc);
 }
 
 static void p_enter(void *d, struct wl_pointer *p, uint32_t serial, struct wl_surface *s, wl_fixed_t x, wl_fixed_t y)
@@ -511,8 +564,8 @@ static void t_down(void *d, struct wl_touch *t, uint32_t serial, uint32_t time, 
     origin(s, &ox, &oy);
     tp.id = id;
     tp_s = s;
-    tp.x = ox + (int)(wl_fixed_to_double(x) * osc);
-    tp.y = oy + (int)(wl_fixed_to_double(y) * osc);
+    tp.x = ox + (int)(wl_fixed_to_double(x) * fsc);
+    tp.y = oy + (int)(wl_fixed_to_double(y) * fsc);
     LOG("touch %d begin t=%.0f", id, now_ms());
     ev_raw(1, 0);
     ev_pointer(1, tp.x, tp.y);
@@ -534,7 +587,7 @@ static void t_motion(void *d, struct wl_touch *t, uint32_t time, int32_t id, wl_
     if (id != tp.id || !tp_s) return;
     int ox, oy;
     origin(tp_s, &ox, &oy);
-    ev_motion(ox + (int)(wl_fixed_to_double(x) * osc), oy + (int)(wl_fixed_to_double(y) * osc));
+    ev_motion(ox + (int)(wl_fixed_to_double(x) * fsc), oy + (int)(wl_fixed_to_double(y) * fsc));
 }
 static void t_frame(void *d, struct wl_touch *t) { (void)d; (void)t; }
 static void t_cancel(void *d, struct wl_touch *t)
@@ -606,7 +659,7 @@ static const struct wl_seat_listener seat_lis = { seat_caps, seat_name };
  * ========================================================================== */
 static void o_geometry(void *d, struct wl_output *o, int32_t x, int32_t y, int32_t pw, int32_t ph, int32_t sp,
                        const char *mk, const char *md, int32_t tr)
-{ (void)d; (void)o; (void)x; (void)y; (void)pw; (void)ph; (void)sp; (void)mk; (void)md; out_tr = tr; }
+{ (void)d; (void)o; (void)x; (void)y; (void)sp; (void)mk; (void)md; out_tr = tr; out_mmw = pw; out_mmh = ph; }
 static void o_mode(void *d, struct wl_output *o, uint32_t flags, int32_t w, int32_t h, int32_t r)
 {
     (void)d; (void)o; (void)r;
@@ -615,7 +668,6 @@ static void o_mode(void *d, struct wl_output *o, uint32_t flags, int32_t w, int3
 /* the output turned (glassine-rotd: sway's output transform): the layout is made for
  * one size, so exit with RESIZE_EXIT; glassine-shell-run starts it again at once,
  * without counting a death */
-#define RESIZE_EXIT 75
 static int be_ready;
 static void o_done(void *d, struct wl_output *o)
 {
@@ -627,7 +679,9 @@ static void o_done(void *d, struct wl_output *o)
     exit(RESIZE_EXIT);
 }
 static void o_scale(void *d, struct wl_output *o, int32_t f) { (void)d; (void)o; osc = f < 1 ? 1 : f; }
-static const struct wl_output_listener out_lis = { o_geometry, o_mode, o_done, o_scale };
+static void o_name(void *d, struct wl_output *o, const char *n) { (void)d; (void)o; snprintf(out_name, sizeof out_name, "%s", n); }
+static void o_desc(void *d, struct wl_output *o, const char *n) { (void)d; (void)o; (void)n; }
+static const struct wl_output_listener out_lis = { o_geometry, o_mode, o_done, o_scale, o_name, o_desc };
 
 /* the output to use: $GLASSINE_SHELL_OUTPUT's name if given (wl_output v4), else the first */
 /* ============================================================================
@@ -645,6 +699,9 @@ typedef struct {
     struct xdg_toplevel *top;
     App app;                            /* a copy: the list may be re-read */
     int pid, w, h;                      /* configured size, device px (0: not yet) */
+    int lw, lh, f120;                   /* the same in logical px; the preferred scale (120ths, 0: none) */
+    struct wp_viewport *vp;
+    struct wp_fractional_scale_v1 *fs;
     double t0, gone_t;                  /* opened; the started process seen gone */
     Buf buf;
 } Ph;
@@ -655,6 +712,8 @@ static void ph_close(Ph *p)
 {
     if (!p->s) return;
     LOG("placeholder %s closed (%.1f s)", p->app.name, (now_ms() - p->t0) / 1000);
+    if (p->fs) wp_fractional_scale_v1_destroy(p->fs);
+    if (p->vp) wp_viewport_destroy(p->vp);
     xdg_toplevel_destroy(p->top);
     xdg_surface_destroy(p->xs);
     wl_surface_destroy(p->s);
@@ -663,17 +722,25 @@ static void ph_close(Ph *p)
     wl_display_flush(wd);
 }
 
+/* the factor of the output a placeholder is on: its own preferred scale (a window
+ * moves between outputs), else the shell's */
+static double ph_factor(const Ph *p) { return p->vp ? (p->f120 ? p->f120 / 120.0 : fsc) : osc; }
+
 static void ph_draw(Ph *p)
 {
-    if (!p->w || !p->h) return;
+    if (!p->lw || !p->lh) return;
+    double f = ph_factor(p);
+    p->w = p->vp ? ui_device_px(p->lw, f) : p->lw * osc;     /* logical -> device px */
+    p->h = p->vp ? ui_device_px(p->lh, f) : p->lh * osc;
     if (p->buf.b && (p->buf.size != (size_t)p->w * p->h * 4 || p->buf.busy)) buf_free(&p->buf);
     if (!p->buf.b && !buf_new(&p->buf, p->w, p->h)) return;
     cairo_surface_t *cs = cairo_image_surface_create_for_data((unsigned char *)p->buf.px, CAIRO_FORMAT_ARGB32, p->w, p->h, p->w * 4);
     cairo_t *cr = cairo_create(cs);
-    ev_placeholder_draw(cr, p->w, p->h, &p->app);
+    ev_placeholder_draw(cr, p->w, p->h, f, &p->app);
     cairo_destroy(cr);
     cairo_surface_destroy(cs);
-    wl_surface_set_buffer_scale(p->s, osc);
+    if (p->vp) wp_viewport_set_destination(p->vp, p->lw, p->lh);
+    else wl_surface_set_buffer_scale(p->s, osc);
     wl_surface_attach(p->s, p->buf.b, 0, 0);
     wl_surface_damage_buffer(p->s, 0, 0, p->w, p->h);
     p->buf.busy = 1;
@@ -693,10 +760,21 @@ static void ph_top_configure(void *d, struct xdg_toplevel *t, int32_t w, int32_t
 {
     (void)t; (void)st;
     Ph *p = d;
-    p->w = (w > 0 ? w : 300) * osc;     /* logical -> device px */
-    p->h = (h > 0 ? h : 300) * osc;
+    p->lw = w > 0 ? w : 300;
+    p->lh = h > 0 ? h : 300;
 }
 static void ph_top_close(void *d, struct xdg_toplevel *t) { (void)t; ph_close(d); }   /* glassine-swayd's kill */
+/* moved to an output of another factor: drawn again at it */
+static void ph_preferred(void *d, struct wp_fractional_scale_v1 *f, uint32_t scale)
+{
+    (void)f;
+    Ph *p = d;
+    if (p->f120 == (int)scale) return;
+    p->f120 = (int)scale;
+    LOG("placeholder %s: scale %.4f", p->app.name, scale / 120.0);
+    if (p->lw && p->buf.b) ph_draw(p);
+}
+static const struct wp_fractional_scale_v1_listener ph_fs_lis = { ph_preferred };
 static const struct xdg_toplevel_listener ph_top_lis = { ph_top_configure, ph_top_close };
 
 static gboolean ph_tick(gpointer u)
@@ -723,6 +801,13 @@ void be_placeholder(const App *a, int pid)
     if (!p) { ph_close(&ph[0]); p = &ph[0]; }
     *p = (Ph){ .app = *a, .pid = pid, .t0 = now_ms() };
     p->s = wl_compositor_create_surface(comp);
+    if (vpr) {
+        p->vp = wp_viewporter_get_viewport(vpr, p->s);
+        if (fsm) {
+            p->fs = wp_fractional_scale_manager_v1_get_fractional_scale(fsm, p->s);
+            wp_fractional_scale_v1_add_listener(p->fs, &ph_fs_lis, p);
+        }
+    }
     p->xs = xdg_wm_base_get_xdg_surface(wm, p->s);
     xdg_surface_add_listener(p->xs, &ph_xs_lis, p);
     p->top = xdg_surface_get_toplevel(p->xs);
@@ -750,6 +835,9 @@ static void reg_global(void *d, struct wl_registry *r, uint32_t name, const char
         xdg_wm_base_add_listener(wm, &wm_lis, NULL);
     } else if (!strcmp(iface, wp_cursor_shape_manager_v1_interface.name))
         csm = wl_registry_bind(r, name, &wp_cursor_shape_manager_v1_interface, 1);
+    else if (!strcmp(iface, wp_viewporter_interface.name)) vpr = wl_registry_bind(r, name, &wp_viewporter_interface, 1);
+    else if (!strcmp(iface, wp_fractional_scale_manager_v1_interface.name))
+        fsm = wl_registry_bind(r, name, &wp_fractional_scale_manager_v1_interface, 1);
     else if (!strcmp(iface, zwlr_layer_shell_v1_interface.name))
         lsh = wl_registry_bind(r, name, &zwlr_layer_shell_v1_interface, ver < 4 ? ver : 4);
     else if (!strcmp(iface, wl_seat_interface.name) && !seat) {
@@ -758,7 +846,7 @@ static void reg_global(void *d, struct wl_registry *r, uint32_t name, const char
     } else if (!strcmp(iface, zwlr_screencopy_manager_v1_interface.name)) {
         scm = wl_registry_bind(r, name, &zwlr_screencopy_manager_v1_interface, 1);
     } else if (!strcmp(iface, wl_output_interface.name) && !out) {
-        out = wl_registry_bind(r, name, &wl_output_interface, ver < 2 ? ver : 2);
+        out = wl_registry_bind(r, name, &wl_output_interface, ver < 4 ? ver : 4);
         wl_output_add_listener(out, &out_lis, NULL);
     }
 }
@@ -773,6 +861,16 @@ static json_object *ipc_call(uint32_t type, const char *payload)
     json_object *j = sipc_call(ipc_cmd, type, payload);
     if (!j) { fprintf(stderr, "glassine-shell: sway IPC lost\n"); exit(1); }
     return j;
+}
+
+/* a rect of sway's (logical px) in device px at the factor, each edge rounded as sway
+ * puts it on the output */
+static void rect_dev(json_object *n, int r[4])
+{
+    int l[4];
+    sj_rect(n, "rect", 1, l);
+    r[0] = sz_px(l[0], fs120); r[1] = sz_px(l[1], fs120);
+    r[2] = sz_px(l[0] + l[2], fs120) - r[0]; r[3] = sz_px(l[1] + l[3], fs120) - r[1];
 }
 
 static void swaycmd(const char *fmt, ...)
@@ -913,7 +1011,7 @@ static void walk(json_object *n, long d)
         snprintf(f->title, sizeof f->title, "%s", sj_str(n, "name") ? sj_str(n, "name") : "");
         Client *k = &cl[ncl++];
         int r[4];
-        sj_rect(n, "rect", osc, r);
+        rect_dev(n, r);
         k->w = id; k->desk = d == D_SCRATCH ? -1 : d;
         k->x = r[0]; k->y = r[1]; k->wd = r[2]; k->ht = r[3];
         k->maxed = sj_int(n, "fullscreen_mode", 0) != 0;     /* immersive (glassine-swayd's `full` or the app's own) */
@@ -947,7 +1045,7 @@ void be_read_desktop(void)
         json_object *w = json_object_array_get_idx(ws, i);
         if (!sj_bool(w, "focused")) continue;
         for (int d = 0; d < ndesk; d++) if (sj_str(w, "name") && !strcmp(desk[d].name, sj_str(w, "name"))) curdesk = d;
-        sj_rect(w, "rect", osc, warea);
+        rect_dev(w, warea);
     }
     json_object_put(ws);
     if (ndesk < 1) { ndesk = 1; snprintf(desk[0].name, sizeof desk[0].name, "1"); desk[0].num = 1; }
@@ -1063,6 +1161,7 @@ void be_theme_publish(const char *name)
 /* ============================================================================
  * the connection
  * ========================================================================== */
+static void output_check(void);
 static void ipc_event(void)
 {
     uint32_t type;
@@ -1073,7 +1172,8 @@ static void ipc_event(void)
     if (!j) return;
     const char *change = sj_str(j, "change");
     if (type == SIPC_EV_WORKSPACE || (change && strcmp(change, "title"))) snap_later();   /* (a busy title: no stills) */
-    if (type == SIPC_EV_WORKSPACE) ev_desktop();
+    if (type == SIPC_EV_OUTPUT) output_check();
+    else if (type == SIPC_EV_WORKSPACE) ev_desktop();
     else if (type == SIPC_EV_WINDOW && change) {
         json_object *c;
         WinId id = json_object_object_get_ex(j, "container", &c) ? (WinId)sj_int(c, "id", 0) : 0;
@@ -1082,6 +1182,44 @@ static void ipc_event(void)
         } else if (strcmp(change, "mark") && strcmp(change, "urgent")) ev_desktop();
     }
     json_object_put(j);
+}
+
+/* the shell's output in sway's list (by its wl_output name; none: the first active one):
+ * its logical size, its scale and output key. 0: not there */
+static int out_info(int *lw, int *lh, double *scale, char *key, size_t klen)
+{
+    json_object *o = ipc_call(SIPC_GET_OUTPUTS, NULL), *v;
+    int found = 0;
+    for (size_t i = 0; i < json_object_array_length(o) && !found; i++) {
+        json_object *e = json_object_array_get_idx(o, i);
+        if (!sj_bool(e, "active") || !sj_str(e, "name")) continue;
+        if (*out_name && strcmp(sj_str(e, "name"), out_name)) continue;
+        int r[4];
+        sj_rect(e, "rect", 1, r);
+        *lw = r[2]; *lh = r[3];
+        *scale = json_object_object_get_ex(e, "scale", &v) ? json_object_get_double(v) : 1;
+        if (key) ui_output_key(sj_str(e, "make"), sj_str(e, "model"), sj_str(e, "serial"), sj_str(e, "name"), key, klen);
+        found = 1;
+    }
+    json_object_put(o);
+    return found;
+}
+
+/* an output changed (sway's output event: a scale, a mode, one added or gone): the
+ * shell's own with another factor or logical size, or gone: start again there or on
+ * the output that is first now */
+static void output_check(void)
+{
+    int lw, lh;
+    double sc;
+    if (!out_info(&lw, &lh, &sc, NULL, 0)) {
+        fprintf(stderr, "glassine-shell: the output %s is gone: restart\n", out_name);
+        exit(RESIZE_EXIT);
+    }
+    if (lw != be_lw || lh != be_lh || sz_f120(sc) != fs120) {
+        fprintf(stderr, "glassine-shell: the output now %dx%d at %.4f (was %dx%d at %.4f): restart\n", lw, lh, sz_quant(sc), be_lw, be_lh, fsc);
+        exit(RESIZE_EXIT);
+    }
 }
 
 static int readable(int fd)
@@ -1123,13 +1261,29 @@ int be_init(void)
      * mode 1872x1404, transform 270) swaps them for the desktop */
     SW = out_tr & 1 ? out_h : out_w;
     SH = out_tr & 1 ? out_w : out_h;
-    be_align = osc;
+    be_mode_w = out_w; be_mode_h = out_h; be_mm_w = out_mmw; be_mm_h = out_mmh;
     ipc_cmd = sipc_open();
     ipc_ev = sipc_open();
     if (ipc_cmd < 0 || ipc_ev < 0) { fprintf(stderr, "glassine-shell: no sway IPC ($SWAYSOCK)\n"); return 0; }
+    /* the factor: the preferred scale sway gives the bar's surface on this output (it
+     * sends it as the layer surface is made); its logical size from sway's rect
+     * (at a fractional scale not always the mode over the scale) */
+    double ipc_sc = osc;
+    if (!out_info(&be_lw, &be_lh, &ipc_sc, be_out_key, sizeof be_out_key)) { be_lw = SW / osc; be_lh = SH / osc; }
+    fsc = vpr ? ipc_sc : osc;
+    if (vpr && fsm) {
+        WSurf *b = ws_of(&bar);
+        for (int i = 0; i < 5 && !b->pref120; i++) wl_display_roundtrip(wd);
+        if (b->pref120) fsc = b->pref120 / 120.0;
+        else LOG("wayland: no preferred scale for the bar: sway's %.4f", fsc);
+    }
+    fs120 = sz_f120(fsc);
+    if (vpr) fsc = fs120 / 120.0;
+    S = fsc;
+    be_align = vpr ? 1 : osc;
     uint32_t t;
     char *ok = NULL;
-    if (!sipc_send(ipc_ev, SIPC_SUBSCRIBE, "[\"workspace\",\"window\"]") || !(ok = sipc_recv(ipc_ev, &t))) {
+    if (!sipc_send(ipc_ev, SIPC_SUBSCRIBE, "[\"workspace\",\"window\",\"output\"]") || !(ok = sipc_recv(ipc_ev, &t))) {
         fprintf(stderr, "glassine-shell: sway IPC subscribe failed\n");
         return 0;
     }
@@ -1140,7 +1294,8 @@ int be_init(void)
     epoll_ctl(epfd, EPOLL_CTL_ADD, e.data.fd, &e);
     e.data.fd = ipc_ev;
     epoll_ctl(epfd, EPOLL_CTL_ADD, ipc_ev, &e);
-    LOG("wayland: output %dx%d scale %d", SW, SH, osc);
+    LOG("wayland: output %s %dx%d, logical %dx%d, factor %.4f%s", *out_name ? out_name : "(first)", SW, SH, be_lw, be_lh, fsc,
+        vpr ? (fsm ? " (fractional scale)" : " (viewporter)") : " (whole scale)");
     epdd("shell reset\n");             /* glassine-epdd-desktop: the last shell's calm boxes are gone (a restart, a turn) */
     be_ready = 1;
     return 1;

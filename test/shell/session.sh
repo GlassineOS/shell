@@ -9,7 +9,10 @@ if [ "$O" = landscape ]; then RES=1872x1404 LW=936 LH=702; else RES=1404x1872 LW
 export HOME=/tmp/home-$O XDG_RUNTIME_DIR=/tmp/rt-$O
 RT2=/tmp/rt2-$O                         # glassine-swayd's own runtime dir: its socket sits behind proxy.py
 mkdir -p -m 700 $XDG_RUNTIME_DIR $RT2
-mkdir -p $HOME/.local/share/applications $HOME/.config/glassine-shell
+mkdir -p $HOME/.local/share/applications $HOME/.config/glassine-shell $HOME/.config/glassine
+# the output's size (spec 012): a headless output reports none; the kept density of a panel
+# of 8.943 px/mm, whose Default factor is 2 (glassine-swayd keeps the config's scale 2)
+printf '8.943 HEADLESS-1\n' > $HOME/.config/glassine/output-density
 HITS=$XDG_RUNTIME_DIR/hits VERBS=/out/verbs-$O.log L=/out/shell-$O.log
 mkdir -p $HITS; : > $VERBS
 fail=0
@@ -69,6 +72,7 @@ export SWAYSOCK=$(ls $XDG_RUNTIME_DIR/sway-ipc.*) WAYLAND_DISPLAY=wayland-1
 python3 $T/proxy.py $XDG_RUNTIME_DIR/glassine-swayd $RT2/glassine-swayd $VERBS &
 ln -sf $XDG_RUNTIME_DIR/glassine-shell $RT2/glassine-shell
 ln -sf $XDG_RUNTIME_DIR/glassine-shell.theme $RT2/glassine-shell.theme
+mkdir -p $RT2/glassine && ln -sfn $RT2/glassine $XDG_RUNTIME_DIR/glassine     # output-scale (glassine-swayd's)
 # sway's socket is in the session's runtime dir, swayd's own in RT2: WL first (assignments
 # expand left to right: WAYLAND_DISPLAY=$XDG_RUNTIME_DIR/... after XDG_RUNTIME_DIR=$RT2 pointed into RT2)
 WL=$XDG_RUNTIME_DIR/wayland-1
@@ -489,6 +493,7 @@ picsame() {
     else bad "$1" "exit $r, $(head -c 15 /tmp/pic-$O.ppm 2>/dev/null | tr '\n' ' ') vs $(head -c 15 /tmp/grim-$O.ppm | tr '\n' ' ')"; fi
 }
 mkdir -p /tmp/pic-run/1000 && ln -sf $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY /tmp/pic-run/1000/$WAYLAND_DISPLAY
+ln -sfn $RT2/glassine /tmp/pic-run/1000/glassine        # the session's factor for the notice (spec 012 FR-025)
 picsame "screen picture: the whole screen, as grim takes it, found from outside the session"
 # the start picture (spec 010 FR-007 to FR-012): the screen turned back by the session's turn
 # (the turn file), the resume notice over it where the sleep pill sits, the rest exact
@@ -500,7 +505,7 @@ startpic() {
     grim -t ppm -o HEADLESS-1 /tmp/grim-$O.ppm
     set -- "$1" $2 $(head -c 20 /tmp/grim-$O.ppm | sed -n 2p)
     if [ $(( $2 % 180 )) = 0 ]; then fw=$3 fh=$4; else fw=$4 fh=$3; fi
-    $B/glassine-sleep-pill -m resume -r $2 -W $fw -H $fh /tmp/notice-$O.pam >/dev/null
+    GLASSINE_USER_RUN=/tmp/pic-run $B/glassine-sleep-pill -m resume -r $2 -W $fw -H $fh /tmp/notice-$O.pam >/dev/null
     if [ $r = 0 ] && c=$(python3 /r/test/sleep-pill/check_start.py /tmp/grim-$O.ppm $2 /tmp/notice-$O.pam /tmp/start-$O.pnm 2>&1) &&
         [ "$(head -c 20 /tmp/start-$O.pnm | sed -n 2p)" = "${want:-$fw $fh}" ]; then ok "$1"
     else bad "$1" "exit $r, ${c:-} $(head -c 20 /tmp/start-$O.pnm 2>/dev/null | sed -n 2p)"; fi
