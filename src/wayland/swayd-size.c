@@ -1,5 +1,6 @@
 /* swayd-size.c — see swayd-size.h */
 #define _GNU_SOURCE
+#include <glob.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -102,4 +103,70 @@ int sz_publish(const char *path, const SzOut *o, int n, char *last, size_t len)
     if (ui_output_scale_write(path, v, k)) return -1;
     if (last) snprintf(last, len, "%s", want);
     return 1;
+}
+
+int sz_text_scale(double f, char *buf, size_t len)
+{
+    if (len) *buf = 0;
+    if (!(f > 0)) return 0;
+    double fq = sz_quant(f), n = fmax(1, round(fq)), r = fq / n;
+    if (fabs(r - 1) < 1e-9) return 0;
+    snprintf(buf, len, "%.4f", r);
+    return 1;
+}
+
+double sz_cached_main(const char *path)
+{
+    char p[512];
+    const char *x = getenv("XDG_CACHE_HOME"), *h = getenv("HOME");
+    if (!path) {
+        if (x && *x == '/') snprintf(p, sizeof p, "%s/glassine/sway-output-scale.conf", x);
+        else if (h && *h) snprintf(p, sizeof p, "%s/.cache/glassine/sway-output-scale.conf", h);
+        else return 0;
+        path = p;
+    }
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    char line[512], name[128];
+    double v = 0;
+    while (fgets(line, sizeof line, f))
+        if (sscanf(line, " output %127s scale %lf", name, &v) == 2 && v > 0) break;
+        else v = 0;
+    fclose(f);
+    return v;
+}
+
+/* the first line of an output-scale file; 1: read */
+static int first_scale(const char *path, double *factor, double *density)
+{
+    UiOutputScale v[1];
+    if (ui_output_scale_read(path, v, 1) < 1 || !(v[0].factor > 0) || !(v[0].density > 0)) return 0;
+    *factor = v[0].factor;
+    *density = v[0].density;
+    return 1;
+}
+
+int sz_panel_factor(const char *path, const char *adapter_conf, int w_px, int h_px, double *factor, double *density)
+{
+    char p[512];
+    if (path) { if (first_scale(path, factor, density)) return 1; }
+    else {
+        if (ui_output_scale_file(p, sizeof p) && first_scale(p, factor, density)) return 1;
+        const char *users = getenv("GLASSINE_USER_RUN");
+        char pat[512];
+        snprintf(pat, sizeof pat, "%s/*/glassine/output-scale", users && *users ? users : "/run/user");
+        glob_t g;
+        int found = 0;
+        if (glob(pat, 0, NULL, &g) == 0) {
+            for (size_t i = 0; i < g.gl_pathc && !found; i++) found = first_scale(g.gl_pathv[i], factor, density);
+            globfree(&g);
+        }
+        if (found) return 1;
+    }
+    double wm = 0, hm = 0;
+    int src;
+    if (!sz_adapter_mm(adapter_conf, w_px, h_px, &wm, &hm)) wm = hm = 0;
+    *density = ui_density(w_px, h_px, wm, hm, 0, &src);
+    *factor = sz_quant(ui_factor(*density, 100));
+    return 0;
 }

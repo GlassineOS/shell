@@ -1,6 +1,7 @@
 /* swayd-size.h — the size of the interface per output (spec 012): what glassine-swayd
  * works out for each output of the session and publishes. No sway, no Wayland here
- * (swayd-size.c): glassine-swayd feeds it sway's outputs and applies the result.
+ * (swayd-size.c): glassine-swayd feeds it sway's outputs and applies the result;
+ * glassine-shell and glassine-sleep-pill use its file and text-scale parts.
  *
  * An output's density (the pixels of its mode per millimetre) comes from its reported
  * physical size when that is plausible, else from the density kept for it
@@ -11,6 +12,7 @@
  * scale in 120ths. */
 #ifndef SWAYD_SIZE_H
 #define SWAYD_SIZE_H
+#include <stddef.h>
 
 #define SZ_MAXOUT 8
 typedef struct {
@@ -42,6 +44,21 @@ int sz_scale_text(const SzOut *o, int n, char *buf, size_t len);
  * (what the last call wrote; kept there) and the file is still there; 1: written,
  * 0: the same, -1: failed */
 int sz_publish(const char *path, const SzOut *o, int n, char *last, size_t len);
+/* the text scale of a whole-scale-only app (GDK_DPI_SCALE, spec 012 FR-031/FR-032) on an
+ * output of factor f: f over its nearest whole scale N = max(1, round(f)), "%.4f" into buf;
+ * 0 (buf "") when that is 1 (nothing to set) */
+int sz_text_scale(double f, char *buf, size_t len);
+/* the main output's factor from the person's ~/.cache/glassine/sway-output-scale.conf
+ * (path NULL; its first `output NAME scale F` line: glassine-swayd writes the main output
+ * first); 0: none */
+double sz_cached_main(const char *path);
+/* the factor and density of the panel for a program outside the session (the sleep
+ * pill, the start picture, spec 012 FR-025): the main output's line of output-scale
+ * (path NULL: $XDG_RUNTIME_DIR's, else the desktop user's /run/user/UID/glassine/
+ * output-scale; its first line is the main output); without one, the Default factor
+ * of the density the panel adapter's size gives a mode of w x h px (adapter_conf as
+ * sz_adapter_mm), else of the fallback. 1: from output-scale */
+int sz_panel_factor(const char *path, const char *adapter_conf, int w_px, int h_px, double *factor, double *density);
 /* a logical length or edge in device px at a scale of f120 120ths (round half up) */
 static inline int sz_px(int logical, int f120) { long v = (long)logical * f120; return (int)((v >= 0 ? v + 60 : v - 59) / 120); }
 

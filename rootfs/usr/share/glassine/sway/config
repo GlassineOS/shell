@@ -2,6 +2,10 @@
 # The panel is output EPD-1 (glassine-epd backend, glassine-epdd-desktop draws it).
 # User additions: ~/.config/glassine/sway.d/* (included last).
 output EPD-1 scale 2 bg #ffffff solid_color
+# the size of the interface (spec 012): scale 2 is the panel's Default factor until
+# glassine-swayd has set each output's own; the scales it applied last start the next
+# session (nothing there on a first start: the line above holds)
+include ~/.cache/glassine/sway-output-scale.conf
 default_border none
 default_floating_border none
 # 20 px (40 on the panel) between tiles, none at the screen edges: glassine-swayd's
@@ -28,8 +32,10 @@ focus_on_window_activation focus
 # and this after the mouse; typing hides it too
 seat * hide_cursor 5000
 seat * hide_cursor when-typing enable
-# 24 px at the output's scale 2 = a 48 px sprite on the panel (clients:
-# XCURSOR_SIZE / GSettings cursor-size, glassine-session-sway / glassine-theme-apply)
+# 24 logical px: sway loads the theme at every output's scale (again whenever a scale
+# changes), so the pointer follows each output's factor (spec 012 FR-032): 48 px on the
+# panel at scale 2 (clients: XCURSOR_SIZE / GSettings cursor-size, also logical px,
+# glassine-session-sway / glassine-theme-apply)
 seat * xcursor_theme Adwaita 24
 # focus changes never move (and so show) the pointer
 mouse_warping none
@@ -67,6 +73,9 @@ exec sh -c '[ -n "$FD_MESA_DEBUG" ] && exec dbus-update-activation-environment F
 exec sh -c '[ -n "$FD_CHUNK_US" ] && exec dbus-update-activation-environment FD_CHUNK_US FD_CHUNK_COST'
 # (and L4's switch, glassine-session-sway)
 exec sh -c '[ -n "$FD_L4" ] && exec dbus-update-activation-environment FD_L4'
+# (and the text scale of whole-scale-only apps, spec 012 FR-032: glassine-session-sway
+# sets it from the main output's factor; glassine-swayd updates the bus when it changes)
+exec sh -c '[ -n "$GDK_DPI_SCALE" ] && exec dbus-update-activation-environment GDK_DPI_SCALE'
 # (and the Flatpak GL driver choice: D-Bus-activated Flatpaks run `flatpak run` from the bus)
 exec sh -c '[ -n "$FLATPAK_GL_DRIVERS" ] && exec dbus-update-activation-environment FLATPAK_GL_DRIVERS'
 # what a desktop gets from XDG autostart (sway doesn't run it): PipeWire

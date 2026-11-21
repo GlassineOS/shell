@@ -111,6 +111,9 @@
  * of a get_inputs reply + /proc/bus/input/devices
  * glassine-swayd --size-test NAME KEY W_PX H_PX W_MM H_MM (host test) an output's
  * "DENSITY SOURCE PERCENT FACTOR" from the person's files (the size section)
+ * glassine-swayd --dpi-scale [FACTOR] the text scale (GDK_DPI_SCALE) of whole-scale-only
+ * apps on an output of FACTOR (none: the main output's in
+ * ~/.cache/glassine/sway-output-scale.conf); prints nothing when it is 1
  */
 #define _GNU_SOURCE
 #include <ctype.h>
@@ -2583,8 +2586,43 @@ static void scale_conf_write(void)
     FILE *f = fopen(t, "w");
     if (!f) return;
     fprintf(f, "# the scales glassine-swayd applied last (spec 012): the session starts at them\n");
-    for (int i = 0; i < nouts; i++) fprintf(f, "output %s scale %.6f\n", outs[i].name, sz_quant(outs[i].scale));
+    for (int pass = 0; pass < 2; pass++)        /* the main output first (glassine-swayd --dpi-scale reads it) */
+        for (int i = 0; i < nouts; i++)
+            if ((i == main_out) == (pass == 0)) fprintf(f, "output %s scale %.6f\n", outs[i].name, sz_quant(outs[i].scale));
     if (fclose(f) || rename(t, p)) unlink(t);
+}
+
+/* the text scale of whole-scale-only apps started from now on (GDK_DPI_SCALE, spec 012
+ * FR-032): the main output's remainder, into D-Bus activation's environment when it
+ * differs from what is in effect. That environment can't lose a variable again: back
+ * at a whole factor it gets 1 (no change to an app), never set at all when the
+ * session started without one. The shell sets it for what it starts itself
+ * (glassine-shell: app_env), the session for sway's own (glassine-session-sway). */
+static void dpi_scale_update(void)
+{
+    static char cur[16];
+    static int init;
+    if (!init) {
+        const char *e = getenv("GDK_DPI_SCALE");
+        snprintf(cur, sizeof cur, "%s", e ? e : "");
+        init = 1;
+    }
+    if (main_out < 0) return;
+    char want[16];
+    if (!sz_text_scale(outs[main_out].scale, want, sizeof want)) {
+        if (!*cur || !strcmp(cur, "1")) return;
+        snprintf(want, sizeof want, "1");
+    }
+    if (!strcmp(want, cur)) return;
+    char kv[40];
+    snprintf(kv, sizeof kv, "GDK_DPI_SCALE=%s", want);
+    snprintf(cur, sizeof cur, "%s", want);
+    WARN("whole-scale apps started from now on: %s", kv);
+    pid_t p = fork();                   /* (SIGCHLD ignored: no zombie) */
+    if (p == 0) {
+        execlp("dbus-update-activation-environment", "dbus-update-activation-environment", kv, (char *)NULL);
+        _exit(127);
+    }
 }
 
 static void size_apply(void)
@@ -2611,6 +2649,7 @@ static void size_apply(void)
         scale_conf_write();
         LOG("output-scale published (%d outputs)", nouts);
     }
+    dpi_scale_update();
     if (main_out >= 0 && *main_name && !strcmp(main_name, outs[main_out].name) && main_was > 0 &&
         sz_differs(main_was, outs[main_out].scale))
         full_due = mono_ms() + FULL_AFTER_MS;
@@ -2669,6 +2708,11 @@ int main(int argc, char **argv)
         json_object *in = ij ? sj_parse(ij) : NULL;
         int n = kbd_scan(in, dev, names, sizeof names);
         printf("%d%s%s\n", n, n ? " " : "", names);
+        return 0;
+    }
+    if (argc >= 2 && argc <= 3 && !strcmp(argv[1], "--dpi-scale")) {     /* (glassine-session-sway) */
+        char b[16];
+        if (sz_text_scale(argc == 3 ? atof(argv[2]) : sz_cached_main(NULL), b, sizeof b)) printf("%s\n", b);
         return 0;
     }
     if (argc == 8 && !strcmp(argv[1], "--size-test")) {     /* (host test) */

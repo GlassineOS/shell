@@ -411,9 +411,15 @@ start_sway() {
     # to 20 (the kernel's RT throttling keeps 5 % for the rest) and nice down to -11
     # (RLIMIT_NICE 31 = 20 - -11). They hold for everything the session starts; su keeps them
     ulimit -r 20; ulimit -e 31
+    # the text scale of whole-scale-only apps (GTK 3, spec 012 FR-032): the main output's
+    # factor over its nearest whole scale, from the scales the last session applied
+    # (glassine-swayd's ~/.cache/glassine/sway-output-scale.conf, which the sway config
+    # includes); at a whole factor (the panel's Default) nothing is set. Apps take it at
+    # their next start; glassine-swayd and glassine-shell follow a change in the session
     su -l "$U" -c "export XDG_RUNTIME_DIR=/run/user/$UID_ XDG_SESSION_TYPE=wayland XDG_CURRENT_DESKTOP=sway \
         XDG_SESSION_DESKTOP=sway LIBSEAT_BACKEND=seatd GLASSINE_EPD=1 WLR_BACKENDS=libinput WLR_RENDERER=$REN \
         MOZ_ENABLE_WAYLAND=1 MOZ_USE_XINPUT2=1 GTK_MODULES=glassine-ink GTK_OVERLAY_SCROLLING=0 XCURSOR_THEME=Adwaita XCURSOR_SIZE=24 $GL; \
+        D=\$(/usr/bin/glassine-swayd --dpi-scale 2>/dev/null) && [ -n \"\$D\" ] && export GDK_DPI_SCALE=\$D; \
         exec dbus-run-session -- $SWAY -c $CONF" >/var/log/sway.log 2>&1 &
     SPID=$!
     SSTART=$(date +%s)
