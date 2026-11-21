@@ -49,6 +49,8 @@ check("key: make model serial", O.key(dict(name="HDMI-A-1", make="Optoma", model
       "Optoma HD146X Unknown")
 check("key: all unknown -> the connector name", O.key(dict(name="HDMI-A-1", make="Unknown", model="Unknown", serial="Unknown")),
       "HDMI-A-1")
+check("key: an empty part reads Unknown, the others as they are (sway's key)",
+      O.key(dict(name="DP-3", make="Acme", model="", serial=None)), "Acme Unknown Unknown")
 check("key: missing fields count as unknown", O.key(dict(name="VIRTUAL-1")), "VIRTUAL-1")
 
 # the listing: size known (gone), unknown (listed), known with a kept line (listed)

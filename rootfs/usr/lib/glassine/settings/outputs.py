@@ -23,7 +23,7 @@ UNKNOWN = ("", "Unknown")
 
 def key(o):
     """an output of swaymsg -t get_outputs -> its key (sway's identifier, else its name)"""
-    parts = [(o.get(k) or "Unknown").strip() or "Unknown" for k in ("make", "model", "serial")]
+    parts = [o.get(k) or "Unknown" for k in ("make", "model", "serial")]     # as sway's glassine_od_key
     if all(p in UNKNOWN for p in parts):
         return o.get("name") or ""
     return " ".join(parts)
