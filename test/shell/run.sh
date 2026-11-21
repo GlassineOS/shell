@@ -11,6 +11,7 @@ cp -a /r/rootfs/usr/share/icons/glassine-mono /usr/share/icons/
 # GlassineOS/ui (/ui, ro): the voices and the drawing, installed into the container
 make -s -C /ui install O=/tmp/ui-out PREFIX=/usr >/dev/null || exit 1   # (its own out: never the checkout's)
 sh /r/src/wayland/build-shell.sh /r/src $B/glassine-shell || exit 1
+sh /r/src/wayland/build-picture.sh /r/src $B/glassine-screen-picture || exit 1
 if [ "$SWAYD" != head ] && sh /r/src/wayland/build-swayd.sh /r/src $B/glassine-swayd 2>/out/swayd-build.log; then
     echo "glassine-swayd: this tree's"
 else

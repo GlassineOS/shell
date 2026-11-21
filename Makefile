@@ -5,13 +5,15 @@
 # glassine-sleep-pill: the sleep overlay the panel daemon draws over the last page
 # libglassine-ink.so: the GTK 3 module that announces GTK apps' pen canvases
 # glassine-rotd: screen autorotate from the accelerometer
+# glassine-screen-picture: the picture of the screen (spec 010), for the hibernate step
 # glassine-predict: the on-screen keyboard's word predictor and the learned words command
 S = src
 OUT ?= .
 CFLAGS ?= -O2 -Wall
 
 all: $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark \
-	$(OUT)/glassine-sleep-pill $(OUT)/libglassine-ink.so $(OUT)/glassine-rotd $(OUT)/glassine-predict
+	$(OUT)/glassine-sleep-pill $(OUT)/libglassine-ink.so $(OUT)/glassine-rotd $(OUT)/glassine-predict \
+	$(OUT)/glassine-screen-picture
 
 $(OUT)/glassine-shell: $(wildcard $(S)/glassine-shell*) $(S)/wayland/sway-ipc.c $(S)/wayland/build-shell.sh
 	sh $(S)/wayland/build-shell.sh $(S) $@
@@ -42,6 +44,10 @@ predict-model:
 $(OUT)/glassine-sleep-pill: $(S)/glassine-sleep-pill.c
 	$(CC) $(CFLAGS) -o $@ $(S)/glassine-sleep-pill.c `pkg-config --cflags --libs glassine-ui pangocairo` -lm
 
+# needs wayland-dev; the protocol is the copy in wayland/protocols
+$(OUT)/glassine-screen-picture: $(S)/glassine-screen-picture.c $(S)/wayland/build-picture.sh
+	sh $(S)/wayland/build-picture.sh $(S) $@
+
 # needs gtk+3.0-dev and wayland-dev; the protocol is the copy in wayland/protocols
 $(OUT)/libglassine-ink.so: $(S)/wayland/glassine-ink-gtk.c $(S)/wayland/protocols/glassine-ink-v1.xml $(S)/wayland/build-ink.sh
 	sh $(S)/wayland/build-ink.sh $(S) $@
@@ -69,6 +75,7 @@ check:
 
 clean:
 	rm -f $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/glassine-zpark \
-		$(OUT)/glassine-sleep-pill $(OUT)/libglassine-ink.so $(OUT)/glassine-rotd $(OUT)/glassine-predict
+		$(OUT)/glassine-sleep-pill $(OUT)/libglassine-ink.so $(OUT)/glassine-rotd $(OUT)/glassine-predict \
+		$(OUT)/glassine-screen-picture
 
 .PHONY: all check clean predict-model
