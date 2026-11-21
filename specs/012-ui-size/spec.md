@@ -79,8 +79,9 @@ FR-033); Settings says which apps follow only when they next start.
 - **FR-002**: An output's factor is its density (FR-005) times the design pixel's length in
   millimetres (FR-001). A factor within 3 % of a whole number is that whole number, so a display
   whose density is close to a whole multiple of the unit is drawn without fractional scaling.
-- **FR-003**: The factor is applied per output and is the output's scale for every app on it. Two
-  outputs of different densities get different factors at the same interface size.
+- **FR-003**: The factor is applied per output and is the output's scale, given to the apps on it as
+  FR-030 and FR-031 say. Two outputs of different densities get different factors at the same
+  interface size.
 - **FR-004**: The pen interface's points per millimetre stay the density over the output's scale
   (spec 011, handwriting spec 004 FR-017), whatever the factor.
 
