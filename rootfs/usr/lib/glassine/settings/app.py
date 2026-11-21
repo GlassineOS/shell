@@ -16,7 +16,15 @@ works without an input method.
   glassine-settings --demo            the design's sample data instead of the device
   glassine-settings --render OUT.png [--page P] [--theme T] [--sheet S] [--demo]
                                  draw one page into a PNG (no display needed)
+
+The window is drawn in design pixels (spec 012). GTK 3 takes whole scales only: on a
+display of factor F the compositor gives it N = max(1, round(F)) and shows it pixel for
+pixel, so a GTK pixel is N device pixels and the drawing is scaled by F / N; the layout is
+for the window's size in design pixels. F is the session's ($XDG_RUNTIME_DIR/glassine/
+output-scale) for the display the window is on; without a line there it is N. The text
+size (~/.config/glassine/text-size) and the minimums are glassine_ui.size's.
 """
+import math
 import os
 import re
 import threading
@@ -30,12 +38,14 @@ from gi.repository import Gdk, Gio, GLib, Gtk  # noqa: E402
 
 from . import blocks as B  # noqa: E402
 from glassine_ui import paint as P  # noqa: E402
+from glassine_ui import size as S  # noqa: E402
+from glassine_ui import voices  # noqa: E402
 from . import pages  # noqa: E402
 from . import packages  # noqa: E402
 from . import outputs  # noqa: E402
 from .theme import THEMES  # noqa: E402
 
-W0, H0 = 702, 884                 # the panel below glassine-shell's bar, logical px
+W0, H0 = 702, 884                 # the window's default size: a panel below glassine-shell's bar at Default, design px
 OUTLINE = os.environ.get("GLASSINE_SETTINGS_OUTLINE") == "1"   # draw the widget boxes + markers
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
 THEME_FILE = RUN + "/glassine-shell.theme"
@@ -66,17 +76,21 @@ class Layout:
         self.W, self.H = W, H
         self.labels, self.short = W >= 560, H < 600          # tab labels; a low window
         self.m = 15 if self.labels else 10
-        self.tab_w = 158 if self.labels else 56
+        # what holds text grows with the text size (spec 012 FR-024a): a pill, the header, a tab
+        self.pill = B.gh(48, t["rowFont"]) if t else 48
+        self.tab_w = (B.gw(158, t["tabFont"], 98) if t else 158) if self.labels else 56
         self.compact = not self.labels or H < 700
         self.head_h = 60 if self.compact else P.px((t or {}).get("headH", "80px"))
+        if t:
+            self.head_h += max(self.pill - 48, B.gh(self.head_h, t["headFont"]) - self.head_h)
         self.pad_x = 28 if self.labels else 18
         self.card_r = self.tab_w + (22 if self.labels else 8)  # the card's right margin: the tabs
         self.card_h = H - 2 * self.m - 8
         self.cw = W - self.m - self.card_r - 2 * self.pad_x  # the page's width
         self.narrow = self.cw < 400                           # buttons lose their labels
         self.avail = self.card_h - 3 - self.head_h - 4        # the page's height (the design's cap)
-        self.tab_h = 64 if self.labels else 54
-        self.tab_cap = (self.card_h - 15 + 5) // (self.tab_h + 5)
+        self.tab_h = (B.gh(64, t["tabFont"]) if t else 64) if self.labels else 54
+        self.tab_cap = int((self.card_h - 15 + 5) // (self.tab_h + 5))
         self.pager_pad = 14                                   # the pager bar: 66 high
 
 
@@ -613,8 +627,11 @@ class Renderer:
     def theme(self):
         return THEMES.get(self.ui.be.theme) or THEMES["white"]
 
-    def draw(self, cr, W, H, scale=2):
+    def draw(self, cr, W, H, scale=2, mm=0.0):
+        """W x H: the window in design px; scale: the surface's device scale (icons); mm: the
+        millimetres of a design px on the display (0: unknown, no minimums)"""
         ui, t = self.ui, self.theme()
+        S.set_voice_metrics(voices.voice(ui.be.theme if ui.be.theme in THEMES else "white"), mm, ui.be.text_size / 100.0)
         L = ui.L = Layout(W, H, t)
         c = B.Ctx(cr, t, scale)
         c.narrow, c.short, c.labels = L.narrow, L.short, L.labels
@@ -662,7 +679,20 @@ class Renderer:
         if ui.sheet:
             self.hits = []
             self.sheet(c, cx, cy, cw, ch)
+        self.taps()
         self.ring(cr, t)
+
+    def taps(self):
+        """no tap target under the minimum either way (spec 012 FR-022, 7 mm with its
+        padding): a smaller one is widened about its middle. small: the ones that were"""
+        m, self.small = S.min_tap(), []
+        if m <= 0:
+            return
+        for i, ((x, y, w, h), fn) in enumerate(self.hits):
+            if w < m or h < m:
+                self.small.append((w, h))
+                nw, nh = max(w, m), max(h, m)
+                self.hits[i] = ((x - (nw - w) / 2, y - (nh - h) / 2, nw, nh), fn)
 
     def ring(self, cr, t):
         """design the Tab focus, a 2 px ring 2 px outside the control
@@ -675,11 +705,12 @@ class Renderer:
         o = P.px(fr["focusOff"]) + P.px(fr["focusW"])
         P.box(cr, x - o, y - o, w + 2 * o, h + 2 * o, fr["focusR"], None, "inset 0 0 0 %s %s" % (fr["focusW"], t["il"]["focus"]))
 
-    def pill(self, c, x, y, label, icon=None, isz=22, fn=None, pad=(14, 18), gap=6, show_label=True, fg=None, h=48, bold=False,
+    def pill(self, c, x, y, label, icon=None, isz=22, fn=None, pad=(14, 18), gap=6, show_label=True, fg=None, h=None, bold=False,
              primary=False):
-        """the design's pill: 48 high, radius 999, a 1.5px ink outline (primary: filled
-        with the accent), [icon] [label] -> its width"""
+        """the design's pill: 48 high (Layout.pill: with the text size), radius 999, a 1.5px
+        ink outline (primary: filled with the accent), [icon] [label] -> its width"""
         t, cr = c.t, c.cr
+        h = h or self.ui.L.pill
         f = t["rowFont"]
         lw, lh = c.m(label, f, weight=600 if bold or primary else None) if show_label and label else (0, 0)
         bw = pad[0] + (isz if icon else 0) + (gap if icon and lw else 0) + lw + pad[1]
@@ -707,14 +738,15 @@ class Renderer:
         hh = L.head_h
         hx, right = x + L.pad_x, x + w - L.pad_x
         gap = 22 if L.labels else 8
-        by = y + (hh - 48) / 2
+        ph = L.pill
+        by = y + (hh - ph) / 2
         if not L.compact:
             rpad = (14, 18) if L.labels else (12, 12)
             rw = self.pill_w(c, "Refresh", "refresh", 22, rpad, show_label=L.labels)
             self.pill(c, right - rw, by, "Refresh", "refresh", 22, lambda: self.ui.refresh(), rpad, show_label=L.labels)
             right -= rw + gap
         if pager:
-            right -= B.Pager.small(c, right, by, pager) + gap
+            right -= B.Pager.small(c, right, y + (hh - 48) / 2, pager) + gap
         if page.back:
             lbl = getattr(page, "back_label", None) or pages.SHORT.get(page.back.split("#")[0], "Settings")
             bpad = (12, 20) if L.labels else (12, 12)
@@ -722,11 +754,11 @@ class Renderer:
             bw = self.pill_w(c, lbl, "chevron_left", 24, bpad, show_label=L.labels)
             if bw > maxw:                                   # max-width 45 %, the label ellipsized
                 lbl_w = maxw - (bpad[0] + 24 + 6 + bpad[1])
-                P.box(cr, hx, by, maxw, 48, "999px", t["btnBg"], t["btnSh"])
-                c.icon("chevron_left", 24, hx + bpad[0] + 12, by + 24)
+                P.box(cr, hx, by, maxw, ph, "999px", t["btnBg"], t["btnSh"])
+                c.icon("chevron_left", 24, hx + bpad[0] + 12, by + ph / 2)
                 lh = c.m(lbl, t["rowFont"])[1]
-                c.txt(lbl, t["rowFont"], hx + bpad[0] + 30, by + (48 - lh) / 2, maxw=lbl_w)
-                c.hit(hx, by, maxw, 48, lambda: self.ui.go(page.back))
+                c.txt(lbl, t["rowFont"], hx + bpad[0] + 30, by + (ph - lh) / 2, maxw=lbl_w)
+                c.hit(hx, by, maxw, ph, lambda: self.ui.go(page.back))
                 bw = maxw
             else:
                 self.pill(c, hx, by, lbl, "chevron_left", 24, lambda: self.ui.go(page.back), bpad, show_label=L.labels)
@@ -812,7 +844,7 @@ class Renderer:
             c.txt(sh.code, t["codeFont"], px + iw / 2, yy + 14, align=1, ls=0.12)
             yy += bh + 14
         # the buttons: bottom, over a rule
-        by = y + h - 1.5 - 20 - 48
+        by = y + h - 1.5 - 20 - L.pill
         if getattr(sh, "size", None):
             sf = "400 15px/1.3 'IBM Plex Mono',monospace"
             sh_h = c.m(sh.size, sf)[1]
@@ -887,6 +919,29 @@ class Window(Gtk.ApplicationWindow):
         self.pressed = None
         self.drag = None                # a held knob (a hit with .grab: none at present): move/done
         self.pending = 0
+        self.z = 1.0                    # design px per GTK px, as last drawn (F / N)
+        self.at = None                  # the display last drawn on
+
+    def place(self):
+        """(z, mm) to draw with on the display the window is on: z = F / N design-to-GTK
+        scale (F: the session's factor for the display, N: GTK's whole scale; 1 without a
+        factor, or while the two do not belong together), mm: the millimetres of a design px"""
+        n = self.area.get_scale_factor()
+        here = self.here()
+        if here != self.at:             # another display (or the first draw): its factor, read off the paint
+            self.at = here
+            GLib.idle_add(self.replace)
+        d = self.ui.be.display_at(here)
+        if not d:
+            return 1.0, 0.0
+        f = d["factor"] if d["applied"] and max(1, math.floor(d["factor"] + 0.5)) == n else float(n)
+        return f / n, S.mm_per_px(f, d["density"])
+
+    def replace(self):
+        """the displays again, then a redraw at the factor of the one the window is on"""
+        self.ui.be.read_screens()
+        self.redraw()
+        return False
 
     def here(self):
         """the logical (x, y) of the display the window is on (None: not shown yet)"""
@@ -907,7 +962,10 @@ class Window(Gtk.ApplicationWindow):
 
     def on_draw(self, area, cr):
         a = area.get_allocation()
-        self.r.draw(cr, a.width, a.height, area.get_scale_factor())
+        self.z, mm = self.place()
+        if self.z != 1:
+            cr.scale(self.z, self.z)
+        self.r.draw(cr, a.width / self.z, a.height / self.z, area.get_scale_factor(), mm)
         return True
 
     def on_press(self, area, ev):
@@ -915,13 +973,14 @@ class Window(Gtk.ApplicationWindow):
             # the target's rect, not the callable: every draw makes new ones, and a
             # draw can land between press and release (the tap that focuses the
             # window repaints it as active: , every such tap was lost)
-            self.pressed, fn = self.r.hit(ev.x, ev.y)
+            x, y = ev.x / self.z, ev.y / self.z     # hits are in design px
+            self.pressed, fn = self.r.hit(x, y)
             if getattr(fn, "grab", None):
-                self.drag, self.pressed = fn.grab(ev.x, ev.y), None
+                self.drag, self.pressed = fn.grab(x, y), None
         return True
 
     def on_motion(self, area, ev):
-        if self.drag is not None and self.drag.move(ev.x, ev.y):
+        if self.drag is not None and self.drag.move(ev.x / self.z, ev.y / self.z):
             self.redraw()                   # one paint per stop crossed
         return True
 
@@ -929,15 +988,16 @@ class Window(Gtk.ApplicationWindow):
         if self.drag is not None:           # the drag ends wherever the finger is
             d, self.drag = self.drag, None
             if ev.button == 1:
-                d.done(ev.x, ev.y)
+                d.done(ev.x / self.z, ev.y / self.z)
             else:
                 d.cancel()
             self.redraw()
             return True
-        rect, fn = self.r.hit(ev.x, ev.y)
+        x, y = ev.x / self.z, ev.y / self.z
+        rect, fn = self.r.hit(x, y)
         if ev.button == 1 and fn is not None and rect == self.pressed:
             if getattr(fn, "xy", False):
-                fn(ev.x, ev.y)
+                fn(x, y)
             else:
                 fn()
         self.pressed = None
@@ -1020,6 +1080,7 @@ class App(Gtk.Application):
             self.win = Window(self, self.ui)
             self.win.show_all()
             self.watch_theme()
+            self.watch_size()
             self.ui.go(page if page and page not in ("app", "wifi-ask") else "eink")
         elif page and page not in ("app", "wifi-ask"):
             self.ui.go(page)
@@ -1041,6 +1102,17 @@ class App(Gtk.Application):
                 self.win.redraw()
         self.mon.connect("changed", changed)
 
+    def watch_size(self):
+        """the session's output-scale (a display's factor) and the text size: a change is
+        read again and drawn once"""
+        self.size_mons = []
+        for path in (S.output_scale_path(), S.text_size_path(), S.ui_size_path()):
+            if not path:
+                continue
+            m = Gio.File.new_for_path(path).monitor_file(Gio.FileMonitorFlags.NONE, None)
+            m.connect("changed", lambda *a: self.win.replace())
+            self.size_mons.append(m)
+
 
 def P_read(path):
     try:
@@ -1051,7 +1123,10 @@ def P_read(path):
 
 
 def render(argv, be):
-    """--render OUT.png [--page P [--app ID]] [--theme T] [--sheet forget-net|forget-dev|pair] [--size WxH]
+    """--render OUT.png [--page P [--app ID]] [--theme T] [--sheet forget-net|forget-dev|pair] [--size WxH | --px WxH]
+    [--factor F] [--density D] [--text PERCENT]
+    --size: the window in design px; --px: in device px (its design size is that over the factor); --factor: the
+    display's device px per design px (2); --density: its px per mm (none: no minimums); --text: the text size (100)
     [--ask SSID [--eap] [--uuid U] [--user U]] [--pw PW] [--ppm TEXT [--done]] [--pp N] [--pick KEY] [--pk PRESET] [--markers OUT.json] [--outline]
     P may be a section's sub-page ("power#2"); --pick KEY opens a choice row's page (gestures: g3Up ...)"""
     global OUTLINE
@@ -1059,7 +1134,14 @@ def render(argv, be):
     def opt(name, default=None):
         return argv[argv.index(name) + 1] if name in argv else default
     out = opt("--render")
-    W, H = (int(v) for v in opt("--size", "%dx%d" % (W0, H0)).split("x"))
+    fac = float(opt("--factor", "2"))
+    mm = S.mm_per_px(fac, float(opt("--density", "0")))
+    if "--text" in argv:
+        be.text_size = int(opt("--text"))
+    if "--px" in argv:
+        W, H = (int(v) / fac for v in opt("--px").split("x"))
+    else:
+        W, H = (int(v) for v in opt("--size", "%dx%d" % (W0, H0)).split("x"))
     if opt("--theme"):
         be.theme = opt("--theme")
     ui = UI(be, lambda: None)
@@ -1115,16 +1197,29 @@ def render(argv, be):
         ui.sheet_forget_words()
     elif sheet == "error":
         ui.show(Sheet("Could not connect to Bibliothek", "Secrets were required, but not provided.", cancel="OK"))
-    surf = cairo.ImageSurface(cairo.FORMAT_RGB24, W * 2, H * 2)
-    surf.set_device_scale(2, 2)
-    cr = cairo.Context(surf)
+    surf, cr = surface(W, H, fac)
     r = Renderer(ui)
-    r.draw(cr, W, H, 2)
-    surf.write_to_png(out)
+    r.draw(cr, W, H, int(surf.get_device_scale()[0]), mm)
+    if out != "-":                                      # "-": no file (the tests read the surface)
+        surf.write_to_png(out)
     if "--markers" in argv:
         import json
         with open(opt("--markers"), "w") as f:
             json.dump(r.markers, f, indent=1)
+    r.surf = surf
+    return r
+
+
+def surface(W, H, fac):
+    """an image for a W x H design px window on a display of factor fac, as GTK gets it:
+    device scale N = max(1, round(fac)), the context scaled by fac / N -> (surface, context)"""
+    n = max(1, math.floor(fac + 0.5))
+    surf = cairo.ImageSurface(cairo.FORMAT_RGB24, int(math.floor(W * fac + 0.5)), int(math.floor(H * fac + 0.5)))
+    surf.set_device_scale(n, n)
+    cr = cairo.Context(surf)
+    if fac != n:
+        cr.scale(fac / n, fac / n)
+    return surf, cr
 
 
 def main(argv):
