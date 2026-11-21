@@ -259,7 +259,14 @@ class UI:
         self.screen = None               # screen-size: the display's key (spec 011)
         # Size and text (spec 012): the display the Interface size control sets (None: the one
         # Settings is on); the note that open apps follow later: 0 not yet, 1 shown, 2 said
+        # (FR-033 "once": said in an earlier run when its mark exists; the demo keeps none)
         self.ui_disp, self.size_note = None, 0
+        from . import backend as _bk
+        self.size_note_mark = None if isinstance(be, _bk.Demo) else os.path.join(
+            os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state"),
+            "glassine", "settings-size-note")
+        if self.size_note_mark and os.path.exists(self.size_note_mark):
+            self.size_note = 2
         self.ppm_edit, self.ppm_txt, self.ppm_err = False, "", None     # its number field: typing, the text, a refusal
         self.hostname = getattr(be, "hostname", None) or os.uname().nodename
         self.names = self._app_names()
@@ -276,16 +283,28 @@ class UI:
         self.ui_disp = k
         self.redraw()
 
+    def _size_noted(self):
+        """a size changed: the note is shown now, unless it was already said (FR-033)"""
+        if self.size_note:
+            return
+        self.size_note = 1
+        if self.size_note_mark:
+            try:
+                os.makedirs(os.path.dirname(self.size_note_mark), exist_ok=True)
+                open(self.size_note_mark, "a").close()
+            except OSError:
+                pass                    # (no mark: said again in the next run)
+
     def set_ui_size(self, k, percent):
         d = self.be.display(k)
         if d and d["percent"] != percent:
             self.be.set_ui_size(k, percent)
-            self.size_note = self.size_note or 1
+            self._size_noted()
 
     def set_text_size(self, percent):
         if percent != self.be.text_size:
             self.be.set_text_size(percent)
-            self.size_note = self.size_note or 1
+            self._size_noted()
 
     # -- navigation
     def go(self, page, dev=None, region=None, reset=None, net=None, app=None, screen=None):

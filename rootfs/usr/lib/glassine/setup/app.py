@@ -11,7 +11,7 @@ Every paint is a panel update, so the window redraws once per change.
     glassine-setup [--demo]                     the app (--demo: sample data, nothing applied)
     glassine-setup --demo --render OUT.png [--step S] [--theme V] [--size WxH | --px WxH]
                    [--layout ID] [--packs a,b] [--joined SSID] [--big]
-                   [--factor F] [--density D] [--ui-size PERCENT] [--text PERCENT]
+                   [--factor F] [--density D] [--ui-size PERCENT] [--text PERCENT] [--scroll PX]
 
 The window is drawn in design pixels (shell spec 012): GTK 3 takes whole scales only, so on
 a display of factor F (the session's, setup/screen.py) it gets N = max(1, round(F)) and the
@@ -19,6 +19,8 @@ drawing is scaled by F / N; the layout is for the window's size in design pixels
 --size: the window in design px; --px: in device px; --factor: the display's device px per
 design px (2); --density: its px per mm (none: no minimums); --ui-size: the interface size
 of the display, which gives the factor at --density; --text: the text size (100).
+--scroll: the step's body moved up by PX design px (a body longer than the window moves
+under the header by a drag or the wheel; no further than its end).
 """
 import math
 import sys
@@ -91,6 +93,7 @@ class State:
         self.inst_i = 4                                 # Installing: the step running (demo)
         self.net_err = ""                               # the last Connect's error
         self.kfocus = None                              # Tab focus: an index into the drawn targets (t13)
+        self.scroll = 0                                 # the step's body moved up by this (design px)
 
     def pw_rules(self):
         return [(len(self.pw) >= 8, "At least 8 characters"), (bool(self.pw) and self.pw == self.pw2, "Both entries match"),
@@ -125,7 +128,7 @@ class Setup:
     def go(self, step):
         if self.s.focus:
             self.be.osk(False)
-        self.s.step, self.s.focus, self.s.kfocus = step, None, None
+        self.s.step, self.s.focus, self.s.kfocus, self.s.scroll = step, None, None, 0
         if step == "installing":
             self.be.apply(self.s, self.packs, self.redraw)
         self.redraw()
@@ -163,9 +166,12 @@ class Renderer:
     def __init__(self, app):
         self.app = app
         self.hits = []
+        self.low = 0                     # the lowest edge drawn so far (the body's length)
+        self.max_scroll = 0              # how far the step's body can move up (0: it fits)
 
     # -- helpers
     def hit(self, x, y, w, h, fn):
+        self.low = max(self.low, y + h)
         if fn:
             self.hits.append(((x, y, w, h), fn))
 
@@ -179,7 +185,9 @@ class Renderer:
         return fsz(self.k[key], self.scale)
 
     def txt(self, s, f, x, y, col=None, **kw):
-        return P.text(self.cr, s, f, x, y, col or self.k["ink"], **kw)
+        r = P.text(self.cr, s, f, x, y, col or self.k["ink"], **kw)
+        self.low = max(self.low, y + r[1])
+        return r
 
     def m(self, s, f, **kw):
         return P.measure(self.cr, s, f, **kw)
@@ -281,12 +289,26 @@ class Renderer:
         cr.save()
         cr.rectangle(0, hh, W, H - hh - fh)
         cr.clip()
+        # a body longer than the window (a large interface or text size) moves up under
+        # the header by s.scroll (a drag or the wheel, Window); unmoved it is drawn as before
+        off = s.scroll
+        if off:
+            cr.translate(0, -off)
+        n0, self.low = len(self.hits), 0
         x, y, w = 32, hh + P.border(k["headRule"])[0] if P.border(k["headRule"]) else hh, W - 64
         y += 26
         if s.step != "done":
             y = self.page_head(x, y, w)
         getattr(self, "p_" + s.step)(x, y, w, H - fh - 18)
         cr.restore()
+        self.max_scroll = max(0, math.ceil(self.low + 18 - (H - fh)))
+        if off:                         # the body's targets where they are seen, cut to the body
+            top, bot, kept = hh, H - fh, []
+            for (hx, hy, hw, hh_), fn in self.hits[n0:]:
+                y0, y1 = max(top, hy - off), min(bot, hy - off + hh_)
+                if y1 > y0:
+                    kept.append(((hx, y0, hw, y1 - y0), fn))
+            self.hits[n0:] = kept
         if foot:
             self.footer(0, H - fh, W, fh)
         self.taps()
@@ -911,13 +933,17 @@ class Window(Gtk.Window):
         self.set_default_size(W0, H0)
         self.area = Gtk.DrawingArea()
         self.area.set_can_focus(True)
-        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.KEY_PRESS_MASK)
+        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.KEY_PRESS_MASK |
+                             Gdk.EventMask.BUTTON1_MOTION_MASK | Gdk.EventMask.SCROLL_MASK)
         self.area.connect("draw", self.on_draw)
         self.area.connect("button-press-event", self.press)
         self.area.connect("button-release-event", self.release)
+        self.area.connect("motion-notify-event", self.motion)
+        self.area.connect("scroll-event", self.wheel)
         self.connect("key-press-event", self.on_key)
         self.add(self.area)
         self.pressed = None
+        self.drag = None                # a press that may move the body: (y, scroll at the press, moved)
         self.pending = 0
         self.z = 1.0                    # design px per GTK px, as last drawn (F / N)
         self.at = None                  # the display last drawn on
@@ -985,13 +1011,40 @@ class Window(Gtk.Window):
     def press(self, area, ev):
         if ev.button == 1 and ev.type == Gdk.EventType.BUTTON_PRESS:
             self.pressed = self.r.at(ev.x / self.z, ev.y / self.z)[0]     # hits are in design px
+            self.drag = (ev.y / self.z, self.app.s.scroll, False) if self.r.max_scroll else None
+        return True
+
+    def scroll_to(self, v):
+        v = max(0, min(self.r.max_scroll, round(v)))
+        if v != self.app.s.scroll:
+            self.app.s.scroll = v
+            self.redraw()
+
+    def motion(self, area, ev):
+        """a drag of more than 16 design px moves the body (and is no tap)"""
+        if not self.drag:
+            return False
+        y0, s0, moved = self.drag
+        dy = ev.y / self.z - y0
+        if moved or abs(dy) > 16:
+            self.drag = (y0, s0, True)
+            self.scroll_to(s0 - dy)
+        return True
+
+    def wheel(self, area, ev):
+        if not self.r.max_scroll:
+            return False
+        ok, dx, dy = ev.get_scroll_deltas()
+        step = dy * 60 if ok else {Gdk.ScrollDirection.UP: -120, Gdk.ScrollDirection.DOWN: 120}.get(ev.direction, 0)
+        self.scroll_to(self.app.s.scroll + step)
         return True
 
     def release(self, area, ev):
         rect, fn = self.r.at(ev.x / self.z, ev.y / self.z)
-        if ev.button == 1 and fn and rect == self.pressed:
+        moved = self.drag and self.drag[2]
+        if ev.button == 1 and fn and rect == self.pressed and not moved:
             fn()
-        self.pressed = None
+        self.pressed, self.drag = None, None
         return True
 
     def on_key(self, w, ev):
@@ -1043,6 +1096,7 @@ def render(argv, be):
     if opt("--joined"):
         s.joined = opt("--joined")
     s.big = "--big" in argv
+    s.scroll = int(opt("--scroll", "0"))
     if s.step == "installing":
         be.preview(app)
     n = max(1, math.floor(fac + 0.5))
@@ -1053,6 +1107,14 @@ def render(argv, be):
         cr.scale(fac / n, fac / n)
     r = Renderer(app)
     r.draw(cr, W, H, n, mm)
+    if s.scroll > r.max_scroll:                    # (as Window.scroll_to: no further than the end)
+        s.scroll = r.max_scroll
+        surf = cairo.ImageSurface(cairo.FORMAT_RGB24, surf.get_width(), surf.get_height())
+        surf.set_device_scale(n, n)
+        cr = cairo.Context(surf)
+        if fac != n:
+            cr.scale(fac / n, fac / n)
+        r.draw(cr, W, H, n, mm)
     if opt("--render") != "-":                      # "-": no file (the tests read the surface)
         surf.write_to_png(opt("--render"))
     r.surf = surf
