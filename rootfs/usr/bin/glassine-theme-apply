@@ -5,8 +5,12 @@
 # session's apps; no xsettings daemon): gtk-theme glassine-NAME
 # (/usr/share/themes; apps restyle live), the theme's text face, the
 # icons, the monospace font, no cursor blink, no animations, and the
-# pointer's theme and size as sway's xcursor_theme (sway/config: 24
-# at scale 2, 48 px on the panel)
+# pointer's theme and size as sway's xcursor_theme (24 logical px: the
+# compositor draws it at each output's factor, spec 012 FR-032)
+# Text size (spec 012 FR-032): text-scaling-factor is the person's text size
+# (~/.config/glassine/text-size, 100 to 150 %; anything else 100), one uniform
+# factor for the session, not the interface size (apps drawn at an output's
+# factor already follow that). Settings runs this again when the text size changes.
 # GTK4/Adw ~/.config/gtk-4.0/gtk.css = a copy of /usr/share/glassine/gtk4/NAME.css (read
 # at app start; a copy, not a link: Flatpak apps can't see /usr/share/glassine),
 # and a --user Flatpak override (xdg-config/gtk-4.0:ro) so sandboxed
@@ -34,6 +38,16 @@ gtk4() {
 }
 gs() { [ "$(gsettings get org.gnome.desktop.interface "$1" 2>/dev/null)" = "$2" ] ||
            gsettings set org.gnome.desktop.interface "$1" "$2"; }
+# the text size as a factor ("1.25"); a double reads back in its own digits, so compare as numbers
+text_factor() {
+    p=$(head -n 1 "${XDG_CONFIG_HOME:-$HOME/.config}/glassine/text-size" 2>/dev/null | tr -d ' \t\r')
+    case $p in ''|*[!0-9]*) p=100 ;; esac
+    { [ "$p" -ge 100 ] && [ "$p" -le 150 ] && [ $((p % 5)) -eq 0 ]; } || p=100
+    echo "$p" | awk '{ printf "%g", $1 / 100 }'
+}
+gsnum() { awk -v a="$(gsettings get org.gnome.desktop.interface "$1" 2>/dev/null)" -v b="$2" \
+              'BEGIN { exit !(a != "" && (a - b) * (a - b) < 1e-12) }' ||
+              gsettings set org.gnome.desktop.interface "$1" "$2"; }
 gs gtk-theme "'glassine-$t'"
 gs font-name "'$font'"
 gs icon-theme "'glassine-mono'"
@@ -41,6 +55,7 @@ gs monospace-font-name "'IBM Plex Mono 10'"
 gs cursor-blink false
 gs cursor-theme "'Adwaita'"
 gs cursor-size 24
+gsnum text-scaling-factor "$(text_factor)"
 gs enable-animations false
 gtk4
 exit 0
