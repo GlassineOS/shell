@@ -120,7 +120,7 @@ check(app.s.step == "look", "Tab focus + Enter presses the focused control (%d t
 app.go("look")
 app.disp = be.display()
 draw()
-segs = [rect for rect, fn in r.hits if rect[3] == 48 and rect[1] > 600]
+segs = [rect for rect, fn in r.hits if rect[3] == 48 and 600 < rect[1] < A.H0 - 84]   # (not the footer)
 check(len(segs) == 4, "look: the Interface size has 4 steps (%d)" % len(segs))
 if segs:
     x, y, w, h = segs[0]
