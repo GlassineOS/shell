@@ -59,6 +59,9 @@
  * on one, its last window closes) -> the screen stays under Home; Home hidden any other way than by an app
  * opening there -> that screen goes (not the only one). The shell
  * gets "home VISIBLE HOLE" on every change.
+ * size every output's scale is its interface factor (spec 012: its
+ * density times the design pixel's length at its interface size),
+ * published in $XDG_RUNTIME_DIR/glassine/output-scale; see size_apply
  * commands datagrams on $XDG_RUNTIME_DIR/glassine-swayd (glassine-shell's divider
  * buttons, the overview, Home):
  * swap HEXID HEXID the two windows trade places
@@ -106,6 +109,8 @@
  * glassine-swayd COMMAND ARGS... send a command (above) to the running one
  * glassine-swayd --kbd-test INPUTS DEVICES (host test) the physical keyboards
  * of a get_inputs reply + /proc/bus/input/devices
+ * glassine-swayd --size-test NAME KEY W_PX H_PX W_MM H_MM (host test) an output's
+ * "DENSITY SOURCE PERCENT FACTOR" from the person's files (the size section)
  */
 #define _GNU_SOURCE
 #include <ctype.h>
@@ -132,10 +137,17 @@
 #include "glassine-popupd.h"
 #include "wayland/sway-ipc.h"
 #include "wayland/swayd-handles.h"
+#include "wayland/swayd-size.h"
+#include <glassine-ui.h>
 
 #define APPS_PER_WS 4
-#define GAP 40                          /* between tiles, device px: sway `gaps inner 20` at scale 2 */
-#define MIN_TILE 120                    /* a drag leaves each tile at least this, device px */
+/* The layout counts in units of half a logical px (U per logical px): sway's rects are
+ * whole logical px whatever the output's scale, and so are the sizes it is given back.
+ * (At scale 2 a unit is a device px.) Device px are worked out only for what leaves in
+ * them: the panel daemon's hints (dev_rect) and the handles' buffers. */
+#define U 2
+#define GAP 40                          /* between tiles, units: sway `gaps inner 20` */
+#define MIN_TILE 120                    /* a drag leaves each tile at least this, units */
 #define MAXV 64
 #define MAXWS 32
 #define EPDD_CTL "/run/glassine-epdd-desktop.ctl"
@@ -147,7 +159,7 @@ static int verbose, settle;
 /* always (sway.log): what makes a handle do nothing, and the handles' use */
 #define WARN(...) do { fprintf(stderr, "glassine-swayd: " __VA_ARGS__); fputc('\n', stderr); } while (0)
 
-static int cmd_fd = -1, ev_fd = -1, scale = 2;
+static int cmd_fd = -1, ev_fd = -1;
 
 /* ---- the tree ------------------------------------------------------------------ */
 typedef struct {
@@ -188,6 +200,7 @@ typedef struct {
     View v[MAXV]; int nv;               /* tiled views, tree order */
     View f[MAXV]; int nf;               /* floating ones (dialogs) */
     int fullscreen;                     /* a view is in sway's fullscreen (immersive): no tiling */
+    int out;                            /* its output: an index into outs, -1: unknown */
     long unwrap[16]; int nun;           /* the only child of a single-child container (build) */
 } Ws;
 static Ws ws[MAXWS];
@@ -196,7 +209,15 @@ static View vis[MAXV];                  /* all views on visible workspaces (hint
 static int nvis;
 static int area[4];                     /* the visible workspace's area */
 static int rot_cw, out_w, out_h;        /* glassine-rotd's turn (clockwise, as sway's `transform`) and the
-                                         * output's logical size, device px: hints go out in portrait px */
+                                         * main output's size as it lies, device px: hints go out in portrait px */
+/* the active outputs with their sizes (swayd-size.h); the main one's views get the hints */
+static SzOut outs[SZ_MAXOUT];
+static int nouts, main_out = -1;
+static int out_named(const char *name)
+{
+    for (int i = 0; name && i < nouts; i++) if (!strcmp(outs[i].name, name)) return i;
+    return -1;
+}
 
 /* the name glassine-epdd-desktop matches its app profiles against (eink.conf), lower case:
  * the app_id; XWayland windows: "class instance"; a Flatpak's ID is
@@ -295,15 +316,16 @@ static void walk(json_object *n, Ws *w, int floating)
         memset(w, 0, sizeof *w);
         snprintf(w->name, sizeof w->name, "%s", nm);
         w->num = sj_int(n, "num", -1);
-        sj_rect(n, "rect", scale, w->r);
+        w->out = out_named(sj_str(n, "output"));
+        sj_rect(n, "rect", U, w->r);
     }
     if (w && sj_str(n, "shell") && is_home(n)) {    /* Home: none of the layout's */
         home_id = sj_int(n, "id", 0);
         if (!floating) { home_tiled = 1; return; }
         snprintf(home_on, sizeof home_on, "%s", w->name);
-        sj_rect(n, "rect", scale, home_r);
+        sj_rect(n, "rect", U, home_r);
         View v = { .id = home_id, .floating = 1 };
-        sj_rect(n, "rect", scale, v.r);
+        sj_rect(n, "rect", U, v.r);
         v.focused = sj_bool(n, "focused");
         view_class(n, v.cls, sizeof v.cls);
         if (w->nf < MAXV) w->f[w->nf++] = v;        /* (the hints and the app list see it) */
@@ -313,7 +335,7 @@ static void walk(json_object *n, Ws *w, int floating)
         View v = { .id = sj_int(n, "id", 0), .floating = floating, .fullscreen = sj_int(n, "fullscreen_mode", 0) != 0,
                    .visible = sj_bool(n, "visible") };
         if (has_mark(n, FULL_MARK) && nold_full < 8) old_full[nold_full++] = v.id;
-        sj_rect(n, "rect", scale, v.r);
+        sj_rect(n, "rect", U, v.r);
         v.focused = sj_bool(n, "focused");
         view_class(n, v.cls, sizeof v.cls);
         v.pid = sj_int(n, "pid", 0);
@@ -362,20 +384,53 @@ static void ph_filter(void)
     nph_dead = k;
 }
 
-static int read_tree(void)
+/* sway's active outputs into outs. plan: each one's size worked out anew (sz_plan: the
+ * files are read); else an output keeps what was worked out for it before */
+static void read_outputs(int plan)
 {
+    static SzOut was[SZ_MAXOUT];
+    int nwas = nouts;
+    memcpy(was, outs, sizeof was);
     json_object *o = sipc_call(cmd_fd, SIPC_GET_OUTPUTS, NULL);
-    for (size_t i = 0; o && i < json_object_array_length(o); i++) {
-        json_object *e = json_object_array_get_idx(o, i), *sc;
-        if (!sj_bool(e, "active")) continue;
-        if (json_object_object_get_ex(e, "scale", &sc)) scale = (int)(json_object_get_double(sc) + 0.5);
-        if (scale < 1) scale = 1;
-        int r[4];
-        sj_rect(e, "rect", scale, r);
-        out_w = r[2]; out_h = r[3];
+    nouts = 0;
+    for (size_t i = 0; o && i < json_object_array_length(o) && nouts < SZ_MAXOUT; i++) {
+        json_object *e = json_object_array_get_idx(o, i), *v;
+        if (!sj_bool(e, "active") || !sj_str(e, "name")) continue;
+        SzOut *z = &outs[nouts++];
+        memset(z, 0, sizeof *z);
+        snprintf(z->name, sizeof z->name, "%s", sj_str(e, "name"));
+        ui_output_key(sj_str(e, "make"), sj_str(e, "model"), sj_str(e, "serial"), z->name, z->key, sizeof z->key);
+        z->scale = json_object_object_get_ex(e, "scale", &v) ? json_object_get_double(v) : 1;
+        if (!(z->scale > 0)) z->scale = 1;
+        if (json_object_object_get_ex(e, "current_mode", &v)) { z->w_px = sj_int(v, "width", 0); z->h_px = sj_int(v, "height", 0); }
+        const char *tr = sj_str(e, "transform");
+        z->turned = tr && (strstr(tr, "90") || strstr(tr, "270"));
+        if (json_object_object_get_ex(e, "rect", &v)) {
+            z->lx = sj_int(v, "x", 0); z->ly = sj_int(v, "y", 0);
+            z->lw = sj_int(v, "width", 0); z->lh = sj_int(v, "height", 0);
+        }
+        int mw = 0, mh = 0, known = 0;
+        if (hd_output_mm(z->name, &mw, &mh)) { z->w_mm = mw; z->h_mm = mh; }
+        for (int k = 0; k < nwas && !plan && !known; k++)
+            if (!strcmp(was[k].name, z->name) && was[k].w_px == z->w_px && was[k].h_px == z->h_px && was[k].want > 0) {
+                z->density = was[k].density; z->source = was[k].source; z->percent = was[k].percent; z->want = was[k].want;
+                known = 1;
+            }
+        if (!known) sz_plan(z, NULL, NULL, NULL);
     }
     json_object_put(o);
-    if (scale < 1) scale = 1;
+    main_out = sz_main(outs, nouts);
+    out_w = out_h = 0;
+    if (main_out >= 0) {
+        const SzOut *z = &outs[main_out];
+        out_w = z->turned ? z->h_px : z->w_px;
+        out_h = z->turned ? z->w_px : z->h_px;
+    }
+}
+
+static int read_tree(void)
+{
+    read_outputs(0);
     rot_cw = 0;
     FILE *rf = fopen("/run/glassine-rotation", "r");
     if (rf) { if (fscanf(rf, "%d", &rot_cw) != 1) rot_cw = 0; fclose(rf); }
@@ -409,7 +464,7 @@ static int read_tree(void)
     ph_filter();
     nvis = 0;                           /* stacking order: tiled, floating, fullscreen */
     for (int i = 0; i < nws; i++) {
-        if (!ws[i].visible) continue;
+        if (!ws[i].visible || (main_out >= 0 && ws[i].out != main_out)) continue;
         memcpy(area, ws[i].r, sizeof area);
         for (int k = 0; k < ws[i].nv && nvis < MAXV; k++) if (!ws[i].v[k].fullscreen) vis[nvis++] = ws[i].v[k];
         for (int k = 0; k < ws[i].nf && nvis < MAXV; k++) if (!ws[i].f[k].fullscreen) vis[nvis++] = ws[i].f[k];
@@ -633,11 +688,11 @@ static void splits(Keep *k)
     keep_groups(k, g, gn);
     int A = k->orient[0] ? w->r[2] : w->r[3];
     if (k->frac[0] > 0)
-        cadd("[con_id=%ld] resize set %s %d px", g[0][0], k->orient[0] ? "width" : "height", ((int)(k->frac[0] * A) - GAP / 2) / scale);
+        cadd("[con_id=%ld] resize set %s %d px", g[0][0], k->orient[0] ? "width" : "height", ((int)(k->frac[0] * A) - GAP / 2) / U);
     int A1 = k->orient[1] ? w->r[2] : w->r[3];
     for (int h = 0; h < 2; h++)
         if (gn[h] == 2 && k->frac[1 + h] > 0)
-            cadd("[con_id=%ld] resize set %s %d px", g[h][0], k->orient[1] ? "width" : "height", ((int)(k->frac[1 + h] * A1) - GAP / 2) / scale);
+            cadd("[con_id=%ld] resize set %s %d px", g[h][0], k->orient[1] ? "width" : "height", ((int)(k->frac[1 + h] * A1) - GAP / 2) / U);
 }
 
 /* the layout of one workspace, as commands (see the top). No focus changes
@@ -890,7 +945,7 @@ static void move_to_ws(long id, const Ws *from, const char *to)
 static int seen_all_init;
 static long seen_all;                   /* the highest view id (tiled or floating) handled */
 
-/* 0: r lies inside the work area a (device px); 1: o = where it goes, centred in a, no larger */
+/* 0: r lies inside the work area a (units); 1: o = where it goes, centred in a, no larger */
 static int fit_area(const int r[4], const int a[4], int o[4])
 {
     if (r[0] >= a[0] && r[1] >= a[1] && r[0] + r[2] <= a[0] + a[2] && r[1] + r[3] <= a[1] + a[3]) return 0;
@@ -948,8 +1003,8 @@ static int dialogs(void)
             if (fit_area(f->r, to->r, o)) {
                 LOG("dialog %ld (%s) mapped out of %s's work area: placed inside", f->id, f->cls, to->name);
                 if (o[2] != f->r[2] || o[3] != f->r[3])
-                    cadd("[con_id=%ld] resize set width %d px height %d px", f->id, o[2] / scale, o[3] / scale);
-                cadd("[con_id=%ld] move absolute position %d px %d px", f->id, o[0] / scale, o[1] / scale);
+                    cadd("[con_id=%ld] resize set width %d px height %d px", f->id, o[2] / U, o[3] / U);
+                cadd("[con_id=%ld] move absolute position %d px %d px", f->id, o[0] / U, o[1] / U);
                 did = 1;
             }
         }
@@ -1038,11 +1093,25 @@ static View shown[MAXV];
 static int nshown;
 static long seen_max;                   /* the highest view id seen: a higher one is new */
 
-/* a rect in the turned layout (device px) -> portrait px, what glassine-epdd-desktop's frame is
- * in (sway 0004 composes the turn with the grey output's own). 270 = the device
- * turned clockwise (glassine-rotd): its left edge is now the top */
-static void portrait(const int b[4], int o[4])
+/* a rect of the layout (units) -> the main output's device px, as the compositor puts a
+ * box of logical px on the output's pixels: each edge rounded */
+static void dev_rect(const int u[4], int o[4])
 {
+    if (main_out < 0) { memcpy(o, u, 4 * sizeof *o); return; }
+    const SzOut *z = &outs[main_out];
+    int f = sz_f120(z->scale);
+    int x0 = u[0] - z->lx * U, y0 = u[1] - z->ly * U;
+    o[0] = sz_px(x0 / U, f); o[1] = sz_px(y0 / U, f);
+    o[2] = sz_px((x0 + u[2]) / U, f) - o[0]; o[3] = sz_px((y0 + u[3]) / U, f) - o[1];
+}
+
+/* a rect in the turned layout (units) -> portrait device px, what glassine-epdd-desktop's
+ * frame is in (sway 0004 composes the turn with the grey output's own). 270 = the device
+ * turned clockwise (glassine-rotd): its left edge is now the top */
+static void portrait(const int u[4], int o[4])
+{
+    int b[4];
+    dev_rect(u, b);
     switch (rot_cw) {
     case 270: o[0] = b[1]; o[1] = out_w - b[0] - b[2]; o[2] = b[3]; o[3] = b[2]; break;
     case 90:  o[0] = out_h - b[1] - b[3]; o[1] = b[0]; o[2] = b[3]; o[3] = b[2]; break;
@@ -1179,11 +1248,12 @@ static void dividers_send(const char *verb)
 static void handles_update(int force)
 {
     HandleDef d[3] = { 0 };
-    int n = 0;
+    int n = 0, on = -1;                 /* on: the focused workspace's output */
     char why[96] = "";                  /* why the focused workspace has none (logged on change) */
-    for (int i = 0; i < nws && hd_fd >= 0; i++) {
+    for (int i = 0; i < nws && hd_handles(); i++) {
         Ws *w = &ws[i];
         if (!w->focused) continue;
+        on = w->out;
         if (home_on[0] && !strcmp(home_on, w->name)) { snprintf(why, sizeof why, "Home shown"); continue; }
         if (w->fullscreen || w->nv < 2 || w->nv > APPS_PER_WS) {
             if (w->fullscreen || w->nv > APPS_PER_WS)    /* (one window: no gap, nothing to say) */
@@ -1227,8 +1297,17 @@ static void handles_update(int force)
         if (!n) LOG("workspace %s: no gaps between the tiles (sway config: gaps inner): no handles", w->name);
     }
     static HandleDef last[3];
-    static int nlast = -1;
-    static char lastwhy[96];
+    static int nlast = -1, lastf;
+    static char lastwhy[96], lastout[64];
+    HdOut ho = { .name = "", .f120 = 2 * 120 };
+    if (on >= 0) {
+        snprintf(ho.name, sizeof ho.name, "%s", outs[on].name);
+        ho.f120 = sz_f120(outs[on].scale);
+        ho.ox = outs[on].lx * U; ho.oy = outs[on].ly * U;
+    }
+    if (ho.f120 != lastf || strcmp(ho.name, lastout)) force = 1;    /* the handles are drawn for one output's scale */
+    lastf = ho.f120;
+    snprintf(lastout, sizeof lastout, "%s", ho.name);
     if (strcmp(why, lastwhy)) {
         if (*why) WARN("no handles: %s", why);
         snprintf(lastwhy, sizeof lastwhy, "%s", why);
@@ -1243,7 +1322,7 @@ static void handles_update(int force)
         if (ws[i].focused) { Keep *k = keep_of(ws[i].name); if (k) { div_wins = k->n; div_orient = k->orient[0]; } }
     for (int j = 0; j < n; j++)
         LOG("handle %d: level %d %s %dx%d+%d+%d", j, d[j].level, d[j].vert ? "vertical" : "horizontal", d[j].w, d[j].h, d[j].x, d[j].y);
-    hd_set(d, n);
+    hd_set(d, n, &ho);
     dividers_send("dividers");          /* a swap or Direction moved them under the shell's buttons */
 }
 
@@ -1270,7 +1349,7 @@ void hd_dragged(const HandleDef *h, int pos)
     k->frac[l] = (size + GAP / 2.0) / h->alen;
     WARN("handle level %d dragged: %d px (%.2f)", l, size, k->frac[l]);
     /* the line's first window: half 0's for the main line, the half's own for an inner one */
-    cadd("[con_id=%ld] resize set %s %d px", l ? g[l - 1][0] : g[0][0], h->vert ? "width" : "height", size / scale);
+    cadd("[con_id=%ld] resize set %s %d px", l ? g[l - 1][0] : g[0][0], h->vert ? "width" : "height", size / U);
     crun();
     /* a resize sends no window event: move the handles into the new gaps now
      * (they are BOTTOM-layer, under the tiles: left in the old gap they'd be
@@ -1833,8 +1912,8 @@ static void unfull_ws(Ws *w)
 static void cover(long id, const Ws *w)
 {
     cadd("[con_id=%ld] border none", id);
-    cadd("[con_id=%ld] resize set width %d px height %d px", id, w->r[2] / scale, w->r[3] / scale);
-    cadd("[con_id=%ld] move absolute position %d px %d px", id, w->r[0] / scale, w->r[1] / scale);
+    cadd("[con_id=%ld] resize set width %d px height %d px", id, w->r[2] / U, w->r[3] / U);
+    cadd("[con_id=%ld] move absolute position %d px %d px", id, w->r[0] / U, w->r[1] / U);
 }
 
 /* full = immersive (spec 001 FR-019): window a in sway's own fullscreen, over the
@@ -2473,6 +2552,96 @@ static void settle_state(void)
     if (read_tree()) { hints(); handles_update(0); home_send(0); }
 }
 
+/* ---- the size of the interface (spec 012; swayd-size.c) ---------------------------------
+ * Every active output gets its factor as its scale: its density (the size it reports when
+ * plausible, else the one kept for it, else the fallback) times the design pixel's length
+ * at its interface size (~/.config/glassine/ui-size). What the compositor then has (it
+ * keeps 120ths) is published in $XDG_RUNTIME_DIR/glassine/output-scale, the main output's
+ * line first, and left as sway commands in ~/.cache/glassine/sway-output-scale.conf, which
+ * the session's sway config includes: the next session starts at these scales. At the
+ * start, on every output event (a display added again gets its kept size at once) and
+ * when ui-size or output-density change. The panel daemon is asked for one full refresh
+ * after the main output's factor changed, and after the text size did
+ * (~/.config/glassine/text-size: the drawn programs redraw themselves). */
+static char scale_pub[SZ_MAXOUT * 320];
+static long full_due;                   /* mono_ms: the full refresh to ask for then (0: none) */
+#define FULL_AFTER_MS 400               /* the drawn programs redraw first */
+static int size_wd = -1;                /* the inotify watch of the config directory */
+
+static void scale_conf_write(void)
+{
+    const char *x = getenv("XDG_CACHE_HOME"), *h = getenv("HOME");
+    char dir[400], p[512], t[520];
+    if (x && *x == '/') snprintf(dir, sizeof dir, "%s", x);
+    else if (h && *h) snprintf(dir, sizeof dir, "%s/.cache", h);
+    else return;
+    mkdir(dir, 0700);
+    snprintf(p, sizeof p, "%s/glassine", dir);
+    mkdir(p, 0700);
+    snprintf(p, sizeof p, "%s/glassine/sway-output-scale.conf", dir);
+    snprintf(t, sizeof t, "%s.tmp", p);
+    FILE *f = fopen(t, "w");
+    if (!f) return;
+    fprintf(f, "# the scales glassine-swayd applied last (spec 012): the session starts at them\n");
+    for (int i = 0; i < nouts; i++) fprintf(f, "output %s scale %.6f\n", outs[i].name, sz_quant(outs[i].scale));
+    if (fclose(f) || rename(t, p)) unlink(t);
+}
+
+static void size_apply(void)
+{
+    double main_was = main_out >= 0 ? outs[main_out].scale : 0;
+    char main_name[64] = "";
+    if (main_out >= 0) snprintf(main_name, sizeof main_name, "%s", outs[main_out].name);
+    hd_sync();                          /* an output just added: its reported size */
+    for (int round = 0; round < 3; round++) {
+        read_outputs(1);
+        int set = 0;
+        for (int i = 0; i < nouts; i++) {
+            const SzOut *z = &outs[i];
+            if (!sz_differs(z->scale, z->want)) continue;
+            WARN("output %s (%s): %.3f px/mm (%s), interface size %d %%: scale %.4f (was %.4f)", z->name, z->key,
+                 z->density, ui_density_source_name(z->source), z->percent, z->want, z->scale);
+            cadd("output %s scale %.6f", z->name, z->want);
+            set = 1;
+        }
+        if (!set) break;
+        crun();
+    }
+    if (sz_publish(NULL, outs, nouts, scale_pub, sizeof scale_pub) > 0) {
+        scale_conf_write();
+        LOG("output-scale published (%d outputs)", nouts);
+    }
+    if (main_out >= 0 && *main_name && !strcmp(main_name, outs[main_out].name) && main_was > 0 &&
+        sz_differs(main_was, outs[main_out].scale))
+        full_due = mono_ms() + FULL_AFTER_MS;
+}
+
+static void full_send(void)
+{
+    full_due = 0;
+    int fd = open(EPDD_CTL, O_WRONLY | O_NONBLOCK | O_CLOEXEC);
+    if (fd < 0) return;                 /* no panel daemon: nothing to refresh */
+    if (write(fd, "full\n", 5) != 5) LOG("full: FIFO write failed");
+    close(fd);
+    LOG("full refresh asked");
+}
+
+/* the config directory watched (made when missing: the files are replaced by rename) */
+static void size_init(int ino)
+{
+    char p[512];
+    if (!ui_size_file(p, sizeof p)) return;
+    char *sl = strrchr(p, '/');
+    if (!sl) return;
+    *sl = 0;
+    char *up = strrchr(p, '/');
+    if (up && up != p) { *up = 0; mkdir(p, 0700); *up = '/'; }
+    mkdir(p, 0700);
+    if (ino >= 0) size_wd = inotify_add_watch(ino, p, IN_MOVED_TO | IN_CLOSE_WRITE | IN_CREATE | IN_DELETE);
+    if (size_wd < 0) WARN("%s not watched: a new interface size waits for the next output event", p);
+    size_apply();
+}
+
 /* Home's app_id (see home_app) and the rule that keeps it in the scratchpad from its map */
 static void home_init(void)
 {
@@ -2500,6 +2669,14 @@ int main(int argc, char **argv)
         json_object *in = ij ? sj_parse(ij) : NULL;
         int n = kbd_scan(in, dev, names, sizeof names);
         printf("%d%s%s\n", n, n ? " " : "", names);
+        return 0;
+    }
+    if (argc == 8 && !strcmp(argv[1], "--size-test")) {     /* (host test) */
+        SzOut z = { .w_px = atoi(argv[4]), .h_px = atoi(argv[5]), .w_mm = atof(argv[6]), .h_mm = atof(argv[7]) };
+        snprintf(z.name, sizeof z.name, "%s", argv[2]);
+        snprintf(z.key, sizeof z.key, "%s", argv[3]);
+        sz_plan(&z, NULL, NULL, NULL);
+        printf("%.4f %s %d %.6f\n", z.density, ui_density_source_name(z.source), z.percent, z.want);
         return 0;
     }
     if (argc > 1 && argv[1][0] != '-') {                    /* a command for the running one */
@@ -2538,17 +2715,18 @@ int main(int argc, char **argv)
     signal(SIGINT, on_term);
     signal(SIGPIPE, SIG_IGN);
     signal(SIGCHLD, SIG_IGN);           /* glassine-osk runs (hd_text_focus): no zombies */
-    read_tree();                        /* the output scale first */
-    home_init();
-    hd_fd = hd_init(scale);
+    hd_fd = hd_init();                  /* (the outputs' reported sizes come from there) */
     int ino = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    size_init(ino);                     /* the outputs' scales first */
+    read_tree();
+    home_init();
     /* the shell's theme, and the on-screen keyboard's state (area_arm) */
     if (ino >= 0 && rt && *rt) inotify_add_watch(ino, rt, IN_MOVED_TO | IN_CLOSE_WRITE | IN_CREATE | IN_DELETE);
     settle_state();
     home_send(1);
     kbd_update();
     contact_open();
-    LOG("running%s", hd_fd >= 0 ? " (drag handles)" : "");
+    LOG("running%s", hd_handles() ? " (drag handles)" : "");
     while (!quit) {
         hd_flush();
         struct pollfd pf[4 + OSK_TAP_DEVS + CONTACT_DEVS] = { { ev_fd, POLLIN, 0 }, { sfd, POLLIN, 0 }, { hd_fd, POLLIN, 0 }, { ino, POLLIN, 0 } };
@@ -2558,7 +2736,13 @@ int main(int argc, char **argv)
         int area_due, tw = tap_wait(), aw = area_wait(&area_due);
         int wait = tw < 0 ? aw : aw < 0 || tw < aw ? tw : aw;
         if (area_due) wait = 0;
+        if (full_due) {
+            long fw = full_due - mono_ms();
+            if (fw < 0) fw = 0;
+            if (wait < 0 || fw < wait) wait = (int)fw;
+        }
         if (poll(pf, 4 + nt + nc, wait) < 0) { if (errno == EINTR) continue; break; }
+        if (full_due && mono_ms() >= full_due) full_send();
         for (int i = 0; i < nc; i++) if (pf[4 + nt + i].revents & POLLIN) contact_read(i);
         for (int i = 0; i < nt; i++) if (pf[4 + i].revents & POLLIN) tap_read(i);
         tap_wait();
@@ -2566,6 +2750,7 @@ int main(int argc, char **argv)
             if (!hd_dispatch()) { fprintf(stderr, "glassine-swayd: Wayland gone\n"); goto out; }
             if (hd_lost()) { WARN("a handle surface was closed: placing the handles again"); if (read_tree()) handles_update(1); }
         }
+        int resize = 0;                 /* an interface size, a kept density or the outputs changed */
         if (pf[3].revents & POLLIN) {
             char b[4096];
             ssize_t l;
@@ -2573,8 +2758,13 @@ int main(int argc, char **argv)
             while ((l = read(ino, b, sizeof b)) > 0)
                 for (char *q = b; q < b + l;) {
                     struct inotify_event *ie = (struct inotify_event *)q;
-                    if (ie->len && !strcmp(ie->name, "glassine-shell.theme")) theme = 1;
-                    if (ie->len && !strcmp(ie->name, "glassine-osk.shown")) area_arm();
+                    if (ie->wd == size_wd) {
+                        if (ie->len && (!strcmp(ie->name, "ui-size") || !strcmp(ie->name, "output-density"))) resize = 1;
+                        if (ie->len && !strcmp(ie->name, "text-size")) full_due = mono_ms() + FULL_AFTER_MS;
+                    } else {
+                        if (ie->len && !strcmp(ie->name, "glassine-shell.theme")) theme = 1;
+                        if (ie->len && !strcmp(ie->name, "glassine-osk.shown")) area_arm();
+                    }
                     q += sizeof *ie + ie->len;
                 }
             if (theme) hd_theme_changed();
@@ -2591,11 +2781,12 @@ int main(int argc, char **argv)
                 if (t == SIPC_EV_INPUT) {      /* a device came or went: no layout change */
                     if (ch && (!strcmp(ch, "added") || !strcmp(ch, "removed"))) { kbd_update(); contact_open(); }
                 } else if (ch && strcmp(ch, "title") && strcmp(ch, "mark") && strcmp(ch, "urgent")) dirty = 1;
-                if (t == SIPC_EV_OUTPUT) area_arm();   /* turned: the layer surfaces lay themselves out after */
+                if (t == SIPC_EV_OUTPUT) { area_arm(); resize = 1; }   /* turned: the layer surfaces lay themselves out after */
                 json_object_put(j);
                 pf[0].revents = 0;
             } while (poll(pf, 1, 0) > 0 && (pf[0].revents & POLLIN));
         }
+        if (resize) { size_apply(); dirty = 1; }
         if (pf[1].revents & POLLIN) {
             char m[256];
             ssize_t l;

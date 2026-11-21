@@ -18,7 +18,7 @@ all: $(OUT)/glassine-shell $(OUT)/glassine-swayd $(OUT)/glassine-bgprio $(OUT)/g
 $(OUT)/glassine-shell: $(wildcard $(S)/glassine-shell*) $(S)/wayland/sway-ipc.c $(S)/wayland/build-shell.sh
 	sh $(S)/wayland/build-shell.sh $(S) $@
 
-$(OUT)/glassine-swayd: $(S)/glassine-swayd.c $(S)/glassine-popupd.h $(S)/wayland/swayd-handles.c $(S)/wayland/sway-ipc.c $(S)/wayland/build-swayd.sh
+$(OUT)/glassine-swayd: $(S)/glassine-swayd.c $(S)/glassine-popupd.h $(S)/wayland/swayd-handles.c $(S)/wayland/swayd-handles.h $(S)/wayland/swayd-size.c $(S)/wayland/swayd-size.h $(S)/wayland/sway-ipc.c $(S)/wayland/build-swayd.sh
 	sh $(S)/wayland/build-swayd.sh $(S) $@
 
 # needs json-c-dev
