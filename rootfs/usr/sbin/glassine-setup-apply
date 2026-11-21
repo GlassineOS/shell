@@ -7,11 +7,13 @@ password inside it, never on the command line or on disk):
    "clock24": true, "layout": "de", "osk": true, "hostname": "anna-note",
    "user": {"name": "anna", "fullname": "Anna Krause", "password": "…",
             "admin": true, "autologin": false},
-   "admin_password": "glassine", "packs": ["web", "containers"], "network": "skipped"}
+   "admin_password": "glassine", "packs": ["web", "containers"], "network": "skipped",
+   "ui_size": {"key": "MAKE MODEL SERIAL", "percent": 90}}
 
 Only what the setup asked is in the plan (needs.py: a reset asks only for what it
 removed): no "user" = the account exists (its home gets the profile), no "voice" =
-keep the look, no "packs" = keep the recorded packs, no "admin_password" = keep
+keep the look ("ui_size": the Look step's interface size of the display the setup ran on,
+kept in the account's ~/.config/glassine/ui-size, shell spec 012 FR-013), no "packs" = keep the recorded packs, no "admin_password" = keep
 root's. "network": "skipped" is recorded so the step is not asked again.
 
   glassine-setup-apply --check     validate only (Review enables Install on it)
@@ -57,6 +59,7 @@ LAYOUTS = {"en-gb": ("gb", "", "full,special"), "en-us": ("us", "", "full,specia
            "de": ("de", "", "german,special"), "de-nd": ("de", "nodeadkeys", "german,special"),
            "fr": ("fr", "", "full,special"), "no": ("no", "", "full,special")}
 VOICES = ("white", "editorial", "stationery")
+UI_STEPS = (80, 90, 100, 120)                       # the interface sizes (shell spec 012 FR-010)
 GROUPS = ["input", "video", "audio", "aid_inet", "aid_net_raw", "desktop"]
 COMMON = {"password", "12345678", "123456789", "qwertyui", "iloveyou", "sunshine", "princess", "password1", "glassine"}
 
@@ -173,6 +176,10 @@ def check_system(plan):
         bad.append(("language", "unknown"))
     if plan.get("voice") is not None and plan["voice"] not in VOICES:
         bad.append(("voice", "unknown"))
+    us = plan.get("ui_size")
+    if us is not None and not (isinstance(us, dict) and us.get("percent") in UI_STEPS and isinstance(us.get("key"), str)
+                               and us["key"].strip() and not any(c in us["key"] for c in "\n\r")):
+        bad.append(("ui_size", "not a step for an output"))
     packs = read_packs()
     for p in plan.get("packs", []):
         if packs.get(p, {}).get("status") != "offered":
@@ -279,6 +286,17 @@ def s_admin(plan):
     run("chpasswd", "-c", "sha512", inp="root:%s\n" % plan["admin_password"])
 
 
+def ui_size_text(old, key, percent):
+    """~/.config/glassine/ui-size with key's line replaced (removed for 100, else added at
+    the end), every other line kept (FR-013)"""
+    lines = [l for l in old.splitlines(True) if l.rstrip("\n").partition(" ")[2].strip(" \t") != key or l.lstrip().startswith("#")]
+    if lines and not lines[-1].endswith("\n"):
+        lines[-1] += "\n"
+    if percent != 100:
+        lines.append("%d %s\n" % (percent, key))
+    return "".join(lines)
+
+
 def s_profile(plan):
     name = target(plan)
     if not name:
@@ -288,6 +306,14 @@ def s_profile(plan):
     xkb, var, layers = LAYOUTS[plan["layout"]]
     files[".config/glassine/kbd-layout"] = (xkb + (" " + var if var else "")) + "\n"
     files[".config/glassine/osk-layers"] = layers + "\n"
+    us = plan.get("ui_size")
+    if us:
+        try:
+            with open(os.path.join(home, ".config/glassine/ui-size")) as f:
+                old = f.read()
+        except OSError:
+            old = ""
+        files[".config/glassine/ui-size"] = ui_size_text(old, us["key"], us["percent"])
     for rel, text in files.items():
         write(os.path.join(home, rel), text)
     for rel, on in ((".config/glassine-shell/clock12", not plan.get("clock24", True)),

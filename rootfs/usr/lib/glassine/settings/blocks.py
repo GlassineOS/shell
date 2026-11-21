@@ -13,6 +13,7 @@ import re
 import cairo
 
 from glassine_ui import paint as P
+from glassine_ui import size as S
 from .theme import OFF
 
 LH_LBL = LH_SUB = None                  # the fonts carry their CSS line-heights (KS row 1.3, sub 1.4)
@@ -42,6 +43,21 @@ class Ctx:
     def icon(self, name, sz, cx, cy, col=None):
         return P.icon(self.cr, name, sz, cx, cy, col or self.t["ink"], self.scale)
 
+
+
+def gh(h, f, lines=1):
+    """the height of a box h high that holds lines of text in the CSS font f, at the text
+    size (spec 012 FR-024a: boxes that hold text grow with it, spacing and icons do not):
+    h itself while the text has its design size, else the next whole pixel"""
+    g = S.grow(h, f, lines)
+    return h if g <= h else math.ceil(g)
+
+
+def gw(w, f, tw):
+    """the width of a box w wide of which tw holds text in f, at the text size"""
+    px = S.font_px(f)
+    g = S.text_px(f) / px if px > 0 else 1
+    return w if g <= 1 else math.ceil(w + tw * (g - 1))
 
 
 def _bw(t, key):
@@ -256,15 +272,19 @@ class Stepper(Block):
 
 
 class Slider(Block):
-    """label ... value; a groove 0..100 in steps of 10 (tap sets)"""
+    """label ... value; a groove 0..100 in steps of 10 (tap sets). text: the value as
+    shown, when the groove's position is not it (Text size: 0..100 is 100..150 %)"""
     KIND = "slider"
 
-    def __init__(self, label, val, set_fn, unit=" %"):
-        self.label, self.val, self.set_fn, self.unit = label, val, set_fn, unit
+    def __init__(self, label, val, set_fn, unit=" %", text=None):
+        self.label, self.val, self.set_fn, self.unit, self.text = label, val, set_fn, unit, text
+
+    def _shown(self):
+        return self.text if self.text is not None else "%d%s" % (self.val, self.unit)
 
     def _row(self, c, w):
         t = c.t
-        v = "%d%s" % (self.val, self.unit)
+        v = self._shown()
         vw, vh = c.m(v, t["valFont"])
         lh = c.m(self.label, t["rowFont"], maxw=w - vw - 12, wrap=True, lh=LH_LBL)[1]
         return v, vw, _brow((_base(c, self.label, t["rowFont"], LH_LBL), lh), (_base(c, v, t["valFont"]), vh))
@@ -292,7 +312,7 @@ class Slider(Block):
         c.hits.append(((x - 10, ty, w + 20, 44), tap))
 
     def summ(self):
-        return "%d%s" % (self.val, self.unit)
+        return self._shown()
 
 
 def _groove(c, x, ty, w, pct):
@@ -349,12 +369,13 @@ class Segments(Block):
     def _cols(self, c, w):
         """one row if the labels fit (the design's estimate: 0.56 em a letter), else two
         to a row; a segment is never squeezed"""
-        px = float(re.search(r"([\d.]+)px", c.t["segFont"]).group(1))
+        px = S.text_px(c.t["segFont"])
         return len(self.opts) if sum(len(l) * px * 0.56 + 16 for _, l in self.opts) + 9 <= w else 2
 
     def height(self, c, w):
         rows = -(-len(self.opts) // self._cols(c, w))
-        return 12 + _col_h(c, self.label, self.sub, w) + 10 + 3 + 48 + 3 + 3 + 16 + _bw(c.t, "sep") + 51 * (rows - 1)
+        sh = gh(48, c.t["segFont"])
+        return 12 + _col_h(c, self.label, self.sub, w) + 10 + 3 + sh + 3 + 3 + 16 + _bw(c.t, "sep") + (sh + 3) * (rows - 1)
 
     def draw(self, c, x, y, w):
         t = c.t
@@ -362,7 +383,8 @@ class Segments(Block):
         ty = y + 12 + _col_h(c, self.label, self.sub, w) + 10
         cols = self._cols(c, w)
         rows = -(-len(self.opts) // cols)
-        P.box(c.cr, x, ty, w, 54 + 3 + 51 * (rows - 1), t["trayR"], None, None, "1.5px solid " + t["ink"])
+        sg = gh(48, t["segFont"])
+        P.box(c.cr, x, ty, w, sg + 6 + 3 + (sg + 3) * (rows - 1), t["trayR"], None, None, "1.5px solid " + t["ink"])
         sw = (w - 3 - 6) / cols
         # (a label wider than its segment even so: every label one size smaller, down to 70 %)
         f = t["segFont"]
@@ -372,13 +394,13 @@ class Segments(Block):
             f = _fs(f, max(px * 0.7, px * (sw - 12) / widest))
         for i, (v, label) in enumerate(self.opts):
             sx = x + 1.5 + 3 + (i % cols) * sw
-            sy = ty + 4.5 + (i // cols) * 51
+            sy = ty + 4.5 + (i // cols) * (sg + 3)
             on = v == self.cur
             if on:
-                P.box(c.cr, sx, sy, sw, 48, t["segR"], t["segOnBg"], None if t["segOnSh"] == "none" else t["segOnSh"], t["segOnBd"])
+                P.box(c.cr, sx, sy, sw, sg, t["segR"], t["segOnBg"], None if t["segOnSh"] == "none" else t["segOnSh"], t["segOnBd"])
             sh = c.m(label, f)[1]
-            c.txt(label, f, sx + sw / 2, sy + (48 - sh) / 2, t["segOnFg"] if on else t["ink"], align=1, maxw=sw - 4)
-            c.hit(sx, sy, sw, 48, (lambda v=v: self.set_fn(v)))
+            c.txt(label, f, sx + sw / 2, sy + (sg - sh) / 2, t["segOnFg"] if on else t["ink"], align=1, maxw=sw - 4)
+            c.hit(sx, sy, sw, sg, (lambda v=v: self.set_fn(v)))
         P.rule(c.cr, x, y + self.height(c, w), w, t["sep"])
 
     def summ(self):
@@ -455,11 +477,13 @@ class Dither(Block):
     def __init__(self, label, sub, opts, cur, set_fn):
         self.label, self.sub, self.opts, self.cur, self.set_fn = label, sub, opts, cur, set_fn
 
+    lh = 22                             # a tile's name box (draw and height set it for the text size)
+
     def _tile(self, w):
         n = 2 if w < 400 else len(self.opts)
         tw = (w - 8 - 8 * (n - 1)) / n
         ih = max(40, min(64, (tw - 12) * 0.56))
-        return tw, ih, 6 + ih + 6 + 22 + 6, n
+        return tw, ih, 6 + ih + 6 + self.lh + 6, n
 
     def _tray(self, w):
         tw, ih, th, n = self._tile(w)
@@ -467,10 +491,12 @@ class Dither(Block):
         return rows * th + (rows - 1) * 8
 
     def height(self, c, w):
+        self.lh = gh(22, c.t["rowFont"])
         return 12 + _col_h(c, self.label, self.sub, w) + 14 + 8 + self._tray(w) + 16 + _bw(c.t, "sep")
 
     def draw(self, c, x, y, w):
         t, cr = c.t, c.cr
+        self.lh = gh(22, t["rowFont"])
         _col(c, self.label, self.sub, x, y + 12, w)
         ty = y + 12 + _col_h(c, self.label, self.sub, w) + 14
         tw, ih, th, n = self._tile(w)
@@ -497,7 +523,7 @@ class Dither(Block):
                 cr.restore()
             fw = 600 if on else 400
             lh = c.m(label, t["rowFont"], weight=fw)[1]
-            c.txt(label, t["rowFont"], sx + tw / 2, sy + 6 + ih + 6 + (22 - lh) / 2, fg, weight=fw, align=1, maxw=tw - 4)
+            c.txt(label, t["rowFont"], sx + tw / 2, sy + 6 + ih + 6 + (self.lh - lh) / 2, fg, weight=fw, align=1, maxw=tw - 4)
             c.hit(sx, sy, tw, th, (lambda v=v: self.set_fn(v)))
         P.rule(cr, x, y + self.height(c, w), w, t["sep"])
 
@@ -546,9 +572,10 @@ def _badge(c, b, right, mid):
     """an outlined pill, its right edge at right: [icon] word (never by colour alone) -> its width"""
     w = _badge_w(c, b)
     x = right - w
-    P.box(c.cr, x, mid - 13, w, 26, "999px", None, None, "1px solid " + c.t["ink"])
-    c.icon(b[1], 16, x + 8 + 8, mid)
     f = "500 12.5px 'IBM Plex Sans'"
+    bh = gh(26, f)
+    P.box(c.cr, x, mid - bh / 2, w, bh, "999px", None, None, "1px solid " + c.t["ink"])
+    c.icon(b[1], 16, x + 8 + 8, mid)
     c.txt(b[0], f, x + 8 + 16 + 4, mid - c.m(b[0], f)[1] / 2)
     return w
 
@@ -600,8 +627,11 @@ class Item(Block):
         lx, lw, vw, aw, under = self._parts(c, w)
         pad = 22 if self.frame else 26                  # padding 10/12 (an app row), else 12/14
         if under:
-            return max(self.min_h, pad + max(self._th(c, lw) + 8 + 48, self._vh(c, vw), 26) + _bw(c.t, "sep"))
-        return max(self.min_h, pad + max(self._th(c, lw), self._vh(c, vw), 48 if self.act else 0, 44 if self.frame else 26) + _bw(c.t, "sep"))
+            return max(self.min_h, pad + max(self._th(c, lw) + 8 + self._bh(c), self._vh(c, vw), 26) + _bw(c.t, "sep"))
+        return max(self.min_h, pad + max(self._th(c, lw), self._vh(c, vw), self._bh(c) if self.act else 0, 44 if self.frame else 26) + _bw(c.t, "sep"))
+
+    def _bh(self, c):
+        return gh(48, c.t["btnFont"])
 
     def draw(self, c, x, y, w):
         t = c.t
@@ -611,6 +641,7 @@ class Item(Block):
         mid = y + pt + ch / 2
         lx, lw, vw, aw, under = self._parts(c, w)
         th = self._th(c, lw)
+        bh_ = self._bh(c)
         right = x + w
         if self.chev:
             c.icon("chevron_right", 26, right - 13, mid)
@@ -619,17 +650,17 @@ class Item(Block):
             right -= _badge(c, self.badge, right, mid) + 12
         if self.act:
             if under:                                   # under the text, at its left
-                ax, ay = x + lx, mid - (th + 8 + 48) / 2 + th + 8
+                ax, ay = x + lx, mid - (th + 8 + bh_) / 2 + th + 8
             else:
-                ax, ay = right - aw, mid - 24
+                ax, ay = right - aw, mid - bh_ / 2
                 right = ax - 14
             prim = self.primary and not self.act_off
             bg, fg, sh = (t["pwrBg"], t["pwrFg"], t["pwrSh"]) if prim else (t["btnBg"], OFF if self.act_off else t["ink"], t["btnSh"])
-            _btn(c, ax, ay, aw, 48, bg, sh)
+            _btn(c, ax, ay, aw, bh_, bg, sh)
             bh = c.m(self.act, t["btnFont"], weight=600 if prim else None)[1]
-            c.txt(self.act, t["btnFont"], ax + aw / 2, ay + 24 - bh / 2, fg, align=1, weight=600 if prim else None)
+            c.txt(self.act, t["btnFont"], ax + aw / 2, ay + bh_ / 2 - bh / 2, fg, align=1, weight=600 if prim else None)
             if not self.act_off:
-                c.hit(ax, ay, aw, 48, self.act_fn)
+                c.hit(ax, ay, aw, bh_, self.act_fn)
         if self.val is not None:
             vh = self._vh(c, vw)
             c.txt(self.val, t["valFont"], right, mid - vh / 2, align=2, maxw=vw, wrap=True, lh=1.3)
@@ -639,7 +670,7 @@ class Item(Block):
         elif self.icon:
             c.icon(self.icon, 22, x + 12, mid)
         fw = 600 if self.bold else 400
-        top = mid - (th + 8 + 46 if under else th) / 2
+        top = mid - (th + 8 + bh_ - 2 if under else th) / 2
         tw = _col(c, self.label, self.sub, x + lx, top, lw - (22 if self.lock else 0), weight=fw, sub_w=lw,
                   gap=5 if self.frame else 6)
         if self.lock:
@@ -689,10 +720,11 @@ class Button(Block):
         self.label, self.icon, self.primary, self.fn, self.dis = label, icon, primary, fn, disabled
 
     def height(self, c, w):
-        return 22 + 48 + 6
+        return 22 + gh(48, c.t["btnFont"]) + 6
 
     def draw(self, c, x, y, w):
         t = c.t
+        bh = gh(48, t["btnFont"])
         prim = self.primary and not self.dis
         bg, sh = (t["pwrBg"], t["pwrSh"]) if prim else (t["btnBg"], t["btnSh"])
         fg = OFF if self.dis else t["pwrFg"] if prim else t["ink"]
@@ -700,11 +732,11 @@ class Button(Block):
         lw, lh = c.m(self.label, t["btnFont"], weight=fw)
         bw = 14 + 22 + 6 + lw + 22
         by = y + 22
-        P.box(c.cr, x, by, bw, 48, "999px", bg, sh)
-        c.icon(self.icon, 22, x + 14 + 11, by + 24, fg)
-        c.txt(self.label, t["btnFont"], x + 14 + 22 + 6, by + (48 - lh) / 2, fg, weight=fw)
+        P.box(c.cr, x, by, bw, bh, "999px", bg, sh)
+        c.icon(self.icon, 22, x + 14 + 11, by + bh / 2, fg)
+        c.txt(self.label, t["btnFont"], x + 14 + 22 + 6, by + (bh - lh) / 2, fg, weight=fw)
         if not self.dis:
-            c.hit(x, by, bw, 48, self.fn)
+            c.hit(x, by, bw, bh, self.fn)
 
 
 class Field(Block):
@@ -715,31 +747,32 @@ class Field(Block):
 
     def height(self, c, w):
         t = c.t
-        return 18 + c.m(self.label, t["lblFont"], caps=c.lbl_caps())[1] + 10 + 52 + 8
+        return 18 + c.m(self.label, t["lblFont"], caps=c.lbl_caps())[1] + 10 + gh(52, t["fieldFont"]) + 8
 
     def draw(self, c, x, y, w):
         t = c.t
         lh = c.m(self.label, t["lblFont"], caps=c.lbl_caps())[1]
         c.txt(self.label, t["lblFont"], x, y + 18, t["lblCol"], caps=c.lbl_caps(), ls=P.ls_em(t["lblLs"]))
         fy = y + 18 + lh + 10
+        fh = gh(52, t["fieldFont"])
         # the design's search field: 52 high, 1.5px ink, radius KS segR; focused: a 2px
         # ring outside (the accessibility round's focus ring)
-        P.box(c.cr, x, fy, w, 52, t["trayR"], t["paper"], "inset 0 0 0 1.5px " + t["ink"] + (
+        P.box(c.cr, x, fy, w, fh, t["trayR"], t["paper"], "inset 0 0 0 1.5px " + t["ink"] + (
             ",0 0 0 2px %s,0 0 0 4px %s" % (t["paper"], t["ink"]) if self.caret else ""))
         vw, vh = c.m(self.val or " ", t["fieldFont"], maxw=w - 60)
         if self.val:
-            c.txt(self.val, t["fieldFont"], x + 14, fy + (52 - vh) / 2, maxw=w - 60)
+            c.txt(self.val, t["fieldFont"], x + 14, fy + (fh - vh) / 2, maxw=w - 60)
         else:
             vw = 0
         if self.on:
-            c.hit(x, fy, w, 52, self.on)
+            c.hit(x, fy, w, fh, self.on)
         if not self.caret:                  # the other field (an 802.1X login has two)
             return
         cx = x + 14 + vw + 2
-        P.fill(c.cr, cx, fy + 14, 2, 24, t["ink"])
+        P.fill(c.cr, cx, fy + (fh - 24) / 2, 2, 24, t["ink"])
         if self.ph and not self.val:
             ph = c.m(self.ph, t["dateFont"])[1]
-            c.txt(self.ph, t["dateFont"], cx + 2 + 8, fy + (52 - ph) / 2, t["sub"])
+            c.txt(self.ph, t["dateFont"], cx + 2 + 8, fy + (fh - ph) / 2, t["sub"])
 
 
 
@@ -811,7 +844,7 @@ class Ruler(Block):
         self.label = "A bank card · 85.6 mm" if card else "%d cm" % round(mm / 10)
 
     def height(self, c, w):
-        return 14 + c.m(self.label, c.t["dateFont"])[1] + 10 + self.RH + 14 + 48 + 14 + _bw(c.t, "sep")
+        return 14 + c.m(self.label, c.t["dateFont"])[1] + 10 + self.RH + 14 + gh(48, c.t["btnFont"]) + 14 + _bw(c.t, "sep")
 
     def draw(self, c, x, y, w):
         t, cr = c.t, c.cr
@@ -830,16 +863,17 @@ class Ruler(Block):
         if self.card:
             P.fill(cr, x + L - 0.75, ry, 1.5, 34, t["ink"])       # the card's other end
         by = ry + self.RH + 14
+        bh = gh(48, t["btnFont"])
         nar = w < 400
         bx = x
         for d, glyph, lbl in ((-1, "remove", "Shorter"), (1, "add", "Longer")):
             lw, th = c.m(lbl, t["btnFont"])
             bw = 48 if nar else 14 + 22 + 6 + lw + 18
-            P.box(cr, bx, by, bw, 48, "999px", t["btnBg"], t["btnSh"])
-            c.icon(glyph, 22, bx + (24 if nar else 14 + 11), by + 24)
+            P.box(cr, bx, by, bw, bh, "999px", t["btnBg"], t["btnSh"])
+            c.icon(glyph, 22, bx + (24 if nar else 14 + 11), by + bh / 2)
             if not nar:
-                c.txt(lbl, t["btnFont"], bx + 14 + 22 + 6, by + (48 - th) / 2)
-            c.hit(bx, by, bw, 48, (lambda d=d: self.fn(d)))
+                c.txt(lbl, t["btnFont"], bx + 14 + 22 + 6, by + (bh - th) / 2)
+            c.hit(bx, by, bw, bh, (lambda d=d: self.fn(d)))
             bx += bw + 12
         P.rule(cr, x, y + self.height(c, w), w, t["sep"])
 

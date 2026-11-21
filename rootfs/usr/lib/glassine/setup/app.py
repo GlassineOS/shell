@@ -9,8 +9,18 @@ Drawing and the voices are GlassineOS/ui's (glassine_ui: CSS-like boxes, Pango t
 Every paint is a panel update, so the window redraws once per change.
 
     glassine-setup [--demo]                     the app (--demo: sample data, nothing applied)
-    glassine-setup --demo --render OUT.png [--step S] [--theme V] [--size WxH]
+    glassine-setup --demo --render OUT.png [--step S] [--theme V] [--size WxH | --px WxH]
                    [--layout ID] [--packs a,b] [--joined SSID] [--big]
+                   [--factor F] [--density D] [--ui-size PERCENT] [--text PERCENT] [--scroll PX]
+
+The window is drawn in design pixels (shell spec 012): GTK 3 takes whole scales only, so on
+a display of factor F (the session's, setup/screen.py) it gets N = max(1, round(F)) and the
+drawing is scaled by F / N; the layout is for the window's size in design pixels.
+--size: the window in design px; --px: in device px; --factor: the display's device px per
+design px (2); --density: its px per mm (none: no minimums); --ui-size: the interface size
+of the display, which gives the factor at --density; --text: the text size (100).
+--scroll: the step's body moved up by PX design px (a body longer than the window moves
+under the header by a drag or the wheel; no further than its end).
 """
 import math
 import sys
@@ -22,12 +32,15 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gdk, GLib, Gtk  # noqa: E402
 
 from glassine_ui import paint as P  # noqa: E402
+from glassine_ui import size as S  # noqa: E402
+from glassine_ui import voices  # noqa: E402
 
 from . import data as D  # noqa: E402
 from . import needs as needs_mod  # noqa: E402
+from . import screen  # noqa: E402
 from .theme import NAMES, THEMES, eyebrow  # noqa: E402
 
-W0, H0 = 702, 936                       # the panel (the design's device frame)
+W0, H0 = 702, 936                       # the window's default size: the panel at Default (the design's device frame), design px
 STEPS = needs_mod.ALL_STEPS                       # every step; Setup.steps = the ones still needed
 SNAMES = {"welcome": "Welcome", "look": "Look", "location": "Location", "keyboard": "Keyboard", "network": "Network",
           "account": "Account", "software": "Software", "review": "Review"}
@@ -80,6 +93,7 @@ class State:
         self.inst_i = 4                                 # Installing: the step running (demo)
         self.net_err = ""                               # the last Connect's error
         self.kfocus = None                              # Tab focus: an index into the drawn targets (t13)
+        self.scroll = 0                                 # the step's body moved up by this (design px)
 
     def pw_rules(self):
         return [(len(self.pw) >= 8, "At least 8 characters"), (bool(self.pw) and self.pw == self.pw2, "Both entries match"),
@@ -102,11 +116,19 @@ class Setup:
         self.needs = be.needs()                         # what is missing (needs.py): only those steps are asked
         self.steps = needs_mod.steps(self.needs)
         be.init(self.s)
+        self.disp = None                                # the display the setup is on (screen.display)
+        self.text = S.read_text_size()
+
+    def set_ui_size(self, percent):
+        """the Look step's Interface size: applied at once to the display the setup is on"""
+        if self.disp and self.disp["percent"] != percent:
+            self.be.set_ui_size(self.disp, percent)
+            self.redraw()
 
     def go(self, step):
         if self.s.focus:
             self.be.osk(False)
-        self.s.step, self.s.focus, self.s.kfocus = step, None, None
+        self.s.step, self.s.focus, self.s.kfocus, self.s.scroll = step, None, None, 0
         if step == "installing":
             self.be.apply(self.s, self.packs, self.redraw)
         self.redraw()
@@ -144,9 +166,12 @@ class Renderer:
     def __init__(self, app):
         self.app = app
         self.hits = []
+        self.low = 0                     # the lowest edge drawn so far (the body's length)
+        self.max_scroll = 0              # how far the step's body can move up (0: it fits)
 
     # -- helpers
     def hit(self, x, y, w, h, fn):
+        self.low = max(self.low, y + h)
         if fn:
             self.hits.append(((x, y, w, h), fn))
 
@@ -160,7 +185,9 @@ class Renderer:
         return fsz(self.k[key], self.scale)
 
     def txt(self, s, f, x, y, col=None, **kw):
-        return P.text(self.cr, s, f, x, y, col or self.k["ink"], **kw)
+        r = P.text(self.cr, s, f, x, y, col or self.k["ink"], **kw)
+        self.low = max(self.low, y + r[1])
+        return r
 
     def m(self, s, f, **kw):
         return P.measure(self.cr, s, f, **kw)
@@ -245,9 +272,12 @@ class Renderer:
         self.hit(rx - 48, y, 48, h, lambda: self.app.flip("show_pw"))
 
     # -- the window
-    def draw(self, cr, W, H, scale=2):
+    def draw(self, cr, W, H, scale=2, mm=0.0):
+        """W x H: the window in design px; scale: the surface's device scale (icons); mm: the
+        millimetres of a design px on the display (0: unknown, no minimums)"""
         app = self.app
         s = app.s
+        S.set_voice_metrics(voices.voice(s.voice), mm, app.text / 100.0)
         self.k, self.cr, self.dscale, self.hits = THEMES[s.voice], cr, scale, []
         self.scale = 1.15 if s.big and s.step != "welcome" else 1
         k = self.k
@@ -259,15 +289,42 @@ class Renderer:
         cr.save()
         cr.rectangle(0, hh, W, H - hh - fh)
         cr.clip()
+        # a body longer than the window (a large interface or text size) moves up under
+        # the header by s.scroll (a drag or the wheel, Window); unmoved it is drawn as before
+        off = s.scroll
+        if off:
+            cr.translate(0, -off)
+        n0, self.low = len(self.hits), 0
         x, y, w = 32, hh + P.border(k["headRule"])[0] if P.border(k["headRule"]) else hh, W - 64
         y += 26
         if s.step != "done":
             y = self.page_head(x, y, w)
         getattr(self, "p_" + s.step)(x, y, w, H - fh - 18)
         cr.restore()
+        self.max_scroll = max(0, math.ceil(self.low + 18 - (H - fh)))
+        if off:                         # the body's targets where they are seen, cut to the body
+            top, bot, kept = hh, H - fh, []
+            for (hx, hy, hw, hh_), fn in self.hits[n0:]:
+                y0, y1 = max(top, hy - off), min(bot, hy - off + hh_)
+                if y1 > y0:
+                    kept.append(((hx, y0, hw, y1 - y0), fn))
+            self.hits[n0:] = kept
         if foot:
             self.footer(0, H - fh, W, fh)
+        self.taps()
         self.ring(hh)
+
+    def taps(self):
+        """no tap target under the minimum either way (shell spec 012 FR-022, 7 mm with its
+        padding): a smaller one is widened about its middle. small: the ones that were"""
+        m, self.small = S.min_tap(), []
+        if m <= 0:
+            return
+        for i, ((x, y, w, h), fn) in enumerate(self.hits):
+            if w < m or h < m:
+                self.small.append((w, h))
+                nw, nh = max(w, m), max(h, m)
+                self.hits[i] = ((x - (nw - w) / 2, y - (nh - h) / 2, nw, nh), fn)
 
     def ring(self, head_h):
         """t13: the Tab focus, a 2 px ring 2 px outside the control; on the stationery
@@ -462,7 +519,31 @@ class Renderer:
                 self.icon("check_circle", 24, x + w - 12 - 12, y + ch / 2)
             self.hit(x, y, w, ch, (lambda v=v: app.set(voice=v)))
             y += ch + 14
+        if app.disp:
+            y = self.ui_size_row(x, y, w, app.disp)
         self.txt("Everything here can be changed later in Settings › Appearance.", self.f("sub"), x, y + 4, k["soft"], maxw=w, wrap=True)
+
+    def ui_size_row(self, x, y, w, d):
+        """the display's Interface size (shell spec 012 FR-016): "Interface size · NAME", the
+        step's row text and button in millimetres on it, the four steps; -> the y below it"""
+        k, s, app = self.k, self.app.s, self.app
+        opts = [(p, n) for n, p in screen.STEPS]
+        f, sf = self.f("row"), self.f("sub")
+        cur = d["percent"]
+        segw = sum(self.m(lbl, f, weight=600 if v == cur else None)[0] + 32 for v, lbl in opts) + 3 * (len(opts) + 1)
+        label = "Interface size · " + d["name"]
+        tmm, bmm = screen.step_mm(d, cur, voices.voice(s.voice), app.text)
+        sub = "Text %.1f mm · buttons %.1f mm" % (tmm, bmm)
+        lw, lh = self.m(label, f)
+        sw_, sh_ = self.m(sub, sf)
+        th = lh + 2 + sh_
+        if max(lw, sw_) + 16 + segw <= w:               # one row: the text left, the steps right
+            h = max(76, th + 24, 48 + 24)
+            self.kv_row(x, y, w, h, label, sub, lambda rx, cy: self.seg(rx, cy, opts, cur, app.set_ui_size), last=True)
+            return y + h + 6
+        self.kv_row(x, y, w, th + 16, label, sub, lambda rx, cy: None, last=True)   # else the steps below
+        self.seg(x + w, y + th + 16 + 26, opts, cur, app.set_ui_size)
+        return y + th + 16 + 52 + 6
 
     def mini(self, v, x, y):
         """a voice's miniature (200 x 96): its bar, Aa, a label, a highlight, a button"""
@@ -852,16 +933,71 @@ class Window(Gtk.Window):
         self.set_default_size(W0, H0)
         self.area = Gtk.DrawingArea()
         self.area.set_can_focus(True)
-        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.KEY_PRESS_MASK)
-        self.area.connect("draw", lambda a, cr: (self.r.draw(cr, a.get_allocated_width(), a.get_allocated_height(),
-                                                             a.get_scale_factor()), True)[1])
+        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK | Gdk.EventMask.BUTTON_RELEASE_MASK | Gdk.EventMask.KEY_PRESS_MASK |
+                             Gdk.EventMask.BUTTON1_MOTION_MASK | Gdk.EventMask.SCROLL_MASK)
+        self.area.connect("draw", self.on_draw)
         self.area.connect("button-press-event", self.press)
         self.area.connect("button-release-event", self.release)
+        self.area.connect("motion-notify-event", self.motion)
+        self.area.connect("scroll-event", self.wheel)
         self.connect("key-press-event", self.on_key)
         self.add(self.area)
         self.pressed = None
+        self.drag = None                # a press that may move the body: (y, scroll at the press, moved)
         self.pending = 0
+        self.z = 1.0                    # design px per GTK px, as last drawn (F / N)
+        self.at = None                  # the display last drawn on
         self.connect("destroy", Gtk.main_quit)
+
+    def here(self):
+        """the logical (x, y) of the display the window is on (None: not shown yet)"""
+        w = self.get_window()
+        m = w and self.get_display().get_monitor_at_window(w)
+        g = m and m.get_geometry()
+        return (g.x, g.y) if g else None
+
+    def place(self):
+        """(z, mm): z = F / N (F: the session's factor for the display, N: GTK's whole scale;
+        1 without one, or while the two do not belong together), mm: the millimetres of a design px"""
+        n = self.area.get_scale_factor()
+        here = self.here()
+        if here != self.at:             # another display (or the first draw): read it again
+            self.at = here
+            GLib.idle_add(self.replace)
+        d = self.app.disp
+        if not d:
+            return 1.0, 0.0
+        f = d["factor"] if d["applied"] and max(1, math.floor(d["factor"] + 0.5)) == n else float(n)
+        return f / n, S.mm_per_px(f, d["density"])
+
+    def replace(self):
+        """the display and the text size again, then a redraw at the display's factor (none
+        when nothing changed: every paint is a panel update)"""
+        was = (self.app.disp, self.app.text)
+        self.app.disp = self.app.be.display(self.here())
+        self.app.text = S.read_text_size()
+        if (self.app.disp, self.app.text) != was:
+            self.redraw()
+        return False
+
+    def watch(self):
+        """the session's output-scale and the text size: a change is read again and drawn once"""
+        from gi.repository import Gio
+        self.mons = []
+        for path in (S.output_scale_path(), S.text_size_path()):
+            if path:
+                m = Gio.File.new_for_path(path).monitor_file(Gio.FileMonitorFlags.NONE, None)
+                m.connect("changed", lambda *a: self.replace())
+                self.mons.append(m)
+
+    def on_draw(self, area, cr):
+        self.z, mm = self.place()
+        W, H = area.get_allocated_width(), area.get_allocated_height()
+        if self.z != 1:
+            cr.scale(self.z, self.z)
+            W, H = W / self.z, H / self.z
+        self.r.draw(cr, W, H, area.get_scale_factor(), mm)
+        return True
 
     def redraw(self):
         if not self.pending:
@@ -874,14 +1010,41 @@ class Window(Gtk.Window):
 
     def press(self, area, ev):
         if ev.button == 1 and ev.type == Gdk.EventType.BUTTON_PRESS:
-            self.pressed = self.r.at(ev.x, ev.y)[0]
+            self.pressed = self.r.at(ev.x / self.z, ev.y / self.z)[0]     # hits are in design px
+            self.drag = (ev.y / self.z, self.app.s.scroll, False) if self.r.max_scroll else None
+        return True
+
+    def scroll_to(self, v):
+        v = max(0, min(self.r.max_scroll, round(v)))
+        if v != self.app.s.scroll:
+            self.app.s.scroll = v
+            self.redraw()
+
+    def motion(self, area, ev):
+        """a drag of more than 16 design px moves the body (and is no tap)"""
+        if not self.drag:
+            return False
+        y0, s0, moved = self.drag
+        dy = ev.y / self.z - y0
+        if moved or abs(dy) > 16:
+            self.drag = (y0, s0, True)
+            self.scroll_to(s0 - dy)
+        return True
+
+    def wheel(self, area, ev):
+        if not self.r.max_scroll:
+            return False
+        ok, dx, dy = ev.get_scroll_deltas()
+        step = dy * 60 if ok else {Gdk.ScrollDirection.UP: -120, Gdk.ScrollDirection.DOWN: 120}.get(ev.direction, 0)
+        self.scroll_to(self.app.s.scroll + step)
         return True
 
     def release(self, area, ev):
-        rect, fn = self.r.at(ev.x, ev.y)
-        if ev.button == 1 and fn and rect == self.pressed:
+        rect, fn = self.r.at(ev.x / self.z, ev.y / self.z)
+        moved = self.drag and self.drag[2]
+        if ev.button == 1 and fn and rect == self.pressed and not moved:
             fn()
-        self.pressed = None
+        self.pressed, self.drag = None, None
         return True
 
     def on_key(self, w, ev):
@@ -910,8 +1073,19 @@ class Window(Gtk.Window):
 def render(argv, be):
     def opt(name, default=None):
         return argv[argv.index(name) + 1] if name in argv else default
-    W, H = (int(v) for v in opt("--size", "%dx%d" % (W0, H0)).split("x"))
+    dens = float(opt("--density", "0"))
+    pct = int(opt("--ui-size", "100"))
+    fac = float(opt("--factor", repr(S.factor(dens, pct)) if "--ui-size" in argv and dens > 0 else "2"))
+    mm = S.mm_per_px(fac, dens)
+    if "--px" in argv:
+        W, H = (int(v) / fac for v in opt("--px").split("x"))
+    else:
+        W, H = (int(v) for v in opt("--size", "%dx%d" % (W0, H0)).split("x"))
     app = Setup(be, lambda: None)
+    app.disp = be.display()
+    if app.disp and "--ui-size" in argv:
+        app.disp["percent"], app.disp["factor"] = pct, fac
+    app.text = int(opt("--text", "100"))
     s = app.s
     s.voice = opt("--theme", "white")
     s.step = opt("--step", "welcome")
@@ -922,13 +1096,29 @@ def render(argv, be):
     if opt("--joined"):
         s.joined = opt("--joined")
     s.big = "--big" in argv
+    s.scroll = int(opt("--scroll", "0"))
     if s.step == "installing":
         be.preview(app)
-    surf = cairo.ImageSurface(cairo.FORMAT_RGB24, W * 2, H * 2)
-    surf.set_device_scale(2, 2)
-    Renderer(app).draw(cairo.Context(surf), W, H, 2)
-    surf.write_to_png(opt("--render"))
-    return 0
+    n = max(1, math.floor(fac + 0.5))
+    surf = cairo.ImageSurface(cairo.FORMAT_RGB24, int(math.floor(W * fac + 0.5)), int(math.floor(H * fac + 0.5)))
+    surf.set_device_scale(n, n)
+    cr = cairo.Context(surf)
+    if fac != n:
+        cr.scale(fac / n, fac / n)
+    r = Renderer(app)
+    r.draw(cr, W, H, n, mm)
+    if s.scroll > r.max_scroll:                    # (as Window.scroll_to: no further than the end)
+        s.scroll = r.max_scroll
+        surf = cairo.ImageSurface(cairo.FORMAT_RGB24, surf.get_width(), surf.get_height())
+        surf.set_device_scale(n, n)
+        cr = cairo.Context(surf)
+        if fac != n:
+            cr.scale(fac / n, fac / n)
+        r.draw(cr, W, H, n, mm)
+    if opt("--render") != "-":                      # "-": no file (the tests read the surface)
+        surf.write_to_png(opt("--render"))
+    r.surf = surf
+    return r if "--keep" in argv else 0
 
 
 def main(argv):
@@ -939,9 +1129,11 @@ def main(argv):
         return render(argv, be)
     win = None
     app = Setup(be, lambda: win and win.redraw())
+    app.disp = be.display()                         # the display before the first paint (spec 012)
     win = Window(app)
     win.fullscreen()
     win.show_all()
+    win.watch()
     Gtk.main()
     return 0
 

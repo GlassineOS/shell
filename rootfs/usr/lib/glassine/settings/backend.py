@@ -28,6 +28,8 @@ from gi.repository import GLib
 from . import homeconf      # favourites: Home's layout file (~/.config/glassine/home.conf)
 from . import predict       # Keyboard > Typing: predict.conf, the languages, the learned words
 from . import outputs       # Appearance > Screen size: ~/.config/glassine/output-density (spec 011)
+from . import displays      # Appearance > Size and text: the displays, their interface size (spec 012)
+from glassine_ui import size as ui_size
 
 HOME = os.environ.get("HOME", "/home/user")
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
@@ -453,6 +455,9 @@ class Base:
         # Screen size (spec 011): the displays of unknown size (outputs.listing), the kept densities
         self.screens, self.density = [], {}
         self.here_fn = None                     # the window: -> the logical (x, y) of the display it is on
+        # Size and text (spec 012): every display (displays.listing), the kept interface
+        # sizes {output key: percent}, the text size in percent
+        self.displays, self.ui_sizes, self.text_size = [], {}, 100
         self.zone, self.h24, self.ntp, self.synced = ("Europe", "Berlin"), True, True, ""
         # storage, about
         self.space, self.folders, self.space_at = [], None, ""
@@ -722,6 +727,57 @@ class Base:
     def _write_density(self, k, v):
         pass
 
+    def read_screens(self):
+        """the displays again (the device: sway's outputs, the files)"""
+
+    # -- Size and text (spec 012)
+    def display(self, k=None):
+        """the display with the key k; None: the one Settings is on (else the first)"""
+        if k is not None:
+            return next((d for d in self.displays if d["key"] == k), None)
+        return next((d for d in self.displays if d["here"]), self.displays[0] if self.displays else None)
+
+    def display_at(self, at):
+        """the display at the logical position at"""
+        return next((d for d in self.displays if at is not None and d["at"] == tuple(at)), None)
+
+    def set_ui_size(self, k, percent):
+        """keep percent as the interface size of the display k (100: its line removed);
+        the session applies it"""
+        try:
+            self._write_ui_size(k, percent)
+        except (OSError, ValueError) as e:
+            self.error("Interface size", "The size couldn’t be kept: %s" % (getattr(e, "strerror", None) or e))
+            return
+        if percent == 100:
+            self.ui_sizes.pop(k, None)
+        else:
+            self.ui_sizes[k] = percent
+        for d in self.displays:
+            if d["key"] == k:
+                d["percent"] = percent
+                if not d["applied"]:            # (with a session: its output-scale says, once applied)
+                    d["factor"] = ui_size.factor(d["density"], percent)
+        self.changed()
+
+    def set_text_size(self, percent):
+        """keep percent (100 to 150, a multiple of 5) as the text size of every display"""
+        if percent == self.text_size:
+            return
+        try:
+            self._write_text_size(percent)
+        except (OSError, ValueError) as e:
+            self.error("Text size", "The size couldn’t be kept: %s" % (getattr(e, "strerror", None) or e))
+            return
+        self.text_size = percent
+        self.changed()
+
+    def _write_ui_size(self, k, percent):
+        pass
+
+    def _write_text_size(self, percent):
+        pass
+
 
 # ---- the design's sample data -----------------------------------------------------
 
@@ -797,6 +853,9 @@ class Demo(Base):
         # (test.sh: GLASSINE_DEMO_SCREEN=unknown: a display of unknown size, not measured, Settings on it;
         # =set: measured; =elsewhere: Settings on the built-in panel, the other display unknown; unset: none)
         scr = os.environ.get("GLASSINE_DEMO_SCREEN", "")
+        panel = dict(name="EPD-1", make="Glassine", model="Panel", serial="Unknown", active=True, scale=2.0,
+                     rect=dict(x=0, y=0, width=702, height=936))
+        self.displays = displays.listing([panel], [dict(x=0, y=0, w_mm=157, h_mm=209)], {}, {}, {}, (0, 0))
         if scr:
             outs = [dict(name="HDMI-A-1", make="Optoma", model="HD146X", serial="Unknown", active=True, scale=1.0,
                          rect=dict(x=0, y=0, width=1280, height=720)),
@@ -805,6 +864,7 @@ class Demo(Base):
             mons = [dict(x=0, y=0, w_mm=0, h_mm=0), dict(x=1280, y=0, w_mm=157, h_mm=209)]
             self.density = {"Optoma HD146X Unknown": 4.25} if scr == "set" else {}
             self.screens = outputs.listing(outs, mons, self.density, (1280, 0) if scr == "elsewhere" else (0, 0))
+            self.displays = displays.listing(outs, mons, self.density, {}, {}, (1280, 0) if scr == "elsewhere" else (0, 0))
         # Keyboard > Typing: the design's sample (kbWordsL, kbLangs, KB_LANGS)
         self.osk, self.kb_langs = "us", ["en", "de"]
         self.kb_models = {"en": 40000, "de": 40000}
@@ -1468,10 +1528,19 @@ class Real(Base):
         except Exception:
             pass
         self.density = outputs.read()
-        self.screens = outputs.listing(outs, outputs.gdk_monitors(), self.density, here)
+        mons = outputs.gdk_monitors()
+        self.screens = outputs.listing(outs, mons, self.density, here)
+        self.ui_sizes, self.text_size = ui_size.read_ui_size(), ui_size.read_text_size()
+        self.displays = displays.listing(outs, mons, self.density, ui_size.read_output_scale(), self.ui_sizes, here)
 
     def _write_density(self, k, v):
         outputs.write(k, v)
+
+    def _write_ui_size(self, k, percent):
+        ui_size.write_ui_size(k, percent)
+
+    def _write_text_size(self, percent):
+        ui_size.write_text_size(percent)
 
     # -- Wi-Fi (NetworkManager)
     def read_wifi(self, rescan=False):
@@ -2125,6 +2194,13 @@ class Real(Base):
         self.theme = t
         self.changed()
         self.bg(lambda: run("glassine-shell", "theme", t))
+
+    def set_text_size(self, percent):
+        """the desktop's text settings carry the text size (glassine-theme-apply, spec 012 FR-032)"""
+        was = self.text_size
+        super().set_text_size(percent)
+        if self.text_size != was:
+            self.bg(lambda: run("glassine-theme-apply", self.theme))
 
     def set_rot_auto(self, on):
         """auto off locks the orientation the screen has now (the design's TG)"""

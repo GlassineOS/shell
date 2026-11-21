@@ -10,6 +10,7 @@ from .backend import KBD_LAYOUTS, app_content
 from . import packages
 from . import predict
 from . import outputs
+from . import displays
 
 # the tabs on the card's right edge: (page, icon, label)
 TABS = [("eink", "contrast", "E-ink"), ("apps", "apps", "Apps"), ("power", "battery_5_bar", "Power"),
@@ -683,6 +684,7 @@ def build(ui, be):
             add(B.Themes(tiles))
         add(B.Note("Applies to the top bar, popups and GTK apps. The screen refreshes once." if cmp else
                    "The theme applies to the top bar, popups and every GTK app."))
+        size_section(ui, be, add)
         add(B.Head("Rotation", "Auto" if be.rot_auto else "Locked"))
         add(B.Toggle("Auto-rotate", "Follows the sensor. Tap an orientation to lock it" if be.rot_auto else
                      "Locked. The T marks the top of the screen", be.rot_auto, lambda: be.set_rot_auto(not be.rot_auto)))
@@ -861,6 +863,28 @@ def typing_section(ui, be, add):
         n = be.kb_hw_writers
         add(B.Note("Handwriting of %d other writer%s is kept in the Handwriting samples app, and removed there."
                    % (n, "" if n == 1 else "s")))
+
+
+def size_section(ui, be, add):
+    """Appearance > Size and text (spec 012 FR-010 to FR-015, FR-024, FR-033): the display
+    the control sets (ui.ui_disp, else the one Settings is on), its interface size with the
+    step's millimetres on it, the text size of every display"""
+    from glassine_ui import voices
+    d = be.display(ui.ui_disp) or be.display()
+    pct = d["percent"] if d else 100
+    add(B.Head("Size and text", "%s · %s" % (d["name"], displays.dens_text(d)) if d else "",
+               summary="%s · text %d %%" % (next(n for n, p in displays.STEPS if p == pct), be.text_size)))
+    if len(be.displays) > 1:
+        add(B.Segments("Display", displays.row_text(d), [(x["key"], x["name"]) for x in be.displays], d["key"],
+                       ui.pick_display))
+    if d:
+        tmm, bmm = displays.step_mm(d, pct, voices.voice(be.theme if be.theme in NAMES else "white"), be.text_size)
+        add(B.Segments("Interface size · " + d["name"], "Text %.1f mm · buttons %.1f mm" % (tmm, bmm),
+                       [(p, n) for n, p in displays.STEPS], pct, lambda v, k=d["key"]: ui.set_ui_size(k, v)))
+    add(B.Slider("Text size · every display", displays.text_pos(be.text_size),
+                 lambda v: ui.set_text_size(displays.text_at(v)), text="%d %%" % be.text_size))
+    if ui.size_note == 1:
+        add(B.Note("Apps that are already open may follow the new size only when they next start."))
 
 
 def words_section(ui, be, add):
