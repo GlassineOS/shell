@@ -40,6 +40,24 @@ class Demo:
     def osk(self, on):
         """the on-screen keyboard for a drawn text field"""
 
+    # -- the display the setup runs on (shell spec 012 FR-016)
+    def display(self, at=None):
+        """{key, name, at, percent, density, source, factor, applied} (setup/screen.py), None: unknown.
+        The demo: a tablet's panel, 1404 x 1872 px on 157 x 209 mm, at the interface size chosen"""
+        if getattr(self, "_disp", None) is None:
+            from . import screen
+            self._disp = screen.display([dict(name="EPD-1", make="Glassine", model="Panel", serial="Unknown", active=True,
+                                              scale=2.0, rect=dict(x=0, y=0, width=702, height=936))],
+                                        [dict(x=0, y=0, w_mm=157, h_mm=209)], applied={}, sizes={}, kept={})
+        return self._disp
+
+    def set_ui_size(self, d, percent):
+        """the interface size of the display d (the session applies it)"""
+        from glassine_ui import size as S
+        d["percent"] = percent
+        if not d["applied"]:
+            d["factor"] = S.factor(d["density"], percent)
+
     def installed(self, app):
         return len(app.chosen())
 
@@ -276,6 +294,19 @@ class Real(Demo):
                 return _read(d + "/capacity") + " %" + (" · charging" if st == "Charging" else "")
         return ""
 
+    def display(self, at=None):
+        from . import screen
+        return screen.display(screen.outputs(), screen.gdk_monitors(), at)
+
+    def set_ui_size(self, d, percent):
+        """kept in the setup account's ui-size: its session applies it at once"""
+        from glassine_ui import size as S
+        try:
+            S.write_ui_size(d["key"], percent)
+        except (OSError, ValueError):
+            pass
+        super().set_ui_size(d, percent)
+
     def osk(self, on):
         if self.s_osk():
             subprocess.Popen(["/usr/bin/glassine-osk", "show" if on else "hide"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -304,6 +335,9 @@ class Real(Demo):
                 "ntp": s.ntp, "clock24": s.clock == "24", "layout": s.layout, "osk": s.osk, "hostname": s.host}
         if "look" in st:
             plan["voice"] = s.voice
+            d = getattr(app, "disp", None)
+            if d and d.get("key"):                      # the Look step's interface size, for that display
+                plan["ui_size"] = {"key": d["key"], "percent": d["percent"]}
         if "account" in st:
             plan["user"] = {"name": s.user, "fullname": s.name, "password": s.pw, "admin": s.admin, "autologin": s.auto}
             plan["admin_password"] = s.apw

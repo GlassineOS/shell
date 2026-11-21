@@ -103,6 +103,9 @@ python3 /t/homeconf.py $P || fail=1
 python3 /t/outputs.py $P || fail=1
 TMPDIR=/tmp python3 /t/power.py $P || fail=1
 TMPDIR=/tmp python3 /t/kb_typing.py $P || fail=1
+sh /t/theme_apply.sh $P || fail=1
+python3 /t/sizes.py $P /out || fail=1
+GDK_BACKEND=x11 GDK_SCALE=2 GDK_DPI_SCALE=1.5 xvfb-run -a -s "-screen 0 1872x1872x24" python3 /t/dpi.py $P 2>/out/err.txt || { fail=1; cat /out/err.txt; }
 # Settings opened on the page Home asks for (glassine-shell launch glassine-settings new updates)
 for t in ${THEMES:-white}; do
     python3 $S --demo --render /out/shots/$t-start-updates.png --page pkg-updates --theme $t 2>/out/err.txt || { echo "FAIL $t pkg-updates"; cat /out/err.txt; fail=1; }

@@ -107,8 +107,9 @@ def folder_opener(timeout=5):
 def open_folder(path):
     """the folder in the file manager (xdg-open, not waited for); False when it can't start"""
     try:
+        from . import child_env
         subprocess.Popen(("xdg-open", path), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL, start_new_session=True)
+                         stderr=subprocess.DEVNULL, start_new_session=True, env=child_env())
     except OSError:
         return False
     return True

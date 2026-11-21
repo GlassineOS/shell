@@ -962,9 +962,13 @@ class Window(Gtk.ApplicationWindow):
         return f / n, S.mm_per_px(f, d["density"])
 
     def replace(self):
-        """the displays again, then a redraw at the factor of the one the window is on"""
-        self.ui.be.read_screens()
-        self.redraw()
+        """the displays again, then a redraw at the factor of the one the window is on
+        (none when nothing changed: every paint is a panel update)"""
+        be = self.ui.be
+        was = (be.displays, be.text_size, dict(be.ui_sizes))
+        be.read_screens()
+        if (be.displays, be.text_size, be.ui_sizes) != was:
+            self.redraw()
         return False
 
     def here(self):
@@ -987,9 +991,11 @@ class Window(Gtk.ApplicationWindow):
     def on_draw(self, area, cr):
         a = area.get_allocation()
         self.z, mm = self.place()
+        W, H = a.width, a.height
         if self.z != 1:
             cr.scale(self.z, self.z)
-        self.r.draw(cr, a.width / self.z, a.height / self.z, area.get_scale_factor(), mm)
+            W, H = W / self.z, H / self.z
+        self.r.draw(cr, W, H, area.get_scale_factor(), mm)
         return True
 
     def on_press(self, area, ev):
@@ -1101,6 +1107,7 @@ class App(Gtk.Application):
         page = start_page(page) if page not in ("app", "wifi-ask") else page
         if not self.win:
             self.ui = UI(self.be, lambda: self.win and self.win.redraw())
+            self.be.read_screens()          # the displays before the first paint (spec 012)
             self.win = Window(self, self.ui)
             self.win.show_all()
             self.watch_theme()

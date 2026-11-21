@@ -6,7 +6,8 @@ every page drawn in one process, no files but the lists.   sizes.py REPO OUT
   every voice and window size; nothing reaches a minimum there;
 - every step (80, 90, 100, 120 %) on a portrait and a landscape panel in every voice: the
   layout is the one for the window's size in design pixels, a paged page shows no fewer
-  rows at a smaller step, the header's rule, the card's edge and every row's rule have
+  rows at a smaller step (among the steps with the same header: the compact one holds
+  the pager), the header's rule, the card's edge and every row's rule have
   whole device pixels of their own colour (none thinner than one, none blurred);
 - the text size at 125 and 150 %: every text style is drawn at the size of FR-024a, rows
   are no lower than at 100 %;
@@ -41,7 +42,7 @@ def check(ok, what):
     global fail
     if not ok:
         print("FAIL " + what)
-        fail = 1
+        fail += 1
     return ok
 
 
@@ -127,7 +128,7 @@ def minimums(r, mm, what):
 
 
 # -- Default: nothing said = factor 2 on the panel, text 100 %
-n = 0
+n, f0 = 0, fail
 for t in THEMES:
     for wn, size in WINS.items():
         for pg in PAGES:
@@ -138,11 +139,11 @@ for t in THEMES:
             check(not r.small, "Default on the panel: a tap target under the minimum: %s %s %s %r" % (t, wn, pg, r.small))
             minimums(r, 2.0 / PANEL, "Default %s %s %s" % (t, wn, pg))
 check(not mins, "Default on the panel: reached a minimum: %r" % (mins,))
-print("ok   Default on a panel of %g px per mm: %d pages byte for byte the plain render, no minimum reached" % (PANEL, n) if not fail else
+print("ok   Default on a panel of %g px per mm: %d pages byte for byte the plain render, no minimum reached" % (PANEL, n) if fail == f0 else
       "FAIL Default")
 
 # -- every step, portrait and landscape, every voice
-n = 0
+n, f0 = 0, fail
 for t in THEMES:
     th = A.THEMES[t]
     for on, px in (("portrait", PORTRAIT), ("landscape", LAND)):
@@ -163,7 +164,7 @@ for t in THEMES:
                     if w["kind"] != "pager":
                         check(w["y"] + w["h"] <= cy + ch + 1, what + ": a row below the card: %r" % (w,))
                 if "paged" in mk["fit"]:
-                    shown.setdefault(pg, {})[pct] = len([w for w in mk["widgets"] if w["kind"] != "pager"])
+                    shown.setdefault((pg, L.compact), {})[pct] = len([w for w in mk["widgets"] if w["kind"] != "pager"])
                 minimums(r, mm, what)
                 if fac != int(fac):
                     im = Img(r.surf)
@@ -175,13 +176,13 @@ for t in THEMES:
                         if w["kind"] in RULED and not r.ui.sheet and w["y"] + w["h"] < cy + ch - 2:
                             has_rule(im, fac, w["x"], w["x"] + w["w"], w["y"] + w["h"],
                                      th["sepSoft" if w["kind"] == "section-head" else "sep"], what + " " + w["kind"] + " " + w["label"])
-        for pg, by in shown.items():
+        for (pg, cmp), by in shown.items():         # (the compact header holds the pager: compared among its own)
             got = [by.get(p) for p in S.STEPS if p in by]
             check(got == sorted(got, reverse=True), "%s %s %s: a smaller step shows fewer rows: %r" % (on, t, pg, by))
-print("ok   %d pages at 80, 90, 100 and 120 %%: laid out for the design size, rules on whole device pixels" % n if not fail else "FAIL steps")
+print("ok   %d pages at 80, 90, 100 and 120 %%: laid out for the design size, rules on whole device pixels" % n if fail == f0 else "FAIL steps")
 
 # -- the text size
-n = 0
+n, f0 = 0, fail
 for t in THEMES:
     v = voices.voice(t)
     for pg in PAGES:
@@ -208,10 +209,10 @@ for t in THEMES:
             continue
         S.set_voice_metrics(v, 0, 1.5)
         check(abs(S.text_px(f) - px * (1 + 0.5 * min(1, b / px))) < 1e-9, "text 150 %%: %s %r" % (t, f))
-print("ok   %d pages at a text size of 125 and 150 %%" % n if not fail else "FAIL text size")
+print("ok   %d pages at a text size of 125 and 150 %%" % n if fail == f0 else "FAIL text size")
 
 # -- the minimums at every step, densities 3 to 25 px per mm
-n = 0
+n, f0 = 0, fail
 for dens in (3.0, S.FALLBACK_DENSITY, 4.6, 6.0, 8.7, PANEL, 13.0, 13.8, 25.0):
     for pct in S.STEPS:
         fac = S.factor(dens, pct)
@@ -222,11 +223,11 @@ for dens in (3.0, S.FALLBACK_DENSITY, 4.6, 6.0, 8.7, PANEL, 13.0, 13.8, 25.0):
                 n += 1
                 minimums(r, mm, "%g px/mm %d %% %s %s" % (dens, pct, wn, pg))
 print("ok   %d pages at 3 to 25 px per mm: no tap target under %g mm, no text under %g / %g mm" % (n, S.TAP_MM, S.TEXT_MM_ROW, S.TEXT_MM_MIN)
-      if not fail else "FAIL minimums")
+      if fail == f0 else "FAIL minimums")
 os.makedirs(OUT, exist_ok=True)
 with open(os.path.join(OUT, "size-minimums.txt"), "w") as fh:
     fh.write("What reaches a minimum of spec 012 FR-022 in Settings, and where first:\n")
     for k in sorted(mins):
         fh.write("%s    (%s)\n" % (k, mins[k]))
 print("     %d elements reach a minimum somewhere: %s/size-minimums.txt" % (len(mins), OUT))
-sys.exit(fail)
+sys.exit(1 if fail else 0)
