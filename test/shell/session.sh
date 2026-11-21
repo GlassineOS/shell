@@ -490,6 +490,23 @@ picsame() {
 }
 mkdir -p /tmp/pic-run/1000 && ln -sf $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY /tmp/pic-run/1000/$WAYLAND_DISPLAY
 picsame "screen picture: the whole screen, as grim takes it, found from outside the session"
+# the start picture (spec 010 FR-007 to FR-012): the screen turned back by the session's turn
+# (the turn file), the resume notice over it where the sleep pill sits, the rest exact
+startpic() {
+    want=${3:-}; echo $2 > /tmp/pic-turn; rm -f /tmp/start-$O.pnm /tmp/notice-$O.pam
+    env -u WAYLAND_DISPLAY GLASSINE_USER_RUN=/tmp/pic-run GLASSINE_SCREEN_PICTURE=$B/glassine-screen-picture \
+        GLASSINE_SLEEP_PILL=$B/glassine-sleep-pill GLASSINE_ROTATION=/tmp/pic-turn \
+        sh /r/rootfs/usr/bin/glassine-start-picture /tmp/start-$O.pnm; r=$?
+    grim -t ppm -o HEADLESS-1 /tmp/grim-$O.ppm
+    set -- "$1" $2 $(head -c 20 /tmp/grim-$O.ppm | sed -n 2p)
+    if [ $(( $2 % 180 )) = 0 ]; then fw=$3 fh=$4; else fw=$4 fh=$3; fi
+    $B/glassine-sleep-pill -m resume -r $2 -W $fw -H $fh /tmp/notice-$O.pam >/dev/null
+    if [ $r = 0 ] && c=$(python3 /r/test/sleep-pill/check_start.py /tmp/grim-$O.ppm $2 /tmp/notice-$O.pam /tmp/start-$O.pnm 2>&1) &&
+        [ "$(head -c 20 /tmp/start-$O.pnm | sed -n 2p)" = "${want:-$fw $fh}" ]; then ok "$1"
+    else bad "$1" "exit $r, ${c:-} $(head -c 20 /tmp/start-$O.pnm 2>/dev/null | sed -n 2p)"; fi
+    cp /tmp/start-$O.pnm /out/shots/start-$O-$2.pnm 2>/dev/null
+}
+startpic "start picture: no turn: the screen as it is, the notice at its bottom" 0
 rm -f /tmp/pic-none.ppm
 t0=$(date +%s); env -u WAYLAND_DISPLAY GLASSINE_USER_RUN=/tmp/pic-none $B/glassine-screen-picture /tmp/pic-none.ppm 2>/dev/null; r=$?
 expect "screen picture: no session: exit 3 at once, no file" "$r $([ -e /tmp/pic-none.ppm ] && echo file) $(( $(date +%s) - t0 < 4 ))" "3  1"
@@ -532,7 +549,8 @@ fi
 # here starts it again)
 sm output HEADLESS-1 transform 90 >/dev/null; sleep 1.5
 picsame "screen picture: a turned output: upright, as grim takes it"
-rm -rf /tmp/pic-run /tmp/pic-$O.ppm /tmp/grim-$O.ppm
+startpic "start picture: a turned output: turned back to the output's own mode, the notice at the bottom of the view" 90 "$(echo $RES | tr x ' ')"
+rm -rf /tmp/pic-run /tmp/pic-$O.ppm /tmp/grim-$O.ppm /tmp/pic-turn /tmp/start-$O.pnm /tmp/notice-$O.pam
 
 grep -q 'glassine-shell: ' $L || bad "the shell logged nothing" ""
 kill $SWAYPID 2>/dev/null
