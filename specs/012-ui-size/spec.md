@@ -28,6 +28,8 @@ display.
 | design pixel | the unit of every size in the design: Interleaf's tokens, the boards in GlassineOS/ui `designs/`, the drawn programs' layouts |
 | interface size | the person's choice of how large the interface is on one output: one of the steps of FR-010, a percentage |
 | main output | the built-in display when there is one, else the first output the compositor lists |
+| text size | the person's factor for text on top of the interface size, from 100 to 150 %, one for every display (FR-024) |
+| body size | the voice's running-text size in design pixels (Interleaf's `body` style of the voice) |
 | factor | an output's device pixels per design pixel: what the compositor gives the output as its scale, so a design pixel is a logical pixel |
 | drawn programs | the programs that draw with the shared UI library (GlassineOS/ui): the shell's bar, panels and overlays, Home, Settings, the first-run setup, the sleep pill, and any app built on it |
 | foreign apps | apps that draw with another toolkit (GTK, Qt, a browser engine) |
@@ -58,6 +60,13 @@ pixel), and the window redraws for the display it is on when it moves.
 **Then** the monitor is at Default; a Display row lists both displays, the one Settings is on
 picked; picking the monitor and Large makes the monitor larger and leaves the panel at Smaller.
 When the monitor is unplugged and connected again later, it comes back at Large.
+
+### Scenario 2b – Larger text everywhere (Priority: P2)
+
+**Given** the panel at Smaller and a monitor at Default,
+**When** the person sets Text size to 150 %,
+**Then** running text is half as large again on both displays, headings grow less, and the rest of
+the interface keeps its size on each.
 
 ### Scenario 3 – Text and targets stay usable (Priority: P1)
 
@@ -155,8 +164,20 @@ FR-033); Settings says which apps follow only when they next start.
   styles reach it.
 - **FR-023**: The on-screen keyboard's keys are sized in the same unit: its own size choice (Small,
   Medium, Large) is relative to the interface size, and a key is never under 7 mm.
-- **FR-024**: Text size (where Appearance offers it) scales text only, on top of the interface size,
-  and is held to the same minimums.
+- **FR-024**: Text size is a factor on text only, on top of the interface size: from 100 % to 150 %
+  in steps of 5 %, set by a slider in Appearance's "Size and text" section. It is one value for every
+  display, a reading preference of the person, while the interface size belongs to each display
+  (FR-013); a display's text is drawn at its factor (FR-002) times the text factor of FR-024a.
+- **FR-024a**: Text grows non-linearly: a type style of size S design pixels grows by
+  1 + (T − 1) × min(1, B / S), where T is the text size (1.0 to 1.5) and B the voice's body size. Running
+  text and anything smaller grows by the full T; a heading twice the body size grows by half as much,
+  so large type does not crowd the page. Boxes that hold text (rows, buttons, fields) grow with it;
+  spacing and icons do not.
+- **FR-024b**: The minimums of FR-022 apply after both the interface size and the text size.
+- **FR-024c**: The text size is kept per person in `$XDG_CONFIG_HOME/glassine/text-size` (default
+  `~/.config/glassine/text-size`): one line, the percentage as a whole number from 100 to 150, a
+  multiple of 5. A missing file or any other content counts as 100. A write replaces the file as a
+  whole; a change applies at once to every display, with one full refresh of each.
 - **FR-025**: Everything the shell draws over the screen follows the factor of the output it is on:
   the bar, Overview, quick settings, the power view, notifications, the shutdown screen. A program
   that draws for a display outside the session (the sleep pill, the start picture) draws at the
@@ -178,7 +199,8 @@ FR-033); Settings says which apps follow only when they next start.
   interface size and their other sizes follow it to the nearest whole step.
 - **FR-032**: The pointer's size follows the factor of the output it is on. The desktop's text
   settings (the interface font sizes the themes set) are one for the whole session and follow the
-  main output's interface size, so toolkits that read them follow too, live where the toolkit
+  main output's interface size times the text size (one uniform factor; the non-linear growth of
+  FR-024a is the drawn programs' own), so toolkits that read them follow too, live where the toolkit
   re-reads them; on another output, the text of a whole-scale-only app follows that output's size
   only to the nearest whole step.
 - **FR-033**: An app that reads none of these keeps its own size. When the interface size changes,
@@ -194,6 +216,7 @@ FR-033); Settings says which apps follow only when they next start.
 | Interface | Ownership | Version | Where |
 |---|---|---|---|
 | `~/.config/glassine/ui-size` (`PERCENT OUTPUT-KEY` lines, the interface size per output) | owned (Settings and setup write; the session reads) | 1 | this spec FR-013; README "Runtime interfaces" |
+| `~/.config/glassine/text-size` (the text size, a percentage) | owned (Settings writes; the session and the drawn programs read) | 1 | this spec FR-024c; README "Runtime interfaces" |
 | `$XDG_RUNTIME_DIR/glassine/output-scale` (`FACTOR DENSITY SOURCE OUTPUT-KEY` lines) | owned (the session writes); consumed by the drawn programs outside the session (the sleep pill, the start picture) | 1 | this spec FR-026; README "Runtime interfaces" |
 | `~/.config/glassine/output-density` | owned by spec 011; consumed here for an output's density (FR-005) | 1 | spec 011 FR-002 |
 | An output's physical size and scale; fractional scale | consumed (the display server's output geometry; the fractional-scale protocol) | — | the Wayland core protocol; wayland-protocols |
@@ -226,6 +249,10 @@ Host level (`make check`):
   one key; a write that keeps the other lines, replaces the output's line, removes it for Default and
   leaves no temporary file; an output without a line at Default; the runtime file after a change,
   for two outputs of different densities and sizes;
+- the text size: the file (none, each step, out of range, not a multiple of 5); the growth of every
+  Interleaf type style at 100, 125 and 150 % against FR-024a (body and smaller by the full factor, a
+  style twice the body by half of it); the minimums after both factors; the desktop text settings at
+  the main output's factor times the text size;
 - the Display row: absent with one display, the display Settings is on picked first, a step that
   changes only the picked display; a display removed and added again under headless sway gets its
   kept size;
