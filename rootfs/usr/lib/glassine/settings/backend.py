@@ -756,6 +756,8 @@ class Base:
         for d in self.displays:
             if d["key"] == k:
                 d["percent"] = percent
+                if not d["applied"]:            # (with a session: its output-scale says, once applied)
+                    d["factor"] = ui_size.factor(d["density"], percent)
         self.changed()
 
     def set_text_size(self, percent):
@@ -2192,6 +2194,13 @@ class Real(Base):
         self.theme = t
         self.changed()
         self.bg(lambda: run("glassine-shell", "theme", t))
+
+    def set_text_size(self, percent):
+        """the desktop's text settings carry the text size (glassine-theme-apply, spec 012 FR-032)"""
+        was = self.text_size
+        super().set_text_size(percent)
+        if self.text_size != was:
+            self.bg(lambda: run("glassine-theme-apply", self.theme))
 
     def set_rot_auto(self, on):
         """auto off locks the orientation the screen has now (the design's TG)"""

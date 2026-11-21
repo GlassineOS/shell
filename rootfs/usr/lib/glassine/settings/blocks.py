@@ -272,15 +272,19 @@ class Stepper(Block):
 
 
 class Slider(Block):
-    """label ... value; a groove 0..100 in steps of 10 (tap sets)"""
+    """label ... value; a groove 0..100 in steps of 10 (tap sets). text: the value as
+    shown, when the groove's position is not it (Text size: 0..100 is 100..150 %)"""
     KIND = "slider"
 
-    def __init__(self, label, val, set_fn, unit=" %"):
-        self.label, self.val, self.set_fn, self.unit = label, val, set_fn, unit
+    def __init__(self, label, val, set_fn, unit=" %", text=None):
+        self.label, self.val, self.set_fn, self.unit, self.text = label, val, set_fn, unit, text
+
+    def _shown(self):
+        return self.text if self.text is not None else "%d%s" % (self.val, self.unit)
 
     def _row(self, c, w):
         t = c.t
-        v = "%d%s" % (self.val, self.unit)
+        v = self._shown()
         vw, vh = c.m(v, t["valFont"])
         lh = c.m(self.label, t["rowFont"], maxw=w - vw - 12, wrap=True, lh=LH_LBL)[1]
         return v, vw, _brow((_base(c, self.label, t["rowFont"], LH_LBL), lh), (_base(c, v, t["valFont"]), vh))
@@ -308,7 +312,7 @@ class Slider(Block):
         c.hits.append(((x - 10, ty, w + 20, 44), tap))
 
     def summ(self):
-        return "%d%s" % (self.val, self.unit)
+        return self._shown()
 
 
 def _groove(c, x, ty, w, pct):
