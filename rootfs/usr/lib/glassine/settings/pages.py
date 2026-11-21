@@ -9,6 +9,7 @@ from .theme import NAMES
 from .backend import KBD_LAYOUTS, app_content
 from . import packages
 from . import predict
+from . import outputs
 
 # the tabs on the card's right edge: (page, icon, label)
 TABS = [("eink", "contrast", "E-ink"), ("apps", "apps", "Apps"), ("power", "battery_5_bar", "Power"),
@@ -16,11 +17,11 @@ TABS = [("eink", "contrast", "E-ink"), ("apps", "apps", "Apps"), ("power", "batt
         ("light", "light_mode", "Light"), ("bt", "bluetooth", "Bluetooth"), ("keyboard", "keyboard", "Keyboard"),
         ("gestures", "swipe", "Gestures"), ("time", "schedule", "Date & time"), ("storage", "hard_drive", "Storage"), ("about", "info", "About")]
 PARENT = {"wifi-net": "wifi", "wifi-new": "wifi", "bt-dev": "bt", "bt-add": "bt", "app": "apps", "origins": "apps", "render-apps": "eink",
-          "light-range": "light", "time-zone": "time", "time-city": "time-zone",
+          "light-range": "light", "screen-size": "appearance", "time-zone": "time", "time-city": "time-zone",
           "packages": "apps", "pkg-search": "packages", "pkg": "packages", "pkg-changes": "packages",
           "pkg-updates": "packages", "pkg-output": "packages", "kb-langs": "keyboard", "kb-words": "keyboard"}
 SHORT = {"keyboard": "Keyboard", "apps": "Apps", "gestures": "Gestures", "wifi": "Wi-Fi", "bt": "Bluetooth", "light": "Light", "eink": "E-ink",
-         "time": "Date", "time-zone": "Regions"}
+         "time": "Date", "time-zone": "Regions", "appearance": "Appearance"}
 REFRESH = ("wifi", "bt-add", "power", "storage", "about")
 FREEZES = [("off", "Off"), ("auto", "Auto"), ("always", "Always")]
 FREEZE_SUB = {"off": "Keeps running on other screens",
@@ -690,6 +691,40 @@ def build(ui, be):
         add(B.Toggle("Open apps on their own screen", "An app opened from the drawer gets a new screen" if be.own_ws else
                      "An app opened from the drawer joins the current screen (up to 4 windows)",
                      be.own_ws, lambda: be.set_own_ws(not be.own_ws)))
+        # displays of unknown size (spec 011; none on a tablet's panel). A section of one
+        # link row shows without its head (fit), so a lone display's row says "Screen size"
+        if be.screens:
+            add(B.Head("Screen size", "For handwriting"))
+        for x in be.screens:
+            st = ("%s pixels per mm" % outputs.fmt(x["density"])) if x["density"] else "Not measured"
+            one = len(be.screens) == 1
+            add(B.Item("Screen size" if one else x["name"], "%s · %s" % (x["name"], st) if one else st,
+                       chev=True, fn=(lambda x=x: ui.go("screen-size", screen=x["key"]))))
+
+    elif p == "screen-size":
+        x = be.screen(ui.screen)
+        title = x["name"] if x else "Screen size"
+        if x:
+            v = x["density"]
+            cur = v or outputs.START
+            add(B.Head("Ruler", "Measured" if v else "Not measured"))
+            if x["here"]:
+                mm, per, card = outputs.ruler(cur, x["scale"], ui.L.cw)
+                add(B.Note("Hold a bank card against the screen at the line’s left end, or a ruler at its 0, and make "
+                           "the line as long as the card’s long edge." if card else
+                           "Hold a ruler against the screen at the line’s 0 and make the line as long as %d cm on it."
+                           % round(mm / 10)))
+                add(B.Ruler(mm, per, card, lambda d, k=x["key"], cur=cur: be.set_density(k, outputs.step(cur, d))))
+            else:
+                add(B.Note("Settings is on another display. Move it to %s to measure there, or type the number." % x["name"]))
+            edit = ui.ppm_edit
+            add(B.Field("Pixels per millimetre", ui.ppm_txt if edit else outputs.fmt(v) if v else "",
+                        "Type here" if edit else "", caret=edit, on=ui.focus_ppm))
+            if edit:
+                add(B.Button("Keep", "check", True, lambda: ui.key("done"), disabled=outputs.parse(ui.ppm_txt) is None))
+            add(B.Note(ui.ppm_err or ("About %d pixels per inch. Handwriting uses it on this display." % round(v * 25.4) if v else
+                                      "Until it is measured, handwriting assumes a typical size here.")))
+            add(B.Button("Forget", "delete", False, lambda k=x["key"]: be.set_density(k, None), disabled=v is None))
 
     elif p == "gestures":
         title = "Gestures"
