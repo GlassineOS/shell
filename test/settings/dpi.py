@@ -2,7 +2,7 @@
 whole-scale-only GTK apps the remainder of a fractional factor as GDK_DPI_SCALE; our own
 programs draw at the factor themselves, so they take the variable out before GTK starts.
 Run under a display server at GTK scale 2 with GDK_DPI_SCALE set:
-    GDK_SCALE=2 GDK_DPI_SCALE=1.5 xvfb-run -a python3 dpi.py REPO
+    DISPLAY=:N GDK_BACKEND=x11 GDK_SCALE=2 GDK_DPI_SCALE=1.5 python3 dpi.py REPO   (an X server at :N)
 Each window is drawn by GTK (its real draw handler, at 80 and 120 % on a panel of 8.943 px
 per mm, text size 150 %) and compared byte for byte with the same page rendered without a
 display and without the variable. Exit 1 on a failed check."""
