@@ -32,6 +32,7 @@ from . import blocks as B  # noqa: E402
 from glassine_ui import paint as P  # noqa: E402
 from . import pages  # noqa: E402
 from . import packages  # noqa: E402
+from . import outputs  # noqa: E402
 from .theme import THEMES  # noqa: E402
 
 W0, H0 = 702, 884                 # the panel below glassine-shell's bar, logical px
@@ -241,6 +242,8 @@ class UI:
         self.pairing = None
         self.auth = None                 # the admin-auth page: {why, then, err, busy}
         self.copied = None               # kb-words: the folder path last copied (its button says so)
+        self.screen = None               # screen-size: the display's key (spec 011)
+        self.ppm_edit, self.ppm_txt, self.ppm_err = False, "", None     # its number field: typing, the text, a refusal
         self.hostname = getattr(be, "hostname", None) or os.uname().nodename
         self.names = self._app_names()
         from . import backend as _be
@@ -252,8 +255,11 @@ class UI:
         be.on_auth = lambda why, then: GLib.idle_add(lambda: (self.ask_admin(why, then), False)[1])
 
     # -- navigation
-    def go(self, page, dev=None, region=None, reset=None, net=None, app=None):
+    def go(self, page, dev=None, region=None, reset=None, net=None, app=None, screen=None):
         self.page, self.sheet = page, None
+        self.ppm_edit, self.ppm_txt, self.ppm_err = False, "", None
+        if screen is not None:
+            self.screen = screen
         self.kfocus = None                              # t13: the Tab focus starts again on a new page
         if app is not None:
             self.app = app
@@ -281,7 +287,7 @@ class UI:
         if self.sheet:
             return False
         p = self.page.split("#")[0]
-        return p in ("wifi-new", "admin-auth") or (p == "packages" and self.pk.kb)
+        return p in ("wifi-new", "admin-auth") or (p == "packages" and self.pk.kb) or (p == "screen-size" and self.ppm_edit)
 
     def sync_osk(self):
         """a text field asks the system's keyboard daemon: the window shrinks and the
@@ -410,9 +416,25 @@ class UI:
         self.fld = fld
         self.redraw()
 
+    def focus_ppm(self):
+        """screen-size: the number field takes the keys (the system's keyboard comes up)"""
+        if not self.ppm_edit:
+            x = self.be.screen(self.screen)
+            self.ppm_edit, self.ppm_err = True, None
+            self.ppm_txt = outputs.fmt(x["density"]) if x and x["density"] else ""
+            self.sync_osk()
+        self.redraw()
+
     def type(self, ch):
         if self.page.split("#")[0] in packages.PAGES:
             self.pk.key(ch)
+            return
+        if self.page == "screen-size":                  # digits and one decimal separator (spec 011 FR-006)
+            sep = ch in ".,"
+            if (ch.isdigit() or sep and not any(c in ".," for c in self.ppm_txt)) and len(self.ppm_txt) < 7:
+                self.ppm_txt += ch
+                self.ppm_err = None
+            self.redraw()
             return
         if self.eap and self.fld == "user":
             self.user += ch
@@ -549,6 +571,19 @@ class UI:
     def key(self, k):
         if self.page.split("#")[0] in packages.PAGES:   # the Packages search field
             self.pk.key(k)
+            return
+        if self.page == "screen-size":
+            if k == "back":
+                self.ppm_txt, self.ppm_err = self.ppm_txt[:-1], None
+            elif k == "done":
+                v = outputs.parse(self.ppm_txt)
+                if v is None:
+                    self.ppm_err = "Type a number from 1 to 100, like 3.78."
+                else:
+                    self.ppm_edit, self.ppm_err = False, None
+                    self.sync_osk()
+                    self.be.set_density(self.screen, round(v, 3))
+            self.redraw()
             return
         if k == "back":
             if self.eap and self.fld == "user":
@@ -848,9 +883,17 @@ class Window(Gtk.ApplicationWindow):
         self.connect("key-press-event", self.on_key)
         self.connect("destroy", lambda *_: self.ui.be.osk_show(False) if self.ui.osk_up else None)   # the keyboard goes with the window
         self.add(self.area)
+        ui.be.here_fn = self.here        # Screen size: the display the ruler is drawn on
         self.pressed = None
         self.drag = None                # a held knob (a hit with .grab: none at present): move/done
         self.pending = 0
+
+    def here(self):
+        """the logical (x, y) of the display the window is on (None: not shown yet)"""
+        w = self.get_window()
+        m = w and self.get_display().get_monitor_at_window(w)
+        g = m and m.get_geometry()
+        return (g.x, g.y) if g else None
 
     def redraw(self):
         """one repaint per burst of changes (e-ink: every paint is a panel update)"""
@@ -935,6 +978,10 @@ class Window(Gtk.ApplicationWindow):
                 ui.pk.kb = False
                 ui.sync_osk()
                 self.redraw()
+            elif ui.page == "screen-size" and ui.ppm_edit:
+                ui.ppm_edit, ui.ppm_err = False, None
+                ui.sync_osk()
+                self.redraw()
             elif ui.back_of(ui.page):
                 ui.go(ui.back_of(ui.page))
             return True
@@ -1005,7 +1052,7 @@ def P_read(path):
 
 def render(argv, be):
     """--render OUT.png [--page P [--app ID]] [--theme T] [--sheet forget-net|forget-dev|pair] [--size WxH]
-    [--ask SSID [--eap] [--uuid U] [--user U]] [--pw PW] [--pp N] [--pick KEY] [--pk PRESET] [--markers OUT.json] [--outline]
+    [--ask SSID [--eap] [--uuid U] [--user U]] [--pw PW] [--ppm TEXT [--done]] [--pp N] [--pick KEY] [--pk PRESET] [--markers OUT.json] [--outline]
     P may be a section's sub-page ("power#2"); --pick KEY opens a choice row's page (gestures: g3Up ...)"""
     global OUTLINE
     OUTLINE = OUTLINE or "--outline" in argv
@@ -1018,7 +1065,8 @@ def render(argv, be):
     ui = UI(be, lambda: None)
     page = opt("--page", "wifi")
     extra = {"wifi-new": dict(net="FRITZ!Box 7590 KL"), "wifi-net": dict(net="Pi-Home"), "bt-dev": dict(dev="kb"),
-             "time-city": dict(region="Europe"), "app": dict(app=opt("--app", "Firefox ESR"))}.get(page.split("#")[0], {})
+             "time-city": dict(region="Europe"), "app": dict(app=opt("--app", "Firefox ESR")),
+             "screen-size": dict(screen=be.screens[0]["key"] if be.screens else "")}.get(page.split("#")[0], {})
     ui.go(page, **extra)
     be.settle()                                         # the real backend reads in threads
     if "--pp" in argv:
@@ -1033,6 +1081,14 @@ def render(argv, be):
         ui.user, ui.fld = opt("--user"), "pw"
     if ui.page == "wifi-new" and "--pw" in argv:
         ui.pw = opt("--pw")
+    if page == "screen-size" and "--ppm" in argv:      # the number field typed (--done: confirmed)
+        ui.L = Layout(W, H)
+        ui.focus_ppm()
+        ui.ppm_txt = ""
+        for ch in opt("--ppm"):
+            ui.type(ch)
+        if "--done" in argv:
+            ui.key("done")
     if page == "wifi-net":
         ui.net_info = be.net_info(ui.net)
     if "--pk" in argv:                                  # a Packages state (the design's pkPreset)
