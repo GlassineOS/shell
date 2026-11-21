@@ -17,7 +17,8 @@ grid, the keyboard) is given in design pixels. How large a design pixel is on th
 the display: the same number of pixels is a large button on a coarse monitor and a small one on a
 fine panel. This spec gives the design pixel a length. Each display's density (spec 011) turns
 that length into the display's own pixels, so a control has the same physical size on every
-display, and the person picks how large the whole interface is with one setting.
+display at the same interface size, and the person picks how large the interface is on each
+display.
 
 ## Terms
 
@@ -25,7 +26,8 @@ display, and the person picks how large the whole interface is with one setting.
 |---|---|
 | output, output key, density, size unknown | as in spec 011 |
 | design pixel | the unit of every size in the design: Interleaf's tokens, the boards in GlassineOS/ui `designs/`, the drawn programs' layouts |
-| interface size | the person's choice of how large the interface is: one of the steps of FR-010, a percentage |
+| interface size | the person's choice of how large the interface is on one output: one of the steps of FR-010, a percentage |
+| main output | the built-in display when there is one, else the first output the compositor lists |
 | factor | an output's device pixels per design pixel: what the compositor gives the output as its scale, so a design pixel is a logical pixel |
 | drawn programs | the programs that draw with the shared UI library (GlassineOS/ui): the shell's bar, panels and overlays, Home, Settings, the first-run setup, the sleep pill, and any app built on it |
 | foreign apps | apps that draw with another toolkit (GTK, Qt, a browser engine) |
@@ -36,17 +38,26 @@ display, and the person picks how large the whole interface is with one setting.
 
 **Given** the interface at Default,
 **When** the person opens Appearance and picks Smaller under "Size and text" › "Interface size",
-**Then** the bar, Home, Settings and every other drawn program redraw at once, smaller, in a single
-full refresh of each display; their layouts show more (more rows in a list, more columns in a grid),
-not the same layout shrunk with empty space around it; the choice is kept, and the next session
-starts with it.
+**Then** the bar, Home, Settings and every other drawn program on the display Settings is on
+redraw at once, smaller, in a single full refresh of that display; their layouts show more (more
+rows in a list, more columns in a grid), not the same layout shrunk with empty space around it;
+other displays keep their size; the choice is kept for that display, and the next session starts
+with it.
 
 ### Scenario 2 – The same size on two displays (Priority: P1)
 
-**Given** a tablet's panel and a monitor of another density in one session,
+**Given** a tablet's panel and a monitor of another density in one session, both at Default,
 **When** the person looks at Settings on one and then moves it to the other,
 **Then** its rows, text and buttons measure the same millimetres on both (within a whole device
 pixel), and the window redraws for the display it is on when it moves.
+
+### Scenario 2a – Each display its own size (Priority: P1)
+
+**Given** the tablet's panel at Smaller and a monitor connected for the first time,
+**When** the person opens Appearance › Size and text,
+**Then** the monitor is at Default; a Display row lists both displays, the one Settings is on
+picked; picking the monitor and Large makes the monitor larger and leaves the panel at Smaller.
+When the monitor is unplugged and connected again later, it comes back at Large.
 
 ### Scenario 3 – Text and targets stay usable (Priority: P1)
 
@@ -80,7 +91,7 @@ FR-033); Settings says which apps follow only when they next start.
   millimetres (FR-001). A factor within 3 % of a whole number is that whole number, so a display
   whose density is close to a whole multiple of the unit is drawn without fractional scaling.
 - **FR-003**: The factor is applied per output and is the output's scale, given to the apps on it as
-  FR-030 and FR-031 say. Two outputs of different densities get different factors at the same
+  FR-030 and FR-031 say. Each output's factor uses that output's density and that output's
   interface size.
 - **FR-004**: The pen interface's points per millimetre stay the density over the output's scale
   (spec 011, handwriting spec 004 FR-017), whatever the factor.
@@ -101,21 +112,32 @@ FR-033); Settings says which apps follow only when they next start.
 **The setting**
 
 - **FR-010**: Appearance's "Size and text" section has an "Interface size" control with four
-  steps: Smaller (80 %), Small (90 %), Default (100 %) and Large (120 %). Under it, the current
-  step's sizes in millimetres: the voice's row text and a standard button, as drawn on the display
-  Settings is on.
-- **FR-011**: A step applies at once to every output: the session sets each output's new factor, the
-  drawn programs lay out and draw again at it, and each display gets one full refresh (as a theme
-  change does). Nothing asks to confirm.
-- **FR-012**: The interface size is kept per person in `$XDG_CONFIG_HOME/glassine/ui-size` (default
-  `~/.config/glassine/ui-size`): one line, the step's percentage as a whole number (`80`, `90`,
-  `100`, `120`). A missing file, any other content or any other number counts as 100. A write
-  replaces the file as a whole (written beside it, then renamed).
-- **FR-013**: One interface size holds for every output; how large an output's pixels are is
-  covered by its density, not by a size per output.
-- **FR-014**: Appearance names, beside "Interface size", the density of the display Settings is on
-  and where it came from ("reported by the display", "measured", "not measured"); for a display that
-  can be measured, it links to its Screen size page (spec 011).
+  steps: Smaller (80 %), Small (90 %), Default (100 %) and Large (120 %), named for the display it
+  sets ("Interface size · NAME"). Under it, the current step's sizes in millimetres on that display:
+  the voice's row text and a standard button.
+- **FR-011**: The control sets the display Settings' window is on. With more than one display
+  connected, a "Display" row above it lists them by name, the one Settings is on picked first, and
+  picking another makes the control set that one; leaving the page and coming back picks the
+  display Settings is on again.
+- **FR-012**: A step applies at once to its display only: the session sets that output's new factor,
+  the drawn programs on it lay out and draw again at it, and that display gets one full refresh (as
+  a theme change does). Other displays do not change. Nothing asks to confirm.
+- **FR-013**: The interface sizes are kept per person in `$XDG_CONFIG_HOME/glassine/ui-size`
+  (default `~/.config/glassine/ui-size`), the same form as spec 011's file: one line per output,
+  `PERCENT OUTPUT-KEY`, the step's percentage as a whole number (`80`, `90`, `120`), one space, then
+  the output key to the end of the line. Lines starting with `#` and blank lines are comments; a
+  line whose number is not a step is ignored; of two lines for one key the later counts. An output
+  without a line is at Default, so a display connected for the first time starts at Default.
+  Choosing Default removes the output's line; any other step replaces it or adds one at the end. A
+  write keeps every other line and replaces the file as a whole (written beside it, then renamed).
+- **FR-014**: Lines stay when their display is gone: a display connected again, in this session or a
+  later one, gets its kept size as soon as it appears.
+- **FR-015**: The section head names the display the control sets and its density, with where the
+  density came from ("reported", "measured", "not measured"); in the Display row, each display shows
+  the same. For a display of unknown size, the Screen size page (spec 011) is one tap away.
+- **FR-016**: The first-run setup's Look step offers the same Interface size control for the display
+  setup runs on, with the same steps, applied at once as in FR-012; the choice is kept for that
+  display as in FR-013.
 
 **Drawn programs**
 
@@ -154,9 +176,11 @@ FR-033); Settings says which apps follow only when they next start.
   factor and are shown pixel for pixel, never resampled; the remainder (the factor over that whole
   number) reaches their text through the desktop's text settings, so their text follows the
   interface size and their other sizes follow it to the nearest whole step.
-- **FR-032**: The pointer's size and the desktop's text settings (the interface font sizes the
-  themes set) follow the interface size, so toolkits that read them follow too, live where the
-  toolkit re-reads them.
+- **FR-032**: The pointer's size follows the factor of the output it is on. The desktop's text
+  settings (the interface font sizes the themes set) are one for the whole session and follow the
+  main output's interface size, so toolkits that read them follow too, live where the toolkit
+  re-reads them; on another output, the text of a whole-scale-only app follows that output's size
+  only to the nearest whole step.
 - **FR-033**: An app that reads none of these keeps its own size. When the interface size changes,
   Settings says once that apps already open may follow only when they next start.
 
@@ -169,7 +193,7 @@ FR-033); Settings says which apps follow only when they next start.
 
 | Interface | Ownership | Version | Where |
 |---|---|---|---|
-| `~/.config/glassine/ui-size` (the interface size, a percentage) | owned (Settings writes; the session reads) | 1 | this spec FR-012; README "Runtime interfaces" |
+| `~/.config/glassine/ui-size` (`PERCENT OUTPUT-KEY` lines, the interface size per output) | owned (Settings and setup write; the session reads) | 1 | this spec FR-013; README "Runtime interfaces" |
 | `$XDG_RUNTIME_DIR/glassine/output-scale` (`FACTOR DENSITY SOURCE OUTPUT-KEY` lines) | owned (the session writes); consumed by the drawn programs outside the session (the sleep pill, the start picture) | 1 | this spec FR-026; README "Runtime interfaces" |
 | `~/.config/glassine/output-density` | owned by spec 011; consumed here for an output's density (FR-005) | 1 | spec 011 FR-002 |
 | An output's physical size and scale; fractional scale | consumed (the display server's output geometry; the fractional-scale protocol) | — | the Wayland core protocol; wayland-protocols |
@@ -183,10 +207,11 @@ session, and sets the compositor's output scales.
 
 - **Failure modes:** a wrong density (a display that reports a wrong size, a wrong measurement) draws
   the interface at the wrong physical size on that display; the minimums of FR-022 are then off by
-  the same ratio. A missing or unreadable `ui-size` file gives Default.
+  the same ratio. A missing or unreadable `ui-size` file gives Default on every display.
 - **What it never touches:** partitions, the boot chain, the recovery, system files, the loader's
   and the recovery's own drawing.
-- **Escape route:** pick Default again in Appearance, or remove `~/.config/glassine/ui-size`; for a
+- **Escape route:** pick Default again in Appearance for that display, or remove its line (or the
+  whole `~/.config/glassine/ui-size`); for a
   wrong measurement, Forget on the display's Screen size page (spec 011).
 
 ## Acceptance
@@ -197,8 +222,13 @@ Host level (`make check`):
   size refused as implausible (out of range, an aspect ratio in centimetres); each step at a density
   of 8.94, 3.6 and 13 pixels per millimetre and with none; the snap to a whole number within 3 % and
   not beyond;
-- the setting file: none, each step, a bad line, an unknown number; a write that leaves no temporary
-  file; the runtime file after a change, for two outputs of different densities;
+- the setting file: none, a line per step, a key with spaces, a comment, a bad number, two lines for
+  one key; a write that keeps the other lines, replaces the output's line, removes it for Default and
+  leaves no temporary file; an output without a line at Default; the runtime file after a change,
+  for two outputs of different densities and sizes;
+- the Display row: absent with one display, the display Settings is on picked first, a step that
+  changes only the picked display; a display removed and added again under headless sway gets its
+  kept size;
 - the minimums: every Interleaf type style, every voice's row and secondary text, and every
   control's height in the drawn programs, at each step and at densities from 3 to 25 pixels per
   millimetre, measured in millimetres against FR-022, and the elements that reach a minimum listed;
@@ -209,13 +239,13 @@ Host level (`make check`):
   redraws at the new factor; a whole-scale-only GTK app gets the nearest whole scale and the text
   setting of FR-031.
 
-Hardware: on a tablet's panel and an external monitor at once, measure a button and a row's text with
-a ruler on both at each step; switch steps and see one full refresh per display; write with the pen
-on both and see the handwriting service get the density over the scale.
+Hardware: on a tablet's panel and an external monitor at once, both at the same step, measure a
+button and a row's text with a ruler on both at each step; change one display's step and see one
+full refresh of that display only; unplug and reconnect the monitor and see its size kept; write
+with the pen on both and see the handwriting service get the density over the scale.
 
 ## Out of scope
 
-- An interface size per display.
 - Changing the density of a display that reports a plausible size.
 - The loader's start menu and the recovery, which draw before any session and have no person's
   settings.
