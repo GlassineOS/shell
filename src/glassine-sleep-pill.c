@@ -19,22 +19,35 @@
  * px). Written atomically (OUT.tmp, rename).
  *
  * Hibernation (-m hibernate): the same pill, saying the device is off with the
- * session kept ("Hibernating", "Press the power key to resume").
+ * session kept ("Hibernating", "Press the power key to resume"). Resume (-m
+ * resume): the same pill, saying the device is on its way back ("Waking up…",
+ * "Back in a moment", no time): drawn over the picture the next start shows
+ * (spec 010, glassine-start-picture), so the change from the hibernate pill to
+ * it is the words only. Every mode's words are in `modes` below, and only there.
  *
- * usage: glassine-sleep-pill [-m MODE] [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H] [-p PNG] OUT
- *   -m   sleep (default) | hibernate
+ * Over a picture (-b PNM, spec 010's start picture): PNM is the screen upright
+ * as the person saw it (a binary P5 or P6, glassine-screen-picture's); the
+ * logical screen is that picture turned back by the transform (-r), the pill
+ * goes over it as above, and OUT is the whole logical screen with the pill, in
+ * PNM's kind (P5 grey, P6 RGB), instead of the PAM crop. -W/-H and the panel
+ * adapter are not used.
+ *
+ * usage: glassine-sleep-pill [-m MODE] [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H | -b PNM] [-p PNG] OUT
+ *   -m   sleep (default) | hibernate | resume
  *   -t   white | editorial | stationery (default: $HOME's, then the desktop user's
  *        ~/.config/glassine-shell/theme, then white)
  *   -r   transform 0/90/180/270 (default: /run/glassine-rotation, else 0)
- *   -s   the time text (default "Since HH:MM", now)
+ *   -s   the time text (default "Since HH:MM", now; none for resume)
  *   -W/-H the logical screen (default: the panel adapter, /etc/glassine/epd.conf or
  *        $GLASSINE_EPD_CONF: panel_width x panel_height, swapped when rotation is
  *        cw or ccw; no size: exit 1)
- *   -p   also write the whole screen as PNG (pill on white; host tests)
+ *   -b   draw over this picture and write it whole (see above)
+ *   -p   also write the whole screen as PNG (pill on white, or on the picture; host tests)
  *
  * SPDX-License-Identifier: GPL-2.0-or-later */
 #include <pwd.h>
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,7 +57,13 @@
 #include <glassine-ui.h>
 
 static const UiVoice *T;
-static const char *title = "Sleeping", *hint_text = "Press the power key to wake";
+/* the pill's words, by mode: the only place they are written */
+static const struct { const char *mode, *title, *hint; int timed; } modes[] = {
+    { "sleep",     "Sleeping",    "Press the power key to wake",   1 },
+    { "hibernate", "Hibernating", "Press the power key to resume", 1 },
+    { "resume",    "Waking up…",  "Back in a moment",              0 },
+};
+static const char *title, *hint_text;
 
 static int read_word(const char *path, char *out, size_t n)
 {
@@ -80,6 +99,44 @@ static int screen_size(int *W, int *H)
     *W = turned ? ph : pw;
     *H = turned ? pw : ph;
     return 0;
+}
+
+/* a binary PNM (P5 grey, P6 RGB, maxval 255) as an RGB24 surface; *grey: P5 */
+static int pnm_num(FILE *f)
+{
+    int c, v = 0;
+    while ((c = getc(f)) != EOF && (c == ' ' || c == '\t' || c == '\r' || c == '\n' || c == '#'))
+        if (c == '#') while ((c = getc(f)) != EOF && c != '\n') ;
+    if (c < '0' || c > '9') return -1;
+    for (; c >= '0' && c <= '9'; c = getc(f)) { if (v > 100000) return -1; v = v * 10 + c - '0'; }
+    return v;                           /* the one whitespace after it is read */
+}
+static cairo_surface_t *pnm_load(const char *path, int *grey)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    cairo_surface_t *s = NULL;
+    int m = getc(f) == 'P' ? getc(f) : 0, w = pnm_num(f), h = pnm_num(f), mx = pnm_num(f);
+    if ((m == '5' || m == '6') && w > 0 && h > 0 && mx == 255) {
+        int n = m == '5' ? 1 : 3;
+        uint8_t *row = malloc((size_t)w * n);
+        s = cairo_image_surface_create(CAIRO_FORMAT_RGB24, w, h);
+        uint8_t *d = cairo_image_surface_get_data(s);
+        int st = cairo_image_surface_get_stride(s);
+        for (int y = 0; s && y < h; y++) {
+            if (!row || fread(row, n, w, f) != (size_t)w) { cairo_surface_destroy(s); s = NULL; break; }
+            uint32_t *q = (uint32_t *)(d + (size_t)y * st);
+            for (int x = 0; x < w; x++) {
+                const uint8_t *p = row + (size_t)x * n;
+                q[x] = n == 1 ? 0xff000000u | p[0] * 0x010101u : 0xff000000u | p[0] << 16 | p[1] << 8 | p[2];
+            }
+        }
+        free(row);
+        if (s) cairo_surface_mark_dirty(s);
+        *grey = n == 1;
+    }
+    fclose(f);
+    return s;
 }
 
 /* the Material "bedtime" crescent, outlined: a disc less a disc offset to the
@@ -118,10 +175,10 @@ static double pill(UiGc *g, double vw, double vh, const char *since)
      * gap 16; a 48 px ring with the moon; "Sleeping" headFont at 20 px (line
      * 1.15), the hint in dateFont, sub colour (line 1.35); the time 12 px, sub */
     UiFont head = ui_font_px(&T->headFont, 20), hint = T->dateFont, tf = ui_font_px(&T->dateFont, 12);
-    double th, hh2, sh;
+    double th, hh2, sh = 0;
     ui_text_w(g, &head, title, &th);
     ui_text_w(g, &hint, hint_text, &hh2);
-    double sw = ui_text_w(g, &tf, since, &sh);
+    double sw = *since ? ui_text_w(g, &tf, since, &sh) : 0;
     double w = fmin(420, vw - 48), blk = th + 3 + hh2, h = 14 + fmax(48, blk) + 14;
     double x = (vw - w) / 2, y = vh - 40 - h;
     if (h > 200) return h;              /* text this tall: no usable fonts */
@@ -134,7 +191,7 @@ static double pill(UiGc *g, double vw, double vh, const char *since)
     double tx = x0 + 48 + 16, tw = x + w - 28 - sw - 16 - tx;
     ui_text(g, &head, title, tx, cy - blk / 2, 0, tw, T->ink, NULL);
     ui_text(g, &hint, hint_text, tx, cy - blk / 2 + th + 3, 0, tw, T->sub, NULL);
-    ui_text(g, &tf, since, x + w - 28, cy - sh / 2, 2, 0, T->sub, NULL);
+    if (*since) ui_text(g, &tf, since, x + w - 28, cy - sh / 2, 2, 0, T->sub, NULL);
     return h;
 }
 
@@ -159,31 +216,75 @@ static void voice_name(char *tn, size_t n)
     endpwent();
 }
 
+/* OUT as a whole binary PNM from the ARGB32 surface: P5 (luma) or P6; .tmp, renamed */
+static int pnm_write(const char *out, cairo_surface_t *s, int grey)
+{
+    int W = cairo_image_surface_get_width(s), H = cairo_image_surface_get_height(s);
+    int st = cairo_image_surface_get_stride(s), n = grey ? 1 : 3;
+    const uint8_t *d = cairo_image_surface_get_data(s);
+    char tmp[4096];
+    snprintf(tmp, sizeof tmp, "%s.tmp", out);
+    FILE *f = fopen(tmp, "wb");
+    if (!f) { perror(tmp); return 1; }
+    uint8_t *row = malloc((size_t)W * n);
+    int ok = row && fprintf(f, "%s\n%d %d\n255\n", grey ? "P5" : "P6", W, H) > 0;
+    for (int y = 0; ok && y < H; y++) {
+        const uint32_t *p = (const uint32_t *)(d + (size_t)y * st);
+        for (int x = 0; x < W; x++) {
+            uint32_t v = p[x];          /* opaque: the picture is under everything */
+            if (grey) row[x] = (uint8_t)((((v >> 16) & 255) * 77 + ((v >> 8) & 255) * 150 + (v & 255) * 29) >> 8);
+            else { row[3 * x] = v >> 16; row[3 * x + 1] = v >> 8; row[3 * x + 2] = v; }
+        }
+        ok = fwrite(row, n, W, f) == (size_t)W;
+    }
+    free(row);
+    ok = (fclose(f) == 0) && ok;
+    if (!ok || rename(tmp, out)) { perror(out); unlink(tmp); return 1; }
+    return 0;
+}
+
 int main(int argc, char **argv)
 {
-    const char *tname = NULL, *since = NULL, *png = NULL;
-    int rot = -1, W = 0, H = 0, o;
-    while ((o = getopt(argc, argv, "m:t:r:s:W:H:p:")) != -1)
+    const char *tname = NULL, *since = NULL, *png = NULL, *mode = "sleep", *bgpath = NULL;
+    int rot = -1, W = 0, H = 0, o, timed = 1;
+    while ((o = getopt(argc, argv, "m:t:r:s:W:H:b:p:")) != -1)
         switch (o) {
-        case 'm':
-            if (!strcmp(optarg, "hibernate")) { title = "Hibernating"; hint_text = "Press the power key to resume"; }
-            else if (strcmp(optarg, "sleep")) goto usage;
-            break;
+        case 'm': mode = optarg; break;
         case 't': tname = optarg; break;
         case 'r': rot = atoi(optarg); break;
         case 's': since = optarg; break;
         case 'W': W = atoi(optarg); break;
         case 'H': H = atoi(optarg); break;
+        case 'b': bgpath = optarg; break;
         case 'p': png = optarg; break;
         default: goto usage;
         }
-    if (optind != argc - 1) {
+    for (size_t i = 0; i < sizeof modes / sizeof *modes; i++)
+        if (!strcmp(mode, modes[i].mode)) { title = modes[i].title; hint_text = modes[i].hint; timed = modes[i].timed; }
+    if (!title || optind != argc - 1) {
 usage:
-        fprintf(stderr, "usage: glassine-sleep-pill [-m MODE] [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H] [-p PNG] OUT\n");
+        fprintf(stderr, "usage: glassine-sleep-pill [-m sleep|hibernate|resume] [-t VOICE] [-r DEG] [-s TEXT] [-W W -H H | -b PNM] [-p PNG] OUT\n");
         return 2;
     }
     const char *out = argv[optind];
-    if ((W <= 0 || H <= 0) && screen_size(&W, &H)) {
+    if (rot < 0) {
+        char r[8];
+        rot = read_word("/run/glassine-rotation", r, sizeof r) ? 0 : atoi(r);
+    }
+    rot = ((rot % 360) + 360) % 360 / 90 * 90;
+
+    /* over a picture: the logical screen is the upright picture turned back by the transform */
+    cairo_surface_t *bg = NULL;
+    int grey = 0;
+    if (bgpath) {
+        if (!(bg = pnm_load(bgpath, &grey))) {
+            fprintf(stderr, "glassine-sleep-pill: %s: not a binary P5 or P6 picture\n", bgpath);
+            return 1;
+        }
+        int pw = cairo_image_surface_get_width(bg), ph = cairo_image_surface_get_height(bg);
+        W = rot % 180 ? ph : pw;
+        H = rot % 180 ? pw : ph;
+    } else if ((W <= 0 || H <= 0) && screen_size(&W, &H)) {
         fprintf(stderr, "glassine-sleep-pill: no screen size (-W/-H or the panel adapter's panel_width, panel_height)\n");
         return 1;
     }
@@ -192,15 +293,10 @@ usage:
     if (tname) snprintf(tn, sizeof tn, "%s", tname);
     else voice_name(tn, sizeof tn);
     T = ui_voice_find(tn);
-    if (rot < 0) {
-        char r[8];
-        rot = read_word("/run/glassine-rotation", r, sizeof r) ? 0 : atoi(r);
-    }
-    rot = ((rot % 360) + 360) % 360 / 90 * 90;
-    char sb[32];
+    char sb[32] = "";
     if (!since) {
         time_t t = time(NULL);
-        strftime(sb, sizeof sb, "Since %H:%M", localtime(&t));
+        if (timed) strftime(sb, sizeof sb, "Since %H:%M", localtime(&t));
         since = sb;
     }
 
@@ -214,6 +310,14 @@ usage:
     case 180: cairo_translate(cr, W, H); cairo_rotate(cr, M_PI); break;
     case 270: cairo_translate(cr, 0, H); cairo_rotate(cr, -M_PI / 2); break;
     }
+    if (bg) {                           /* the picture as the view, pixel for pixel */
+        cairo_set_source_surface(cr, bg, 0, 0);
+        cairo_pattern_set_filter(cairo_get_source(cr), CAIRO_FILTER_NEAREST);
+        cairo_set_operator(cr, CAIRO_OPERATOR_SOURCE);
+        cairo_paint(cr);
+        cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+        cairo_surface_destroy(bg);
+    }
     double S = round((W < H ? W : H) / 702.0);   /* as glassine-shell: the design is drawn at 702 px */
     if (S < 1) S = 1;
     cairo_scale(cr, S, S);
@@ -226,6 +330,14 @@ usage:
         return 1;
     }
     cairo_surface_flush(s);
+
+    if (bgpath) {
+        int r = pnm_write(out, s, grey);
+        if (!r && png) cairo_surface_write_to_png(s, png);
+        cairo_surface_destroy(s);
+        if (!r) printf("%s %dx%d (%s, transform %d)\n", out, W, H, T->name, rot);
+        return r;
+    }
 
     /* the crop: every pixel the pill touched (outer rings included) */
     const uint8_t *d = cairo_image_surface_get_data(s);
@@ -257,15 +369,15 @@ usage:
     if (fclose(f) || rename(tmp, out)) { perror(out); unlink(tmp); return 1; }
 
     if (png) {                          /* the whole screen, the pill on white */
-        cairo_surface_t *bg = cairo_image_surface_create(CAIRO_FORMAT_RGB24, W, H);
-        cairo_t *c2 = cairo_create(bg);
+        cairo_surface_t *wb = cairo_image_surface_create(CAIRO_FORMAT_RGB24, W, H);
+        cairo_t *c2 = cairo_create(wb);
         cairo_set_source_rgb(c2, 1, 1, 1);
         cairo_paint(c2);
         cairo_set_source_surface(c2, s, 0, 0);
         cairo_paint(c2);
         cairo_destroy(c2);
-        cairo_surface_write_to_png(bg, png);
-        cairo_surface_destroy(bg);
+        cairo_surface_write_to_png(wb, png);
+        cairo_surface_destroy(wb);
     }
     cairo_surface_destroy(s);
     printf("%s %d %d %d %d (%s, transform %d)\n", out, x0, y0, cw, ch, T->name, rot);

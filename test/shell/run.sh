@@ -12,6 +12,7 @@ cp -a /r/rootfs/usr/share/icons/glassine-mono /usr/share/icons/
 make -s -C /ui install O=/tmp/ui-out PREFIX=/usr >/dev/null || exit 1   # (its own out: never the checkout's)
 sh /r/src/wayland/build-shell.sh /r/src $B/glassine-shell || exit 1
 sh /r/src/wayland/build-picture.sh /r/src $B/glassine-screen-picture || exit 1
+make -s -C /r OUT=$B $B/glassine-sleep-pill || exit 1       # the start picture's notice
 if [ "$SWAYD" != head ] && sh /r/src/wayland/build-swayd.sh /r/src $B/glassine-swayd 2>/out/swayd-build.log; then
     echo "glassine-swayd: this tree's"
 else
