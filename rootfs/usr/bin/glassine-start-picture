@@ -1,0 +1,48 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-or-later
+# glassine-start-picture OUT: the picture the next start shows while the session
+# comes back (spec 010, "The start picture"; GlassineOS/boot's hibernate step asks
+# for it). The shell decides what it holds:
+#   1. the picture of the screen as the person sees it (glassine-screen-picture);
+#   2. turned back by the session's own turn (/run/glassine-rotation, the shell's
+#      transform from glassine-rotd; none: 0), so the display at rest, in the
+#      orientation its earliest start draws in, shows it as the session did;
+#   3. the resume notice over it: the sleep pill's resume mode, in the same voice,
+#      size and place as the pill the device went down with (glassine-sleep-pill
+#      -m resume -b; the words are that program's).
+# OUT is a binary PNM, P5 (grey) or P6 (RGB) as the screen is, at the display's
+# own size; written under a temporary name and renamed.
+#
+# Exit: 0 written; 3 nothing to take (no picture of the screen, or the notice
+# could not be drawn over it: then no picture at all); 2 usage; 1 OUT not
+# written. Each step has its own time limit (the screen 3 s, the notice 4 s).
+#
+# For the host test: GLASSINE_SCREEN_PICTURE (/usr/bin/glassine-screen-picture),
+# GLASSINE_SLEEP_PILL (/usr/bin/glassine-sleep-pill), GLASSINE_ROTATION
+# (/run/glassine-rotation).
+set -u
+SHOT=${GLASSINE_SCREEN_PICTURE:-/usr/bin/glassine-screen-picture}
+PILL=${GLASSINE_SLEEP_PILL:-/usr/bin/glassine-sleep-pill}
+TURN_FILE=${GLASSINE_ROTATION:-/run/glassine-rotation}
+NOTICE_MAX_S=4
+
+[ $# = 1 ] && [ -n "$1" ] && [ "${1#-}" = "$1" ] || { echo "usage: glassine-start-picture OUT" >&2; exit 2; }
+OUT=$1 SCREEN=$1.screen
+trap 'rm -f "$SCREEN" "$SCREEN.tmp"' EXIT
+rm -f "$SCREEN" "$SCREEN.tmp"
+
+"$SHOT" "$SCREEN"; r=$?
+case $r in
+0) ;;
+2) exit 1 ;;
+*) exit "$r" ;;
+esac
+
+turn=0
+{ read -r t < "$TURN_FILE"; } 2>/dev/null && case $t in 0|90|180|270) turn=$t ;; esac
+
+timeout "$NOTICE_MAX_S" "$PILL" -m resume -r "$turn" -b "$SCREEN" "$OUT" >/dev/null; r=$?
+[ $r = 0 ] && exit 0
+rm -f "$OUT.tmp"
+echo "glassine-start-picture: the resume notice could not be drawn (glassine-sleep-pill: exit $r): no picture" >&2
+exit 3
