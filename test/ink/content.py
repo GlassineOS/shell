@@ -104,7 +104,7 @@ steps = [
     ("drag-1", lambda: ev(M, 50, 90)),                      # a step: motion
     ("drag-2", lambda: ev(M, 50, 130)),
     ("drop", lambda: ev(R, 50, 130)),                       # the result: nothing, and no tap
-    ("scroll", lambda: ev(S, 50, 50)),                      # a scroll step: motion
+    ("scroll", lambda: ev(S, 50, 50)),                      # a wheel's scroll: nothing (no drag)
     ("own-page", lambda: (style("page"), area.queue_draw())),       # the app's own word
     ("own-none", lambda: (style("none"), tap())),           # ... also against the rule
     ("tap-again", tap),                                     # the word held for one repaint
