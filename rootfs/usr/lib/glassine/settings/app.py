@@ -257,6 +257,9 @@ class UI:
         self.auth = None                 # the admin-auth page: {why, then, err, busy}
         self.copied = None               # kb-words: the folder path last copied (its button says so)
         self.screen = None               # screen-size: the display's key (spec 011)
+        # Size and text (spec 012): the display the Interface size control sets (None: the one
+        # Settings is on); the note that open apps follow later: 0 not yet, 1 shown, 2 said
+        self.ui_disp, self.size_note = None, 0
         self.ppm_edit, self.ppm_txt, self.ppm_err = False, "", None     # its number field: typing, the text, a refusal
         self.hostname = getattr(be, "hostname", None) or os.uname().nodename
         self.names = self._app_names()
@@ -268,8 +271,29 @@ class UI:
         be.on_agent = self.agent
         be.on_auth = lambda why, then: GLib.idle_add(lambda: (self.ask_admin(why, then), False)[1])
 
+    # -- Size and text (spec 012)
+    def pick_display(self, k):
+        self.ui_disp = k
+        self.redraw()
+
+    def set_ui_size(self, k, percent):
+        d = self.be.display(k)
+        if d and d["percent"] != percent:
+            self.be.set_ui_size(k, percent)
+            self.size_note = self.size_note or 1
+
+    def set_text_size(self, percent):
+        if percent != self.be.text_size:
+            self.be.set_text_size(percent)
+            self.size_note = self.size_note or 1
+
     # -- navigation
     def go(self, page, dev=None, region=None, reset=None, net=None, app=None, screen=None):
+        if page.split("#")[0] != self.page.split("#")[0]:
+            if page.split("#")[0] == "appearance":
+                self.ui_disp = None             # coming back: the display Settings is on again
+            if self.size_note == 1:
+                self.size_note = 2
         self.page, self.sheet = page, None
         self.ppm_edit, self.ppm_txt, self.ppm_err = False, "", None
         if screen is not None:
@@ -1124,9 +1148,10 @@ def P_read(path):
 
 def render(argv, be):
     """--render OUT.png [--page P [--app ID]] [--theme T] [--sheet forget-net|forget-dev|pair] [--size WxH | --px WxH]
-    [--factor F] [--density D] [--text PERCENT]
+    [--factor F] [--density D] [--text PERCENT] [--ui-size PERCENT]
     --size: the window in design px; --px: in device px (its design size is that over the factor); --factor: the
-    display's device px per design px (2); --density: its px per mm (none: no minimums); --text: the text size (100)
+    display's device px per design px (2); --density: its px per mm (none: no minimums); --text: the text size (100);
+    --ui-size: the interface size of the display Settings is on (100), which gives the factor at --density
     [--ask SSID [--eap] [--uuid U] [--user U]] [--pw PW] [--ppm TEXT [--done]] [--pp N] [--pick KEY] [--pk PRESET] [--markers OUT.json] [--outline]
     P may be a section's sub-page ("power#2"); --pick KEY opens a choice row's page (gestures: g3Up ...)"""
     global OUTLINE
@@ -1134,10 +1159,15 @@ def render(argv, be):
     def opt(name, default=None):
         return argv[argv.index(name) + 1] if name in argv else default
     out = opt("--render")
-    fac = float(opt("--factor", "2"))
-    mm = S.mm_per_px(fac, float(opt("--density", "0")))
+    dens = float(opt("--density", "0"))
+    pct = int(opt("--ui-size", "100"))
+    fac = float(opt("--factor", repr(S.factor(dens, pct)) if "--ui-size" in argv and dens > 0 else "2"))
+    mm = S.mm_per_px(fac, dens)
     if "--text" in argv:
         be.text_size = int(opt("--text"))
+    d = be.display()
+    if d and "--ui-size" in argv:
+        d["percent"], d["factor"] = pct, fac
     if "--px" in argv:
         W, H = (int(v) / fac for v in opt("--px").split("x"))
     else:
