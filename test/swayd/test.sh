@@ -14,7 +14,8 @@
 # dialogs (one pid, another app_id) following their app's window across screens and placed
 # in the work area under a top bar (swaybar) on their map;
 # the device's sway config + keys.conf pass `sway -C`, the key scripts shellcheck;
-# glassine-home-start: the home app's command, and its restarts while the session runs.
+# glassine-home-start: the home app's command, and its restarts while the session runs;
+# size.sh: the size of the interface (each output's factor as its scale, output-scale).
 # test.sh exit 1 on a failed check
 set -eu
 D=$(cd "$(dirname "$0")" && pwd)
@@ -23,3 +24,5 @@ UI=$(sh "$D/../ui.sh")             # GlassineOS/ui: the drag handles' look (test
 # the image by its id: the tag is shared with other checkouts, which may rebuild it meanwhile
 IMG=$(docker build -q -t glassine-swaydtest "$D")
 docker run --rm -v "$SRC":/src:ro -v "$UI":/ui:ro -v "$D/../../rootfs":/o:ro -v "$D":/t:ro "$IMG" sh /t/run.sh
+# the size of the interface (spec 012): two outputs, steps, a display gone and back (size.sh)
+docker run --rm -v "$SRC":/src:ro -v "$UI":/ui:ro -v "$D/../../rootfs":/o:ro -v "$D":/t:ro "$IMG" sh /t/size.sh

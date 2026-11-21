@@ -14,6 +14,16 @@
  * transform (/run/glassine-rotation, sway's clockwise degrees) turns it with the
  * content.
  *
+ * Size (spec 012 FR-025): drawn at the factor the session last applied to the panel
+ * (the main output's line, the first, of the desktop user's
+ * $XDG_RUNTIME_DIR/glassine/output-scale, else /run/user/UID/glassine/output-scale;
+ * GLASSINE_USER_RUN for /run/user), with the person's text size
+ * (~/.config/glassine/text-size, HOME's, else the desktop user's). With no session
+ * factor: the Default factor of the panel's density, from the panel adapter's
+ * panel_width_mm x panel_height_mm when it gives them for this screen, else the
+ * fallback (1 device px per design px). The layout is for the screen's logical size
+ * at that factor.
+ *
  * Output: PAM, GRAYSCALE_ALPHA (premultiplied: grey = value x alpha / 255),
  * cropped to the pill, with its place as a comment line "# at X Y" (logical
  * px). Written atomically (OUT.tmp, rename).
@@ -55,6 +65,7 @@
 #include <unistd.h>
 #include <cairo.h>
 #include <glassine-ui.h>
+#include "wayland/swayd-size.h"
 
 static const UiVoice *T;
 /* the pill's words, by mode: the only place they are written */
@@ -216,6 +227,24 @@ static void voice_name(char *tn, size_t n)
     endpwent();
 }
 
+/* the person's text size: HOME's file, else the desktop user's (as root: the power daemon) */
+static int text_size(void)
+{
+    char p[512];
+    if (ui_text_size_file(p, sizeof p) && !access(p, R_OK)) return ui_text_size_read(p);
+    int t = 100;
+    struct passwd *pw;
+    setpwent();
+    while ((pw = getpwent()))
+        if (pw->pw_uid >= 1000 && pw->pw_uid < 65534) {
+            snprintf(p, sizeof p, "%s/.config/glassine/text-size", pw->pw_dir);
+            t = ui_text_size_read(p);
+            break;
+        }
+    endpwent();
+    return t;
+}
+
 /* OUT as a whole binary PNM from the ARGB32 surface: P5 (luma) or P6; .tmp, renamed */
 static int pnm_write(const char *out, cairo_surface_t *s, int grey)
 {
@@ -318,8 +347,12 @@ usage:
         cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
         cairo_surface_destroy(bg);
     }
-    double S = round((W < H ? W : H) / 702.0);   /* as glassine-shell: the design is drawn at 702 px */
-    if (S < 1) S = 1;
+    /* the factor (see the top): device px per design px */
+    double S, density;
+    int fromsess = sz_panel_factor(NULL, NULL, W, H, &S, &density);
+    ui_metrics_voice(T, ui_mm_per_px(S, density), text_size() / 100.0);
+    if (getenv("GLASSINE_PILL_VERBOSE"))
+        fprintf(stderr, "glassine-sleep-pill: factor %.4f, density %.4f (%s)\n", S, density, fromsess ? "output-scale" : "the panel adapter or the fallback");
     cairo_scale(cr, S, S);
     UiGc g = { cr, 1, T };
     double ph = pill(&g, vw / S, vh / S, since);
