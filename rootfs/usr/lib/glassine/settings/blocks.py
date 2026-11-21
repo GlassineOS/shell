@@ -798,6 +798,55 @@ class Note(Block):
         c.txt(self.label, c.t["dateFont"], x, y + 16, c.t["sub"], maxw=w, wrap=True)
 
 
+class Ruler(Block):
+    """Screen size (spec 011): a ruler mm millimetres long at per logical px per millimetre,
+    from the content's left edge (a mark every millimetre, taller every 5, numbered every 10;
+    a bank card's: a tall end mark at 85.6), its label, and Shorter / Longer (fn(-1|+1)).
+    The length is the measurement: nothing here scales it"""
+    KIND = "ruler"
+    RH = 46                             # the ruler's band: the edge line, the marks, the numbers
+
+    def __init__(self, mm, per, card, fn):
+        self.mm, self.per, self.card, self.fn = mm, per, card, fn
+        self.label = "A bank card · 85.6 mm" if card else "%d cm" % round(mm / 10)
+
+    def height(self, c, w):
+        return 14 + c.m(self.label, c.t["dateFont"])[1] + 10 + self.RH + 14 + 48 + 14 + _bw(c.t, "sep")
+
+    def draw(self, c, x, y, w):
+        t, cr = c.t, c.cr
+        lh = c.txt(self.label, t["dateFont"], x, y + 14, t["sub"])[1]
+        ry = y + 14 + lh + 10
+        L = self.mm * self.per
+        P.fill(cr, x, ry, L, 1.5, t["ink"])                        # the edge
+        nf = _fsz(t["dateFont"], 11)
+        for i in range(int(self.mm) + 1):
+            mx = x + i * self.per
+            h = 22 if i % 10 == 0 else 14 if i % 5 == 0 else 8
+            P.fill(cr, mx - 0.5, ry, 1, h, t["ink"])
+            if i % 10 == 0 and i and self.per * 10 >= 18:
+                c.txt("%d" % (i // 10), nf, mx, ry + 24, t["ink"], align=1)
+        P.fill(cr, x - 0.75, ry, 1.5, 34, t["ink"])               # where the edge starts
+        if self.card:
+            P.fill(cr, x + L - 0.75, ry, 1.5, 34, t["ink"])       # the card's other end
+        by = ry + self.RH + 14
+        nar = w < 400
+        bx = x
+        for d, glyph, lbl in ((-1, "remove", "Shorter"), (1, "add", "Longer")):
+            lw, th = c.m(lbl, t["btnFont"])
+            bw = 48 if nar else 14 + 22 + 6 + lw + 18
+            P.box(cr, bx, by, bw, 48, "999px", t["btnBg"], t["btnSh"])
+            c.icon(glyph, 22, bx + (24 if nar else 14 + 11), by + 24)
+            if not nar:
+                c.txt(lbl, t["btnFont"], bx + 14 + 22 + 6, by + (48 - th) / 2)
+            c.hit(bx, by, bw, 48, (lambda d=d: self.fn(d)))
+            bx += bw + 12
+        P.rule(cr, x, y + self.height(c, w), w, t["sep"])
+
+    def summ(self):
+        return self.label
+
+
 THEME_BY = {"white": "Bright paper, crisp ink, nothing in the way",
             "editorial": "Serif type and fine rules, set like a good magazine",
             "stationery": "Cloth, cardstock and Garamond from the writing desk"}
