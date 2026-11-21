@@ -101,6 +101,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/file.h>
+#include <sys/inotify.h>
 #include <sys/socket.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
@@ -110,15 +111,19 @@
 #include <unistd.h>
 #include <glib.h>
 #include "glassine-shell-be.h"
+#include "wayland/swayd-size.h"
 
 int verbose;
 
-double S;                               /* device px per logical px (2) */
+double S;                               /* device px per logical px: the output's factor (be_init) */
 int SW, SH;
 static double LW, LH;
 static const Theme *T;
 #define NGFD 16                         /* GLib poll fds at most */
-#define GAP_DEV 40                      /* the divider handle's thickness (glassine-swayd), device px */
+/* glassine-swayd's places (dividers, drags) are in its units, half a logical px: device
+ * px here (each edge rounded, as the compositor puts a logical edge on the output) */
+#define SWAYD_U 2
+static int swayd_dev(int u) { return (int)lround(u * S / SWAYD_U); }
 
 double now_ms(void)
 {
@@ -159,7 +164,14 @@ static void bound(double x, double y, double w, double h, double m)
 static void hit(double x, double y, double w, double h, int act, int arg, WinId win)
 {
     if (!cur_g->paint || cur_s->nhit >= MAXHIT) return;
-    cur_s->hit[cur_s->nhit++] = (Hit){ x, y, w, h, act, arg, win };
+    /* a target takes taps on at least the minimum both ways (spec 012 FR-022: 7 mm on the
+     * glass at any interface size), grown around its centre and kept on the screen; what is
+     * drawn keeps the design's size (x y w h; tx ty tw th the taps'). A later target wins
+     * where they overlap. */
+    double t = ui_min_tap(), tx = x, ty = y, tw = w, th = h;
+    if (act != A_NONE && tw < t) { tx -= (t - tw) / 2; tw = t; if (tx < 0) tx = 0; if (tx + tw > LW) tx = LW - tw; }
+    if (act != A_NONE && th < t) { ty -= (t - th) / 2; th = t; if (ty < 0) ty = 0; if (ty + th > LH) ty = LH - th; }
+    cur_s->hit[cur_s->nhit++] = (Hit){ x, y, w, h, act, arg, win, tx, ty, tw, th };
 }
 
 /* the pressed target (inverted) */
@@ -178,7 +190,7 @@ static void surf_hide(Surf *s)
     hits_dump(s, surf_name(s));
 }
 
-static void surf_alloc(Surf *s, int x, int y, int w, int h)
+static void surf_alloc(Surf *s, int x, int y, int w, int h, const int l[4])
 {
     int resized = s->wd != w || s->ht != h;
     if (resized) {
@@ -188,8 +200,9 @@ static void surf_alloc(Surf *s, int x, int y, int w, int h)
         s->prev = malloc((size_t)w * h * 4);
         memset(s->prev, 0x5a, (size_t)w * h * 4);          /* != any frame: first put is whole */
     }
-    be_surf_config(s, x, y, w, h, resized);
+    be_surf_config(s, x, y, w, h, l, resized);
     s->x = x; s->y = y; s->wd = w; s->ht = h;
+    s->lx = l[0]; s->ly = l[1]; s->lw = l[2]; s->lh = l[3];
 }
 
 /* send the part of the image that changed since the last put */
@@ -237,6 +250,7 @@ typedef void (*View)(Gc *g);
 
 /* GLASSINE_SHELL_HITS=DIR (host tests, test/shell): after each render, the
  * surface's targets to DIR/bar or DIR/pop, one per line: "NAME ARG WIN X Y W H"
+ * (the drawn control; DIR/bar.tap, DIR/pop.tap the same with the area taking its taps)
  * (logical px, WIN in hex), so a test can tap a target by what it does */
 static const char *act_name(int a)
 {
@@ -277,16 +291,21 @@ static void hits_dump(const Surf *s, const char *file)
     char p[512], t[520];
     snprintf(p, sizeof p, "%s/%s", dir, file);
     snprintf(t, sizeof t, "%s.tmp", p);
-    FILE *f = fopen(t, "w");
-    if (!f) return;
-    for (int i = 0; i < s->nhit; i++) {
-        const Hit *h = &s->hit[i];
-        const char *n = act_name(h->act);
-        if (n) fprintf(f, "%s %d %lx %.1f %.1f %.1f %.1f\n", n, h->arg, h->win, h->x, h->y, h->w, h->h);
-        else if (h->act != A_NONE) fprintf(f, "act%d %d %lx %.1f %.1f %.1f %.1f\n", h->act, h->arg, h->win, h->x, h->y, h->w, h->h);
+    /* FILE: the drawn controls; FILE.tap: the same lines with where each takes taps */
+    for (int tap = 0; tap < 2; tap++) {
+        if (tap) { strncat(p, ".tap", sizeof p - strlen(p) - 1); snprintf(t, sizeof t, "%s.tmp", p); }
+        FILE *f = fopen(t, "w");
+        if (!f) return;
+        for (int i = 0; i < s->nhit; i++) {
+            const Hit *h = &s->hit[i];
+            const char *n = act_name(h->act);
+            double x = tap ? h->tx : h->x, y = tap ? h->ty : h->y, w = tap ? h->tw : h->w, hh = tap ? h->th : h->h;
+            if (n) fprintf(f, "%s %d %lx %.1f %.1f %.1f %.1f\n", n, h->arg, h->win, x, y, w, hh);
+            else if (h->act != A_NONE) fprintf(f, "act%d %d %lx %.1f %.1f %.1f %.1f\n", h->act, h->arg, h->win, x, y, w, hh);
+        }
+        fclose(f);
+        rename(t, p);
     }
-    fclose(f);
-    rename(t, p);
 }
 
 static void surf_render(Surf *s, View v)
@@ -302,16 +321,20 @@ static void surf_render(Surf *s, View v)
     v(&g);
     cairo_destroy(cr);
     if (bx1 <= bx0) { surf_hide(s); return; }
-    int x0 = (int)floor(bx0 * S), y0 = (int)floor(by0 * S), x1 = (int)ceil(bx1 * S), y1 = (int)ceil(by1 * S);
-    if (x0 < 0) x0 = 0;
-    if (y0 < 0) y0 = 0;
-    if (x1 > SW) x1 = SW;
-    if (y1 > SH) y1 = SH;
-    if (be_align > 1) {
-        x0 -= x0 % be_align; y0 -= y0 % be_align;
-        x1 += (be_align - x1 % be_align) % be_align; y1 += (be_align - y1 % be_align) % be_align;
+    /* the box on whole logical px (a layer surface's place and size are logical), its
+     * buffer the device px the compositor puts that box on (each edge rounded) */
+    int l0 = (int)floor(bx0), t0 = (int)floor(by0), l1 = (int)ceil(bx1), t1 = (int)ceil(by1);
+    if (l0 < 0) l0 = 0;
+    if (t0 < 0) t0 = 0;
+    if (l1 > LW) l1 = (int)LW;
+    if (t1 > LH) t1 = (int)LH;
+    if (l1 <= l0 || t1 <= t0) { surf_hide(s); return; }
+    int x0 = (int)lround(l0 * S), y0 = (int)lround(t0 * S), x1 = (int)lround(l1 * S), y1 = (int)lround(t1 * S);
+    if (be_align > 1) {                 /* (a whole buffer scale: the box on multiples of it) */
+        x0 = l0 * be_align; y0 = t0 * be_align; x1 = l1 * be_align; y1 = t1 * be_align;
     }
-    surf_alloc(s, x0, y0, x1 - x0, y1 - y0);
+    int lb[4] = { l0, t0, l1 - l0, t1 - t0 };
+    surf_alloc(s, x0, y0, x1 - x0, y1 - y0, lb);
 
     cr = cairo_create(s->img);
     cairo_set_operator(cr, CAIRO_OPERATOR_CLEAR);
@@ -587,9 +610,11 @@ typedef void (*JobDone)(const char *out);
 static struct job { pid_t pid; int fd; char buf[1024]; int len; JobDone done; } jobs[8];
 
 /* run `cmd` with sh; its output goes to done when it exits (NULL: detached) */
+static void app_env(void);
 static void run(const char *cmd, JobDone done)
 {
     LOG("run: %s", cmd);
+    app_env();
     if (!done) {
         pid_t p = fork();
         if (p == 0) {
@@ -1014,6 +1039,91 @@ static void tz_follow(void)
     init = 1;
 }
 
+/* ---- the size of the interface (spec 012) ----------------------------------------
+ * The shell draws at its output's factor (S, be_init) and lays out for the output's
+ * logical size. Text: the person's text size (~/.config/glassine/text-size) and the
+ * minimums in millimetres, from the output's density (its line in
+ * $XDG_RUNTIME_DIR/glassine/output-scale, else as glassine-swayd works it out: the size
+ * it reports when plausible, the kept one, the fallback). Both files are watched
+ * (size_watch): a change is drawn at once. A new factor starts the shell again
+ * (the backend). */
+static double size_mm, size_tf = 1;     /* what ui_metrics_voice has now */
+
+/* 1: the text size or the millimetres changed */
+static int size_metrics(void)
+{
+    UiOutputScale o;
+    double density;
+    if (ui_output_scale_find(NULL, be_out_key, &o)) density = o.density;
+    else {
+        int src;
+        density = ui_density(be_mode_w, be_mode_h, be_mm_w, be_mm_h, ui_output_density_read(NULL, be_out_key), &src);
+    }
+    double mm = ui_mm_per_px(S, density), tf = ui_text_size_read(NULL) / 100.0;
+    int changed = fabs(mm - size_mm) > 1e-9 || fabs(tf - size_tf) > 1e-9;
+    size_mm = mm; size_tf = tf;
+    ui_metrics_voice(T, mm, tf);
+    if (changed) {
+        LOG("size: factor %.4f, %.4f mm per design px, text %.0f %%", S, mm, tf * 100);
+        /* the text minimums (FR-022, FR-024b): what the smallest styles and the rows come to */
+        double bpx, rpx;
+        ui_metrics_get(NULL, NULL, &bpx, &rpx);
+        LOG("size: text mm: 11 px %.2f, 13 px %.2f, body %.0f px %.2f, rows %.0f px %.2f", ui_grown_px(11) * mm,
+             ui_grown_px(13) * mm, bpx, ui_grown_px(bpx) * mm, rpx, ui_grown_px(rpx) * mm);
+    }
+    return changed;
+}
+
+/* inotify on the config directory (text-size, output-density) and the runtime one
+ * (output-scale); made when missing (the files are replaced by rename) */
+static int size_ino = -1;
+static void size_watch(void)
+{
+    char p[512];
+    size_ino = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
+    if (size_ino < 0) return;
+    for (int k = 0; k < 2; k++) {
+        if (!(k ? ui_output_scale_file(p, sizeof p) : ui_text_size_file(p, sizeof p))) continue;
+        char *sl = strrchr(p, '/');
+        if (!sl) continue;
+        *sl = 0;
+        char *up = strrchr(p, '/');
+        if (up && up != p) { *up = 0; mkdir(p, 0700); *up = '/'; }
+        mkdir(p, 0700);
+        if (inotify_add_watch(size_ino, p, IN_MOVED_TO | IN_CLOSE_WRITE | IN_CREATE | IN_DELETE) < 0) LOG("size: %s not watched", p);
+    }
+}
+
+/* 1: drawn text changes (draw again) */
+static int size_event(void)
+{
+    char b[4096];
+    int hit = 0;
+    ssize_t l;
+    while ((l = read(size_ino, b, sizeof b)) > 0)
+        for (char *q = b; q < b + l;) {
+            struct inotify_event *ie = (struct inotify_event *)q;
+            if (ie->len && (!strcmp(ie->name, "text-size") || !strcmp(ie->name, "output-scale") || !strcmp(ie->name, "output-density")))
+                hit = 1;
+            q += sizeof *ie + ie->len;
+        }
+    return hit && size_metrics();
+}
+
+/* the text scale of whole-scale-only apps (GTK 3; spec 012 FR-032) for what the shell
+ * starts: the main output's remainder (its factor over the nearest whole scale; the
+ * main output's line is output-scale's first), read at each start, so an app started
+ * after a new interface size takes it. None (a whole factor): GDK_DPI_SCALE unset, as
+ * the session has it then. (The shell's own process: the variable is for its children) */
+static void app_env(void)
+{
+    UiOutputScale v[1];
+    char b[16];
+    if (ui_output_scale_read(NULL, v, 1) < 1) return;   /* no session factor: what the session started with */
+    if (sz_text_scale(v[0].factor, b, sizeof b)) setenv("GDK_DPI_SCALE", b, 1);
+    else unsetenv("GDK_DPI_SCALE");
+}
+
 /* ---- theme ------------------------------------------------------------------- */
 static void theme_publish(void)
 {
@@ -1023,6 +1133,7 @@ static void theme_publish(void)
 static void theme_set(const char *name, int save)
 {
     T = ui_voice_find(name);
+    size_metrics();                     /* (the minimums and text growth are the voice's) */
     if (save) {
         char p[512];
         state_path(p, sizeof p, ".config", "theme");
@@ -1561,10 +1672,11 @@ static double qs_fluidity(Gc *g, double x0, double y, double CW, double rowh)
 
 static void view_qs(Gc *g)
 {
-    /* landscape: 860 wide, two columns -- the title, toggles
+    /* landscape: 860 wide (at most), two columns -- the title, toggles
      * and sliders left; responsiveness, rotation and the session right */
     const int LAND = LW > LH;
-    const double W = LAND ? 860 : 440, X = LW - 12 - W, Y = BH + 12, PX = 26, COLGAP = 32,
+    /* (narrower when a large interface size leaves less: the columns share what there is) */
+    const double W = LAND ? (LW - 24 < 860 ? LW - 24 : 860) : 440, X = LW - 12 - W, Y = BH + 12, PX = 26, COLGAP = 32,
                  CW = LAND ? (W - 2 * PX - COLGAP) / 2 : W - 2 * PX;
     double th, dh, y;
     /* heights first (layout), then the card, then the content */
@@ -2682,6 +2794,7 @@ static int unboost_tree(pid_t root)
 
 static pid_t run_launch(char **argv)
 {
+    app_env();
     if (verbose) {
         gchar *j = g_strjoinv("\" \"", argv);
         LOG("run: \"%s\"", j);
@@ -2742,12 +2855,12 @@ static pid_t run_launch(char **argv)
 
 /* a launch placeholder's tile (device px): the app's icon and name, at once
  * at the tap; the app takes the tile over when it maps (glassine-swayd) */
-void ev_placeholder_draw(cairo_t *cr, int w, int h, const App *a)
+void ev_placeholder_draw(cairo_t *cr, int w, int h, double f, const App *a)
 {
     Gc g = { cr, 1, T };
     cairo_save(cr);
-    cairo_scale(cr, S, S);
-    double lw = w / S, lh = h / S, th = 0;
+    cairo_scale(cr, f, f);
+    double lw = w / f, lh = h / f, th = 0;
     ui_fill_rect(&g, 0, 0, lw, lh, T->screenBg);
     double cy = lh / 2 - 30;
     if (!ui_icon(&g, a->icon, 64, lw / 2, cy, T->ink)) ui_icon(&g, cat_icon(a->cat), 64, lw / 2, cy, T->ink);
@@ -3186,7 +3299,7 @@ static const Hit *hit_at(Surf *s, double x, double y)
     if (!s->mapped) return NULL;
     for (int i = s->nhit - 1; i >= 0; i--) {
         const Hit *h = &s->hit[i];
-        if (h->act != A_NONE && x >= h->x && x < h->x + h->w && y >= h->y && y < h->y + h->h) return h;
+        if (h->act != A_NONE && x >= h->tx && x < h->tx + h->tw && y >= h->ty && y < h->ty + h->th) return h;
     }
     return NULL;
 }
@@ -3600,8 +3713,11 @@ static void request(char *msg, int len)
         for (int i = 2; i < n && st.ndv < 4; i++) {
             typeof(st.dv[0]) *d = &st.dv[st.ndv];
             d->pos = .5;
-            if (sscanf(w[i], "%d,%d,%d,%d,%d,%d,%lx,%lx,%lf", &d->x, &d->y, &d->w, &d->h, &d->vert, &d->level, &d->a, &d->b, &d->pos) >= 8)
+            if (sscanf(w[i], "%d,%d,%d,%d,%d,%d,%lx,%lx,%lf", &d->x, &d->y, &d->w, &d->h, &d->vert, &d->level, &d->a, &d->b, &d->pos) >= 8) {
+                int x1 = swayd_dev(d->x + d->w), y1 = swayd_dev(d->y + d->h);
+                d->x = swayd_dev(d->x); d->y = swayd_dev(d->y); d->w = x1 - d->x; d->h = y1 - d->y;
                 st.ndv++;
+            }
         }
         if (verbose) {                  /* the list as parsed: "LEVEL:A:B" per line (the host tests read it) */
             char dl[256] = "";
@@ -3617,8 +3733,10 @@ static void request(char *msg, int len)
         snprintf(st.chg_label, sizeof st.chg_label, "%s", n >= 3 ? w[2] : "");
         render_bar();
     } else if (!strcmp(w[0], "drag") && n >= 7) {
-        st.dr_vert = atoi(w[1]); st.dr_pos = atoi(w[2]); st.dr_a0 = atoi(w[3]); st.dr_alen = atoi(w[4]);
-        st.dr_c0 = atoi(w[5]); st.dr_clen = atoi(w[6]);
+        st.dr_vert = atoi(w[1]);
+        st.dr_pos = swayd_dev(atoi(w[2])); st.dr_a0 = swayd_dev(atoi(w[3]));
+        st.dr_alen = swayd_dev(atoi(w[3]) + atoi(w[4])) - st.dr_a0;
+        st.dr_c0 = swayd_dev(atoi(w[5])); st.dr_clen = swayd_dev(atoi(w[5]) + atoi(w[6])) - st.dr_c0;
         if (st.dr_alen <= 0) return;
         if (st.view != V_IDLE && st.view != V_DIV) set_view(V_IDLE);    /* (the divider's buttons stay: a drag resizes) */
         if (!st.drag && !st.dr_vert) surf_render(&rail, view_rail);
@@ -3699,15 +3817,15 @@ int main(int argc, char **argv)
         return send_request(argc - 1, argv + 1);
     for (int i = 1; i < argc; i++) if (!strcmp(argv[i], "-v")) verbose = 1;
 
+    bar.dock = 1;                       /* (be_init makes the bar's surface: its preferred scale) */
     if (!be_init()) return 1;
-    S = round((SW < SH ? SW : SH) / 702.0);   /* the panel's short side: the same in landscape */
-    if (S < 1) S = 1;
-    LW = SW / S; LH = SH / S;
+    LW = be_lw; LH = be_lh;             /* the layout fills the output's logical size (spec 012 FR-020) */
     char tp[512], tn[32] = "white";
     state_path(tp, sizeof tp, ".config", "theme");
     FILE *tf = fopen(tp, "r");
     if (tf) { if (fscanf(tf, "%31s", tn) != 1) snprintf(tn, sizeof tn, "white"); fclose(tf); }
     theme_set(tn, 0);
+    size_watch();
 
     double t0 = now_ms();
     ui_draw_init();
@@ -3722,7 +3840,6 @@ int main(int argc, char **argv)
     signal(SIGTERM, on_term);
     signal(SIGINT, on_term);
     signal(SIGPIPE, SIG_IGN);
-    bar.dock = 1;
     be_read_desktop();
     read_status();
     t0 = now_ms();
@@ -3766,9 +3883,9 @@ int main(int argc, char **argv)
         if (ws_hold_due && ws_hold_due < due) due = ws_hold_due;
         if (bar_up && st.view == V_IDLE && bar_up_due < due) due = bar_up_due;     /* (a popup open: until it closes) */
         if (sd.on) due = sd.phase ? sd.due : t + 60000;    /* the shutdown screen: only its own steps */
-        struct pollfd pf[10 + NGFD] = { { be_fd(), POLLIN, 0 }, { sfd, POLLIN, 0 } };
-        int np = 2, jix[8];
-        for (int i = 0; i < 8; i++) if (jobs[i].pid) { pf[np] = (struct pollfd){ jobs[i].fd, POLLIN, 0 }; jix[np - 2] = i; np++; }
+        struct pollfd pf[11 + NGFD] = { { be_fd(), POLLIN, 0 }, { sfd, POLLIN, 0 }, { size_ino, POLLIN, 0 } };
+        int np = 3, jix[8];
+        for (int i = 0; i < 8; i++) if (jobs[i].pid) { pf[np] = (struct pollfd){ jobs[i].fd, POLLIN, 0 }; jix[np - 3] = i; np++; }
         int to = (int)(due - t);
         /* GLib's default context (GDBus: the notification server) in the same poll */
         GPollFD gfd[NGFD];
@@ -3787,9 +3904,10 @@ int main(int argc, char **argv)
             int l;
             while ((l = recv(sfd, m, sizeof m - 1, 0)) > 0) request(m, l);
         }
-        for (int i = 2; i < np; i++) {
+        if ((pf[2].revents & POLLIN) && size_event() && !sd.on) render_all();
+        for (int i = 3; i < np; i++) {
             if (!pf[i].revents) continue;
-            struct job *j = &jobs[jix[i - 2]];
+            struct job *j = &jobs[jix[i - 3]];
             int l = read(j->fd, j->buf + j->len, sizeof j->buf - 1 - j->len);
             if (l > 0) { j->len += l; if (j->len < (int)sizeof j->buf - 1) continue; }
             j->buf[j->len] = 0;
