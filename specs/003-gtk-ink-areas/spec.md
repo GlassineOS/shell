@@ -78,9 +78,9 @@ is shown exactly as before.
 - **FR-008**: `GLASSINE_INK_LOG=1` logs every region sent, for testing.
 - **FR-009**: For an app that asks for it, the module tells the compositor what a repaint
   of a window is (`glassine_ink_surface_v1.set_content`): the first repaint within 150 ms
-  of a tap in that window is a page; a repaint after the finger, the pen or the pointer
-  moved 8 px or more while down, or after a scroll event, is motion; every other repaint
-  says nothing, also the one after the drag ends.
+  after the app handled a tap in that window is a page; a repaint after the finger, the
+  pen or the pointer moved 8 px or more while down is motion; every other repaint says
+  nothing, also the one after the drag ends and one after a wheel's scroll.
 - **FR-010**: An app asks with `GLASSINE_CONTENT=auto:PID` in its environment, PID being
   its own process (GlassineOS/ui's Python package sets it when imported), read when an
   input arrives. `auto` alone asks for every app that inherits it. Another process's PID,

@@ -15,7 +15,7 @@ for line in err.splitlines():
 want = {
     "idle-repaint": [], "tap": ["page"], "repaint-after-tap": [], "tap-without-repaint": [],
     "late-repaint": [], "press": [], "wiggle": [], "drag-1": ["motion"], "drag-2": ["motion"],
-    "drop": [], "scroll": ["motion"], "own-page": ["page!"], "own-none": ["none!"], "tap-again": ["page"],
+    "drop": [], "scroll": [], "own-page": ["page!"], "own-none": ["none!"], "tap-again": ["page"],
 }
 if mode != "asked":         # nothing by rule; the app's own word still counts
     want = {k: [x for x in v if x.endswith("!")] for k, v in want.items()}

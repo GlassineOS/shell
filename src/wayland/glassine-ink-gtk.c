@@ -14,9 +14,9 @@
  * that asks for it: GLASSINE_CONTENT=auto:PID with the app's own pid (importing
  * GlassineOS/ui's Python package sets that), or =auto for every app that inherits it.
  * Such an app draws itself, answers a tap with a new picture and never animates, so:
- * the first repaint of a window within CONTENT_TAP_MS of a tap in it is a page; a
- * repaint after the finger, the pen or the pointer moved while down, or after a scroll
- * event, is motion; everything else says nothing. An app can name a repaint itself,
+ * the first repaint of a window within CONTENT_TAP_MS of the app's handling of a tap
+ * in it is a page; a repaint after the finger, the pen or the pointer moved while down
+ * is motion; everything else (a wheel's scroll too) says nothing. An app can name a repaint itself,
  * asked for or not, with a style class on the toplevel, read and taken off at the
  * repaint: glassine-content-page, -motion, or -none (nothing is said for it). Apps
  * that do neither are left exactly as they are. Logged as "content KIND".
@@ -237,7 +237,7 @@ static gboolean on_map(GSignalInvocationHint *h, guint n, const GValue *v, gpoin
 }
 
 /* ---- what a repaint is (set_content) ---- */
-#define CONTENT_TAP_MS 150      /* a tap's answer is painted within this */
+#define CONTENT_TAP_MS 150      /* a tap's answer is painted within this after its handling */
 #define CONTENT_SLOP 8          /* px the pointer moves before it drags */
 enum { C_NONE, C_PAGE, C_MOTION };
 static const char *const c_class[] = { "glassine-content-none", "glassine-content-page", "glassine-content-motion" };
@@ -248,7 +248,7 @@ static struct {
 	double x0, y0;
 	GtkWidget *tap_top;         /* the window tapped (not owned, only compared) */
 	gint64 tap_us;
-	GtkWidget *step_top;        /* the window a drag or a scroll moved over since its last repaint */
+	GtkWidget *step_top;        /* the window a drag moved over since its last repaint */
 } ct;
 
 static gboolean content_asked(void)
@@ -269,10 +269,11 @@ static GtkWidget *event_top(GdkEvent *e)
 	return t && GTK_IS_WINDOW(t) ? t : NULL;
 }
 
-/* every event, before GTK handles it: where a tap, a drag or a scroll happens */
+/* every event, before GTK handles it: where a tap or a drag happens */
 static void content_event(GdkEvent *e, gpointer data)
 {
 	double x, y;
+	gboolean tap = FALSE;
 	switch (e->type) {
 	case GDK_BUTTON_PRESS:
 	case GDK_TOUCH_BEGIN:
@@ -292,9 +293,9 @@ static void content_event(GdkEvent *e, gpointer data)
 		break;
 	case GDK_BUTTON_RELEASE:
 	case GDK_TOUCH_END:
-		if (ct.down && !ct.moved) {
+		tap = ct.down && !ct.moved;
+		if (tap) {
 			ct.tap_top = event_top(e);
-			ct.tap_us = g_get_monotonic_time();
 		}
 		ct.down = FALSE;
 		ct.step_top = NULL;     /* what is painted now is the drag's result, no step */
@@ -303,13 +304,14 @@ static void content_event(GdkEvent *e, gpointer data)
 		ct.down = FALSE;
 		ct.step_top = NULL;
 		break;
-	case GDK_SCROLL:
-		ct.step_top = event_top(e);
-		break;
 	default:
 		break;
 	}
 	gtk_main_do_event(e);
+	if (tap) {
+		/* counted from the end of the app's handling: what it queued is painted next */
+		ct.tap_us = g_get_monotonic_time();
+	}
 }
 
 static gboolean class_off(gpointer data)
