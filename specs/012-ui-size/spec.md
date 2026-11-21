@@ -35,7 +35,7 @@ display, and the person picks how large the whole interface is with one setting.
 ### Scenario 1 – A smaller interface (Priority: P1)
 
 **Given** the interface at Default,
-**When** the person opens Appearance and picks Smaller under "Interface size",
+**When** the person opens Appearance and picks Smaller under "Size and text" › "Interface size",
 **Then** the bar, Home, Settings and every other drawn program redraw at once, smaller, in a single
 full refresh of each display; their layouts show more (more rows in a list, more columns in a grid),
 not the same layout shrunk with empty space around it; the choice is kept, and the next session
@@ -99,9 +99,10 @@ FR-033); Settings says which apps follow only when they next start.
 
 **The setting**
 
-- **FR-010**: Appearance has an "Interface size" control with four steps: Smaller (80 %), Small
-  (90 %), Default (100 %) and Large (120 %). Under it, the current step's sizes in millimetres: the
-  voice's row text and a standard button, as drawn on the display Settings is on.
+- **FR-010**: Appearance's "Size and text" section has an "Interface size" control with four
+  steps: Smaller (80 %), Small (90 %), Default (100 %) and Large (120 %). Under it, the current
+  step's sizes in millimetres: the voice's row text and a standard button, as drawn on the display
+  Settings is on.
 - **FR-011**: A step applies at once to every output: the session sets each output's new factor, the
   drawn programs lay out and draw again at it, and each display gets one full refresh (as a theme
   change does). Nothing asks to confirm.
