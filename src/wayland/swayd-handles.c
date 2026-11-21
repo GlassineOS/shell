@@ -1,5 +1,5 @@
 /* swayd-handles.c — the drag handles between tiles on sway (glassine-swayd). sway
- * leaves GAP (40 device px) between tiles (`gaps inner 20` + `gaps outer -20` in the session config); every gap
+ * leaves GAP (40 units: 20 logical px) between tiles (`gaps inner 20` + `gaps outer -20` in the session config); every gap
  * of the visible workspace's layout gets a BOTTOM-layer surface: under every
  * window, so dialogs and fullscreen apps cover it, and above the wallpaper.
  *
@@ -11,7 +11,13 @@
  * e-ink repaint). The handle itself never moves during a drag: touch and
  * pointer positions stay relative to the surface they started on. The shell's
  * snap rail comes with it (glassine-shell `drag ...` / `dragend`).
- * A tap (no 16 px move) opens the shell's divider sheet (glassine-swayd). The look
+ * Sizes here are glassine-swayd's units (half a logical px). A buffer is in its output's
+ * device px: the box the compositor gives the surface there (each edge of the logical
+ * rect times the scale, rounded), shown through a viewport, so nothing is resampled at
+ * a fractional scale; edges are drawn on whole device px. The scale is the surface's
+ * preferred fractional scale, else the output's as glassine-swayd read it. Without the
+ * viewport protocol: whole buffer scales.
+ * A tap (no 16 unit move) opens the shell's divider sheet (glassine-swayd). The look
  * follows glassine-shell's theme ($XDG_RUNTIME_DIR/glassine-shell.theme): the voice's
  * drag-handle values of GlassineOS/ui (UiVoice div*, grip*).
  *
@@ -34,13 +40,18 @@
 #include <wayland-client.h>
 #include <glassine-ui.h>
 #include "wlr-layer-shell-unstable-v1-client-protocol.h"
+#include "viewporter-client-protocol.h"
+#include "fractional-scale-v1-client-protocol.h"
 #include "input-method-unstable-v2-client-protocol.h"
 #include "swayd-handles.h"
+#include "swayd-size.h"
 #include "../glassine-popupd.h"
 
+#define U 2                             /* units per logical px */
 #define GAP 40
 #define MARGIN 8
 #define MAXHD 4
+#define MAXOUT 8
 
 static struct wl_display *dpy;
 static struct wl_compositor *comp;
@@ -49,7 +60,10 @@ static struct zwlr_layer_shell_v1 *lsh;
 static struct wl_seat *seat;
 static struct wl_touch *touch;
 static struct wl_pointer *pointer;
-static int scale = 2;
+static struct wp_viewporter *vpr;
+static struct wp_fractional_scale_manager_v1 *fsm;
+static HdOut cur = { "", 2 * 120, 0, 0 };  /* the output the handles are on */
+static struct { struct wl_output *o; uint32_t id; char name[64]; int w_mm, h_mm; } outp[MAXOUT];
 static struct zwp_input_method_manager_v2 *imm;
 static struct zwp_input_method_v2 *im;
 
@@ -58,7 +72,10 @@ typedef struct {
     struct zwlr_layer_surface_v1 *ls;
     int configured, x, y, w, h;         /* device px */
     int ghost;                          /* the drag ghost (TOP, no input) */
-    int dw, dh;                         /* the size of the buffer it has */
+    int dw, dh;                         /* the size of the buffer it has, device px */
+    struct wp_viewport *vp;
+    struct wp_fractional_scale_v1 *fso;
+    int fs;                             /* its preferred scale, 120ths (0: not told) */
     HandleDef d;
 } Surf;
 static Surf hs[MAXHD], gh;
@@ -88,7 +105,21 @@ static void rgb(cairo_t *c, unsigned v)
     cairo_set_source_rgb(c, (v >> 16 & 255) / 255.0, (v >> 8 & 255) / 255.0, (v & 255) / 255.0);
 }
 
-/* one bar at (x,y), GAP thick, len long, in device px */
+/* a rect with its edges on whole device px (cairo_rectangle at a whole scale) */
+static void rect(cairo_t *c, double x, double y, double w, double h)
+{
+    double s = ui_dev_scale(c);
+    if (fabs(s - round(s)) > 1e-6) {
+        double x1 = ui_snap_x(c, x + w), y1 = ui_snap_y(c, y + h);
+        x = ui_snap_x(c, x); y = ui_snap_y(c, y);
+        w = x1 - x; h = y1 - y;
+        if (w < 1 / s) w = 1 / s;
+        if (h < 1 / s) h = 1 / s;
+    }
+    cairo_rectangle(c, x, y, w, h);
+}
+
+/* one bar at (x,y), GAP thick, len long, in units */
 static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
 {
     int w = vert ? GAP : len, ht = vert ? len : GAP;
@@ -96,16 +127,16 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
     cairo_translate(c, x, y);
     if (!hst) {
         rgb(c, 0xffffff);
-        cairo_rectangle(c, 0, 0, w, ht);
+        rect(c, 0, 0, w, ht);
         cairo_fill(c);
         rgb(c, dragged ? 0x111111 : 0x888888);
-        if (vert) cairo_rectangle(c, MARGIN, 0, GAP - 2 * MARGIN, len);
-        else cairo_rectangle(c, 0, MARGIN, len, GAP - 2 * MARGIN);
+        if (vert) rect(c, MARGIN, 0, GAP - 2 * MARGIN, len);
+        else rect(c, 0, MARGIN, len, GAP - 2 * MARGIN);
         cairo_fill(c);
         rgb(c, dragged ? 0xffffff : 0x000000);
         for (int k = -1; k <= 1; k++) {
-            if (vert) cairo_rectangle(c, GAP / 2 - 1 + k * 7, len / 2 - 40, 3, 80);
-            else cairo_rectangle(c, len / 2 - 40, GAP / 2 - 1 + k * 7, 80, 3);
+            if (vert) rect(c, GAP / 2 - 1 + k * 7, len / 2 - 40, 3, 80);
+            else rect(c, len / 2 - 40, GAP / 2 - 1 + k * 7, 80, 3);
         }
         cairo_fill(c);
         cairo_restore(c);
@@ -113,13 +144,13 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
     }
     const UiVoice *s = hst;
     rgb(c, dragged ? s->divDrag : s->divBg);
-    cairo_rectangle(c, 0, 0, w, ht);
+    rect(c, 0, 0, w, ht);
     cairo_fill(c);
     if (s->divEdgeW > 0) {
-        double e = s->divEdgeW * DPX;
+        double e = ui_snap_len(c, s->divEdgeW * DPX);
         rgb(c, s->divEdgeC);
-        cairo_rectangle(c, 0, 0, w, e); cairo_rectangle(c, 0, ht - e, w, e);
-        cairo_rectangle(c, 0, 0, e, ht); cairo_rectangle(c, w - e, 0, e, ht);
+        rect(c, 0, 0, w, e); rect(c, 0, ht - e, w, e);
+        rect(c, 0, 0, e, ht); rect(c, w - e, 0, e, ht);
         cairo_fill(c);
     }
     if (s->divStitch && !vert) {        /* stitched strap: a horizontal divider only */
@@ -139,7 +170,7 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
         int gx = vert ? (w - gw) / 2 : (w - tot) / 2 + i * (gw + gap);
         int gy = vert ? (ht - tot) / 2 + i * (ghh + gap) : (ht - ghh) / 2;
         rgb(c, dragged ? s->gripDrag : s->gripBg);
-        if (!s->gripRound) { cairo_rectangle(c, gx, gy, gw, ghh); cairo_fill(c); continue; }
+        if (!s->gripRound) { rect(c, gx, gy, gw, ghh); cairo_fill(c); continue; }
         cairo_save(c);
         cairo_translate(c, gx + gw / 2.0, gy + ghh / 2.0);
         cairo_scale(c, gw / 2.0, ghh / 2.0);
@@ -155,7 +186,7 @@ static void bar(cairo_t *c, int x, int y, int vert, int len, int dragged)
             cairo_arc(c, 0, 0, 1, 0, 2 * M_PI);
             cairo_restore(c);
             cairo_clip(c);
-            cairo_rectangle(c, gx, gy, gw, ghh);
+            rect(c, gx, gy, gw, ghh);
             cairo_save(c);
             cairo_translate(c, gx + gw / 2.0, gy - 4 + ghh / 2.0);
             cairo_scale(c, gw / 2.0, ghh / 2.0);
@@ -182,17 +213,42 @@ static struct {
     int via_touch;
 } dr;
 
+/* the scale s is drawn at, 120ths */
+static int surf_f(const Surf *s) { return s->fs > 0 ? s->fs : cur.f120 > 0 ? cur.f120 : 120; }
+
+/* the buffer's size and the cairo scale (device px per unit) for s */
+static void buf_size(const Surf *s, int *bw, int *bh, double *k)
+{
+    int f = surf_f(s);
+    if (!vpr) {                         /* whole buffer scales only */
+        int n = (f + 60) / 120;
+        if (n < 1) n = 1;
+        *bw = s->w / U * n; *bh = s->h / U * n; *k = (double)n / U;
+        return;
+    }
+    int lx = (s->x - cur.ox) / U, ly = (s->y - cur.oy) / U;
+    *bw = sz_px(lx + s->w / U, f) - sz_px(lx, f);
+    *bh = sz_px(ly + s->h / U, f) - sz_px(ly, f);
+    if (*bw < 1) *bw = 1;
+    if (*bh < 1) *bh = 1;
+    *k = f / (120.0 * U);
+}
+
 static void draw(Surf *s)
 {
     if (!s->configured || s->w <= 0 || s->h <= 0) return;
-    int stride = s->w * 4, sz = stride * s->h;
+    int bw, bh;
+    double k;
+    buf_size(s, &bw, &bh, &k);
+    int stride = bw * 4, sz = stride * bh;
     int fd = memfd_create("glassine-swayd", MFD_CLOEXEC);
     if (fd < 0 || ftruncate(fd, sz)) { if (fd >= 0) close(fd); return; }
     void *m = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (m == MAP_FAILED) { close(fd); return; }
     memset(m, 0, sz);
-    cairo_surface_t *cs = cairo_image_surface_create_for_data(m, CAIRO_FORMAT_ARGB32, s->w, s->h, stride);
+    cairo_surface_t *cs = cairo_image_surface_create_for_data(m, CAIRO_FORMAT_ARGB32, bw, bh, stride);
     cairo_t *c = cairo_create(cs);
+    if (k != 1) cairo_scale(c, k, k);
     const HandleDef *d = &s->d;
     if (s->ghost) {                     /* the bar where the drag would put it */
         bar(c, 0, 0, d->vert, d->vert ? s->h : s->w, 1);
@@ -204,15 +260,18 @@ static void draw(Surf *s)
     cairo_surface_destroy(cs);
     munmap(m, sz);
     struct wl_shm_pool *pool = wl_shm_create_pool(shm, fd, sz);
-    struct wl_buffer *b = wl_shm_pool_create_buffer(pool, 0, s->w, s->h, stride, WL_SHM_FORMAT_ARGB8888);
+    struct wl_buffer *b = wl_shm_pool_create_buffer(pool, 0, bw, bh, stride, WL_SHM_FORMAT_ARGB8888);
     wl_shm_pool_destroy(pool);
     close(fd);
     wl_buffer_add_listener(b, &buf_l, NULL);
-    wl_surface_set_buffer_scale(s->s, scale);
+    if (s->vp) {
+        wl_surface_set_buffer_scale(s->s, 1);
+        wp_viewport_set_destination(s->vp, s->w / U, s->h / U);
+    } else wl_surface_set_buffer_scale(s->s, bw / (s->w / U) > 0 ? bw / (s->w / U) : 1);
     wl_surface_attach(s->s, b, 0, 0);
-    wl_surface_damage_buffer(s->s, 0, 0, s->w, s->h);
+    wl_surface_damage_buffer(s->s, 0, 0, bw, bh);
     wl_surface_commit(s->s);
-    s->dw = s->w; s->dh = s->h;
+    s->dw = bw; s->dh = bh;
 }
 
 /* ---- layer surfaces ------------------------------------------------------------ */
@@ -221,7 +280,10 @@ static void ls_configure(void *data, struct zwlr_layer_surface_v1 *ls, uint32_t 
     Surf *s = data;
     zwlr_layer_surface_v1_ack_configure(ls, serial);
     s->configured = 1;
-    if (!s->ghost || s->dw != s->w || s->dh != s->h) draw(s);   /* the ghost: a move needs no new pixels */
+    int bw, bh;
+    double k;
+    buf_size(s, &bw, &bh, &k);
+    if (!s->ghost || s->dw != bw || s->dh != bh) draw(s);   /* the ghost: a move needs no new pixels */
     else wl_surface_commit(s->s);       /* (the ack) */
 }
 static void surf_drop(Surf *s);
@@ -233,8 +295,21 @@ static void ls_closed(void *data, struct zwlr_layer_surface_v1 *ls) { surf_drop(
 int hd_lost(void) { int l = lost; lost = 0; return l; }
 static const struct zwlr_layer_surface_v1_listener ls_l = { ls_configure, ls_closed };
 
+/* the surface's preferred scale: drawn again when it is another than it was drawn at */
+static void fs_preferred(void *data, struct wp_fractional_scale_v1 *o, uint32_t scale)
+{
+    Surf *s = data;
+    int was = surf_f(s);
+    s->fs = (int)scale;
+    if (s->configured && surf_f(s) != was) draw(s);
+}
+static const struct wp_fractional_scale_v1_listener fs_l = { fs_preferred };
+
 static void surf_drop(Surf *s)
 {
+    if (s->vp) wp_viewport_destroy(s->vp);
+    if (s->fso) wp_fractional_scale_v1_destroy(s->fso);
+    s->vp = NULL; s->fso = NULL; s->fs = 0;
     if (s->ls) zwlr_layer_surface_v1_destroy(s->ls);
     if (s->s) wl_surface_destroy(s->s);
     s->ls = NULL; s->s = NULL; s->configured = 0; s->dw = s->dh = 0;
@@ -251,7 +326,14 @@ static void surf_place(Surf *s, int x, int y, int w, int h, int ghost)
             wl_surface_set_input_region(s->s, r);
             wl_region_destroy(r);
         }
-        s->ls = zwlr_layer_shell_v1_get_layer_surface(lsh, s->s, NULL,
+        if (vpr) s->vp = wp_viewporter_get_viewport(vpr, s->s);
+        if (vpr && fsm) {
+            s->fso = wp_fractional_scale_manager_v1_get_fractional_scale(fsm, s->s);
+            wp_fractional_scale_v1_add_listener(s->fso, &fs_l, s);
+        }
+        struct wl_output *on = NULL;    /* NULL: the compositor's choice (the focused one) */
+        for (int i = 0; i < MAXOUT; i++) if (outp[i].o && *cur.name && !strcmp(outp[i].name, cur.name)) on = outp[i].o;
+        s->ls = zwlr_layer_shell_v1_get_layer_surface(lsh, s->s, on,
                     ghost ? ZWLR_LAYER_SHELL_V1_LAYER_TOP : ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM,
                     ghost ? "glassine-swayd-drag" : "glassine-swayd-handle");
         zwlr_layer_surface_v1_add_listener(s->ls, &ls_l, s);
@@ -260,15 +342,20 @@ static void surf_place(Surf *s, int x, int y, int w, int h, int ghost)
         zwlr_layer_surface_v1_set_keyboard_interactivity(s->ls, 0);
         s->configured = 0;
     }
-    zwlr_layer_surface_v1_set_size(s->ls, w / scale, h / scale);
-    zwlr_layer_surface_v1_set_margin(s->ls, y / scale, 0, 0, x / scale);
+    zwlr_layer_surface_v1_set_size(s->ls, w / U, h / U);
+    zwlr_layer_surface_v1_set_margin(s->ls, (y - cur.oy) / U, 0, 0, (x - cur.ox) / U);
     wl_surface_commit(s->s);            /* a new configure comes, then the draw */
 }
 
-void hd_set(const HandleDef *h, int n)
+void hd_set(const HandleDef *h, int n, const HdOut *o)
 {
-    if (!dpy) return;
+    if (!dpy || !lsh) return;
     if (n > MAXHD) n = MAXHD;
+    if (o && (strcmp(o->name, cur.name) || o->ox != cur.ox || o->oy != cur.oy)) {
+        for (int i = 0; i < MAXHD; i++) surf_drop(&hs[i]);     /* a surface is on one output */
+        surf_drop(&gh);
+    }
+    if (o) cur = *o;
     if (dr.on) {                        /* the layout changed under a drag: drop it */
         dr.on = 0;
         hd_dragging(0);
@@ -288,7 +375,7 @@ void hd_set(const HandleDef *h, int n)
 
 void hd_theme_changed(void)
 {
-    if (!dpy) return;
+    if (!dpy || !lsh) return;
     theme_read();
     for (int i = 0; i < nhs; i++) draw(&hs[i]);
     wl_display_flush(dpy);
@@ -321,7 +408,7 @@ static void press(Surf *s, double lx, double ly)
                                          * all ignored until glassine-swayd restarted) */
     dr.on = 1; dr.moved = 0; dr.s = s;
     hd_dragging(1);                     /* its bar must not wait for the debounce */
-    dr.px = s->x + (int)(lx * scale); dr.py = s->y + (int)(ly * scale);
+    dr.px = s->x + (int)(lx * U); dr.py = s->y + (int)(ly * U);
     dr.pos = s->d.vert ? s->x : s->y;
 }
 
@@ -344,7 +431,7 @@ static void move(double lx, double ly)
     if (!dr.on) return;
     Surf *s = dr.s;
     const HandleDef *d = &s->d;
-    int ax = s->x + (int)(lx * scale), ay = s->y + (int)(ly * scale);
+    int ax = s->x + (int)(lx * U), ay = s->y + (int)(ly * U);
     int p = hd_snap(d, (d->vert ? ax : ay) - GAP / 2);
     if (!dr.moved && (abs(ax - dr.px) >= 16 || abs(ay - dr.py) >= 16)) {
         dr.moved = 1;
@@ -508,6 +595,32 @@ static const struct zwp_input_method_v2_listener im_l = {
     im_activate, im_deactivate, im_surrounding, im_cause, im_content, im_done, im_unavailable
 };
 
+/* the outputs: their names and reported sizes (hd_output_mm) */
+static void o_geometry(void *d, struct wl_output *o, int32_t x, int32_t y, int32_t pw, int32_t ph, int32_t sp,
+                       const char *mk, const char *md, int32_t tr)
+{
+    for (int i = 0; i < MAXOUT; i++) if (outp[i].o == o) { outp[i].w_mm = pw; outp[i].h_mm = ph; }
+}
+static void o_mode(void *d, struct wl_output *o, uint32_t flags, int32_t w, int32_t h, int32_t r) {}
+static void o_done(void *d, struct wl_output *o) {}
+static void o_scale(void *d, struct wl_output *o, int32_t f) {}
+static void o_name(void *d, struct wl_output *o, const char *name)
+{
+    for (int i = 0; i < MAXOUT; i++) if (outp[i].o == o) snprintf(outp[i].name, sizeof outp[i].name, "%s", name);
+}
+static void o_desc(void *d, struct wl_output *o, const char *desc) {}
+static const struct wl_output_listener out_l = { o_geometry, o_mode, o_done, o_scale, o_name, o_desc };
+
+int hd_output_mm(const char *name, int *w_mm, int *h_mm)
+{
+    for (int i = 0; i < MAXOUT; i++)
+        if (outp[i].o && !strcmp(outp[i].name, name)) {
+            *w_mm = outp[i].w_mm; *h_mm = outp[i].h_mm;
+            return *w_mm > 0 && *h_mm > 0;
+        }
+    return 0;
+}
+
 static void reg_global(void *data, struct wl_registry *r, uint32_t name, const char *iface, uint32_t v)
 {
     if (!strcmp(iface, wl_compositor_interface.name)) comp = wl_registry_bind(r, name, &wl_compositor_interface, 4);
@@ -515,17 +628,39 @@ static void reg_global(void *data, struct wl_registry *r, uint32_t name, const c
     else if (!strcmp(iface, zwlr_layer_shell_v1_interface.name)) lsh = wl_registry_bind(r, name, &zwlr_layer_shell_v1_interface, 1);
     else if (!strcmp(iface, zwp_input_method_manager_v2_interface.name))
         imm = wl_registry_bind(r, name, &zwp_input_method_manager_v2_interface, 1);
-    else if (!strcmp(iface, wl_seat_interface.name) && !seat) {
+    else if (!strcmp(iface, wp_viewporter_interface.name)) vpr = wl_registry_bind(r, name, &wp_viewporter_interface, 1);
+    else if (!strcmp(iface, wp_fractional_scale_manager_v1_interface.name))
+        fsm = wl_registry_bind(r, name, &wp_fractional_scale_manager_v1_interface, 1);
+    else if (!strcmp(iface, wl_output_interface.name) && v >= 4) {     /* 4: the name */
+        for (int i = 0; i < MAXOUT; i++)
+            if (!outp[i].o) {
+                memset(&outp[i], 0, sizeof outp[i]);
+                outp[i].o = wl_registry_bind(r, name, &wl_output_interface, 4);
+                outp[i].id = name;
+                wl_output_add_listener(outp[i].o, &out_l, NULL);
+                break;
+            }
+    } else if (!strcmp(iface, wl_seat_interface.name) && !seat) {
         seat = wl_registry_bind(r, name, &wl_seat_interface, v < 3 ? v : 3);   /* 3: .release (no pointer frames: v5) */
         wl_seat_add_listener(seat, &seat_l, NULL);
     }
 }
-static void reg_remove(void *data, struct wl_registry *r, uint32_t name) {}
+static void reg_remove(void *data, struct wl_registry *r, uint32_t name)
+{
+    for (int i = 0; i < MAXOUT; i++)
+        if (outp[i].o && outp[i].id == name) {
+            wl_output_release(outp[i].o);
+            memset(&outp[i], 0, sizeof outp[i]);
+        }
+}
 static const struct wl_registry_listener reg_l = { reg_global, reg_remove };
 
-int hd_init(int sc)
+int hd_handles(void) { return dpy && lsh; }
+
+void hd_sync(void) { if (dpy) wl_display_roundtrip(dpy); }
+
+int hd_init(void)
 {
-    scale = sc > 0 ? sc : 1;
     if (!getenv("WAYLAND_DISPLAY") || !(dpy = wl_display_connect(NULL))) return -1;
     struct wl_registry *r = wl_display_get_registry(dpy);
     wl_registry_add_listener(r, &reg_l, NULL);
@@ -533,9 +668,7 @@ int hd_init(int sc)
     wl_display_roundtrip(dpy);          /* the seat's capabilities */
     if (!comp || !shm || !lsh) {
         fprintf(stderr, "glassine-swayd: no layer-shell: no drag handles\n");
-        wl_display_disconnect(dpy);
-        dpy = NULL;
-        return -1;
+        lsh = NULL;                     /* (the connection stays: the outputs' sizes) */
     }
     if (imm && seat && !getenv("GLASSINE_SWAYD_NO_OSK")) {
         im = zwp_input_method_manager_v2_get_input_method(imm, seat);

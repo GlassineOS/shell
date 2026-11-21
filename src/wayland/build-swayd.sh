@@ -1,6 +1,7 @@
 #!/bin/sh
-# Builds glassine-swayd (glassine-swayd.c + sway IPC + the drag handles, swayd-handles.c)
-# into OUT: generates the layer-shell (protocols/, from sway 1.10.1) and
+# Builds glassine-swayd (glassine-swayd.c + sway IPC + the drag handles, swayd-handles.c,
+# + the interface size, swayd-size.c) into OUT: generates the layer-shell (protocols/,
+# from sway 1.10.1), viewporter, fractional-scale (wayland-protocols) and
 # input-method-v2 (from wlroots 0.18.2: the keyboard's auto-show) client code
 # first. One place for every build: the mainline kit, build-in-container.sh,
 # sway/build-arm64.sh, test/swayd, test/shell-sway.
@@ -12,10 +13,13 @@ S=$1 O=$2
 G=$(mktemp -d)
 trap 'rm -rf "$G"' EXIT
 for x in "$S/wayland/protocols/wlr-layer-shell-unstable-v1.xml" "$S/wayland/protocols/input-method-unstable-v2.xml" \
-         "$(pkg-config --variable=pkgdatadir wayland-protocols)/stable/xdg-shell/xdg-shell.xml"; do
+         "$(pkg-config --variable=pkgdatadir wayland-protocols)/stable/xdg-shell/xdg-shell.xml" \
+         "$(pkg-config --variable=pkgdatadir wayland-protocols)/stable/viewporter/viewporter.xml" \
+         "$(pkg-config --variable=pkgdatadir wayland-protocols)/staging/fractional-scale/fractional-scale-v1.xml"; do
     n=$(basename "$x" .xml)
     wayland-scanner client-header "$x" "$G/$n-client-protocol.h"
     wayland-scanner private-code "$x" "$G/$n-protocol.c"
 done
 gcc -O2 -Wall -Wno-format-truncation -I"$G" -o "$O" "$S/glassine-swayd.c" "$S/wayland/sway-ipc.c" "$S/wayland/swayd-handles.c" \
+    "$S/wayland/swayd-size.c" "$G/viewporter-protocol.c" "$G/fractional-scale-v1-protocol.c" \
     "$G/wlr-layer-shell-unstable-v1-protocol.c" "$G/input-method-unstable-v2-protocol.c" "$G/xdg-shell-protocol.c" $(pkg-config --cflags --libs glassine-ui json-c wayland-client cairo) -lm

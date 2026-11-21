@@ -1,5 +1,7 @@
 /* swayd-handles.h — glassine-swayd's drag handles between tiles (swayd-handles.c):
- * layer-shell surfaces in sway's inner gaps. All geometry in device (panel) px; the surfaces are at the output scale. */
+ * layer-shell surfaces in sway's inner gaps. All geometry in glassine-swayd's units (half a
+ * logical px: device px at scale 2), in the layout's coordinates; the surfaces' buffers
+ * are in the device px of their output, whatever its scale (fractional scale + viewport). */
 #ifndef SWAYD_HANDLES_H
 #define SWAYD_HANDLES_H
 
@@ -15,10 +17,21 @@ typedef struct {
     double pos;                         /* the line's position as a fraction of its range (r or ri) */
 } HandleDef;
 
-/* connect to $WAYLAND_DISPLAY: the fd to poll, -1 without layer-shell (no handles) */
-int hd_init(int scale);
-/* the handles to show now (n <= 4; 0 hides all) */
-void hd_set(const HandleDef *h, int n);
+/* the output the handles are on: its name ("": the compositor's choice), its scale in
+ * 120ths, its place in the layout (units) */
+typedef struct { char name[64]; int f120, ox, oy; } HdOut;
+
+/* connect to $WAYLAND_DISPLAY: the fd to poll, -1 without a display */
+int hd_init(void);
+int hd_handles(void);                   /* 1: the compositor has layer-shell (handles are drawn) */
+/* the physical size in mm the output of that name reports (as its mode lies, not turned);
+ * 0: no such output, or it reports none */
+int hd_output_mm(const char *name, int *w_mm, int *h_mm);
+/* a round trip: an output just added is known with its name and size after it. Not from
+ * inside a handle's callback (hd_dragged, hd_tapped) */
+void hd_sync(void);
+/* the handles to show now (n <= 4; 0 hides all), on output o */
+void hd_set(const HandleDef *h, int n, const HdOut *o);
 /* 1 (once) if sway closed a handle surface since the last call: set the handles again */
 int hd_lost(void);
 /* read + dispatch after poll: 0 = the display is gone */
@@ -27,12 +40,12 @@ void hd_flush(void);
 /* the shell's theme changed ($XDG_RUNTIME_DIR/glassine-shell.theme): redraw */
 void hd_theme_changed(void);
 
-/* where a drag to bar start p (device px) lands: kept in lo..hi, snapped to 1/3, 1/2,
+/* where a drag to bar start p (units) lands: kept in lo..hi, snapped to 1/3, 1/2,
  * 2/3 of the range and to d->snap */
 int hd_snap(const HandleDef *d, int p);
 
 /* from swayd-handles.c to glassine-swayd: a handle was dragged to pos (the bar's start,
- * device px) / tapped */
+ * units) / tapped */
 void hd_dragged(const HandleDef *h, int pos);
 void hd_tapped(const HandleDef *h);
 /* a text field got (1) or lost (0) the keyboard focus (terminals excluded) */
