@@ -57,8 +57,9 @@ draws its bar.
   else from the device's panel adapter `/etc/glassine/epd.conf` (`$GLASSINE_EPD_CONF`):
   `panel_width` x `panel_height`, swapped when `rotation` is `cw` or `ccw` (the default).
   No size: exit 1.
-- **FR-005**: The design is drawn at 702 px on the short side and scaled by
-  round(short side / 702), as the shell does.
+- **FR-005**: The design is drawn at the panel output's factor (spec 012 FR-025): the
+  factor the session last applied to it, from the same account as the voice (FR-002),
+  else its Default factor.
 - **FR-006**: The time text: `-s`, else "Since HH:MM", local time now; none in a mode
   without the time. An empty text draws none.
 - **FR-007**: Output: PAM `P7`, `DEPTH 2`, `MAXVAL 255`, `TUPLTYPE GRAYSCALE_ALPHA`, a

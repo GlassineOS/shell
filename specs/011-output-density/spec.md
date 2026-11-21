@@ -99,7 +99,7 @@ Appearance shows it.
 
 | Interface | Ownership | Version | Where |
 |---|---|---|---|
-| `~/.config/glassine/output-density` (`DENSITY OUTPUT-KEY` lines) | owned (Settings writes); consumed by the compositor, which gives the pen interface the density over the output's scale for an output of unknown size, and by the handwriting service through it | 1 | this spec; README "Runtime interfaces" |
+| `~/.config/glassine/output-density` (`DENSITY OUTPUT-KEY` lines) | owned (Settings writes); consumed by the compositor, which gives the pen interface the density over the output's scale for an output of unknown size, and by the handwriting service through it; consumed by the session for the output's interface scale (spec 012 FR-005) | 1 | this spec; README "Runtime interfaces" |
 | The compositor's outputs (name, make, model, serial, scale, position) | consumed (`swaymsg -t get_outputs`) | — | GlassineOS/sway |
 | An output's physical size | consumed (the display server's output geometry) | — | the Wayland core protocol |
 | Output density setting | owned here, required by handwriting spec 004 FR-017 | — | GlassineOS/handwriting `specs/004-handwriting-for-apps/spec.md` |
@@ -112,7 +112,7 @@ if it did, FR-001 still lists the output, because it has a line.
 Device-neutral. It writes one file in the person's configuration.
 
 - **Failure modes:** a wrong measurement makes handwriting misjudge the size of writing on
-  that display; nothing else reads the file.
+  that display and draws the interface at the wrong physical size there (spec 012).
 - **What it never touches:** partitions, the boot chain, the recovery, system files.
 - **Escape route:** Forget on the display's page, or removing the line or the file.
 
