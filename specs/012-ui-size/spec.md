@@ -195,14 +195,16 @@ FR-033); Settings says which apps follow only when they next start.
   factor and so follow the interface size exactly.
 - **FR-031**: Apps that take only whole-number scales are given the whole number nearest the
   factor and are shown pixel for pixel, never resampled; the remainder (the factor over that whole
-  number) reaches their text through the desktop's text settings, so their text follows the
-  interface size and their other sizes follow it to the nearest whole step.
+  number) reaches their text as FR-032 says, so their text follows the interface size and their
+  other sizes follow it to the nearest whole step.
 - **FR-032**: The pointer's size follows the factor of the output it is on. The desktop's text
-  settings (the interface font sizes the themes set) are one for the whole session and follow the
-  main output's interface size times the text size (one uniform factor; the non-linear growth of
-  FR-024a is the drawn programs' own), so toolkits that read them follow too, live where the toolkit
-  re-reads them; on another output, the text of a whole-scale-only app follows that output's size
-  only to the nearest whole step.
+  settings (the interface font sizes the themes set) are one for the whole session and carry the
+  text size only (one uniform factor; the non-linear growth of FR-024a is the drawn programs' own),
+  live where the toolkit re-reads them: an app drawn at the exact factor (FR-030) already follows
+  the interface size, so its text is scaled once. A whole-scale-only app gets the main output's
+  remainder (FR-031) as a text scale in the environment the session starts apps with, so it
+  follows a new interface size when it next starts; on another output its text follows that
+  output's size only to the nearest whole step.
 - **FR-033**: An app that reads none of these keeps its own size. When the interface size changes,
   Settings says once that apps already open may follow only when they next start.
 
@@ -252,7 +254,7 @@ Host level (`make check`):
 - the text size: the file (none, each step, out of range, not a multiple of 5); the growth of every
   Interleaf type style at 100, 125 and 150 % against FR-024a (body and smaller by the full factor, a
   style twice the body by half of it); the minimums after both factors; the desktop text settings at
-  the main output's factor times the text size;
+  the text size, and the whole-scale-only apps' text scale at the main output's remainder;
 - the Display row: absent with one display, the display Settings is on picked first, a step that
   changes only the picked display; a display removed and added again under headless sway gets its
   kept size;
@@ -264,7 +266,7 @@ Host level (`make check`):
   thinner than a device pixel (FR-021);
 - under headless sway with two outputs of different scales: a drawn program moved between them
   redraws at the new factor; a whole-scale-only GTK app gets the nearest whole scale and the text
-  setting of FR-031.
+  scale of FR-032.
 
 Hardware: on a tablet's panel and an external monitor at once, both at the same step, measure a
 button and a row's text with a ruler on both at each step; change one display's step and see one
