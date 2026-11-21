@@ -1,5 +1,6 @@
 """check.py APP_OUT FIFO_LOG APP_ERR: sway's ink reports (ink begin ... ink end blocks,
-lines "ink S X Y W H APP" or "ink r K S X Y W H APP") against the canvas rects the app
+lines "ink S X Y W H APP" or "ink r K S X Y W H APP"; an owner's "ink win KEY" and
+"ink vis X Y W H" lines are no areas and are skipped) against the canvas rects the app
 printed (PHASE NAME WX WY X Y W H). For each phase there must be a report whose lines
 are all the app's own areas (S 1) and whose union is exactly the canvas rect in output
 coordinates (the window's place + the viewport's rect): in phase two the plain window,
@@ -23,7 +24,7 @@ for line in fifo.splitlines():
     elif line == "ink end" and cur is not None:
         blocks.append(cur)
         cur = None
-    elif cur is not None and t[:1] == ["ink"] and t[1] != "brush":
+    elif cur is not None and t[:1] == ["ink"] and t[1] not in ("brush", "win", "vis"):
         if t[1] == "r":
             t = t[2:]           # "r K": a brush; the rest as without one
         else:
