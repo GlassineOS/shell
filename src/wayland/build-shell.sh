@@ -2,8 +2,9 @@
 # Builds glassine-shell (glassine-shell with the Wayland backend, glassine-shell-wl.c) into
 # OUT: generates the layer-shell (protocols/, from sway 1.10.1), screencopy
 # (protocols/, from Alpine's wlr-protocols) and xdg-shell
-# (wayland-protocols) and cursor-shape (+ tablet-v2, which it names; wayland-protocols)
-# client code first. One place for every build: the mainline
+# (wayland-protocols), cursor-shape (+ tablet-v2, which it names), viewporter and
+# fractional-scale (wayland-protocols) client code first; swayd-size.c is the interface
+# size's shared part. One place for every build: the mainline
 # kit, build-in-container.sh, sway/build-arm64.sh, test/shell-sway.
 # build-shell.sh SRC OUT SRC = src
 # Needs gcc, pkgconf, wayland-dev, wayland-protocols, json-c-dev, libxkbcommon-dev,
@@ -17,12 +18,14 @@ for x in "$S/wayland/protocols/wlr-layer-shell-unstable-v1.xml" \
          "$S/wayland/protocols/wlr-screencopy-unstable-v1.xml" \
          "$(pkg-config --variable=pkgdatadir wayland-protocols)/stable/xdg-shell/xdg-shell.xml" \
          "$(pkg-config --variable=pkgdatadir wayland-protocols)/staging/cursor-shape/cursor-shape-v1.xml" \
-         "$(pkg-config --variable=pkgdatadir wayland-protocols)/unstable/tablet/tablet-unstable-v2.xml"; do
+         "$(pkg-config --variable=pkgdatadir wayland-protocols)/unstable/tablet/tablet-unstable-v2.xml" \
+         "$(pkg-config --variable=pkgdatadir wayland-protocols)/stable/viewporter/viewporter.xml" \
+         "$(pkg-config --variable=pkgdatadir wayland-protocols)/staging/fractional-scale/fractional-scale-v1.xml"; do
     n=$(basename "$x" .xml)
     wayland-scanner client-header "$x" "$G/$n-client-protocol.h"
     wayland-scanner private-code "$x" "$G/$n-protocol.c"
 done
 gcc -O2 -Wall -Wno-format-truncation -I"$G" -o "$O" "$S/glassine-shell.c" "$S/glassine-shell-wl.c" \
-    "$S/glassine-shell-notify.c" "$S/wayland/sway-ipc.c" "$G/wlr-layer-shell-unstable-v1-protocol.c" "$G/wlr-screencopy-unstable-v1-protocol.c" "$G/xdg-shell-protocol.c" \
-    "$G/cursor-shape-v1-protocol.c" "$G/tablet-unstable-v2-protocol.c" \
+    "$S/glassine-shell-notify.c" "$S/wayland/sway-ipc.c" "$S/wayland/swayd-size.c" "$G/wlr-layer-shell-unstable-v1-protocol.c" "$G/wlr-screencopy-unstable-v1-protocol.c" "$G/xdg-shell-protocol.c" \
+    "$G/cursor-shape-v1-protocol.c" "$G/tablet-unstable-v2-protocol.c" "$G/viewporter-protocol.c" "$G/fractional-scale-v1-protocol.c" \
     $(pkg-config --cflags --libs glassine-ui pangocairo librsvg-2.0 gio-2.0 wayland-client xkbcommon json-c) -lm

@@ -13,15 +13,20 @@ extern int verbose;
 double now_ms(void);
 
 int epdd(const char *cmd);              /* a line to glassine-epdd-desktop's FIFO: 1 = written whole */
-extern double S;                        /* device px per logical px (2) */
+extern double S;                        /* device px per logical px: the output's factor (spec 012; set by be_init) */
 extern int SW, SH;                      /* the screen, device px */
+extern int be_lw, be_lh;                /* the screen, logical px (the compositor's; be_init) */
+extern char be_out_key[256];            /* the output's key (spec 011) */
+extern int be_mode_w, be_mode_h, be_mm_w, be_mm_h;     /* its mode (not turned) and reported size, mm */
 #define BH 52.0                         /* bar height, logical */
 
 /* ---- surfaces: an image in RAM shown by the backend -------------------------- */
-typedef struct { double x, y, w, h; int act, arg; WinId win; } Hit;
+/* x y w h: the drawn control; tx ty tw th: where it takes taps (at least the minimum) */
+typedef struct { double x, y, w, h; int act, arg; WinId win; double tx, ty, tw, th; } Hit;
 #define MAXHIT 160
 typedef struct {
     int x, y, wd, ht;                   /* device px */
+    int lx, ly, lw, lh;                 /* the same box in logical px (whole: device = each edge times S, rounded) */
     int dock, mapped, grabbed;
     cairo_surface_t *img;
     uint32_t *prev;
@@ -30,8 +35,8 @@ typedef struct {
 } Surf;
 extern Surf bar, pop, rail, shut;      /* shut: the shutdown screen (spec 009) */
 
-/* at x,y, w x h (device px); resized: img is new (the old one freed) */
-void be_surf_config(Surf *s, int x, int y, int w, int h, int resized);
+/* at x,y, w x h (device px), l the same box in logical px; resized: img is new (the old one freed) */
+void be_surf_config(Surf *s, int x, int y, int w, int h, const int l[4], int resized);
 /* rows y..y+h-1, columns x..x+w-1 of img changed */
 void be_surf_put(Surf *s, int x, int y, int w, int h);
 /* a popup's outline from img's alpha (may rewrite img's pixels) */
@@ -104,7 +109,7 @@ void be_theme_publish(const char *name);
 void be_placeholder(const App *a, int pid);
 
 /* ---- the connection ----------------------------------------------------------------- */
-int be_init(void);                      /* sets SW, SH; 0: no display */
+int be_init(void);                      /* sets S, SW, SH, be_lw, be_lh, be_out_key; 0: no display */
 int be_fd(void);
 void be_dispatch(void);                 /* everything pending -> ev_* */
 void be_flush(void);
@@ -118,6 +123,6 @@ void ev_raw(int down, int up);              /* the finger/button really went dow
 void ev_key(int key, const char *utf8, int n);
 void ev_desktop(void);                      /* workspaces / windows / the active one changed */
 void ev_title(void);                        /* the active window's title changed */
-void ev_placeholder_draw(cairo_t *cr, int w, int h, const App *a);  /* device px */
+void ev_placeholder_draw(cairo_t *cr, int w, int h, double f, const App *a);  /* device px at factor f */
 
 #endif
