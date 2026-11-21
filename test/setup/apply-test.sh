@@ -1,7 +1,7 @@
 #!/bin/sh
 # glassine-setup-apply for real, as root, in a throwaway Alpine 3.22 container:
 # --check rejections, the apply (account, zone, host, profile files, groups), a
-# re-run (idempotent), a failing pack (the rest go on), --dry-run changes nothing;
+# re-run (idempotent; the Look step's interface size into ui-size), a failing pack (the rest go on), --dry-run changes nothing;
 # the admin password, the accounts record in /home, and the resets: "Reset system"
 # (setup.conf kept: only Wi-Fi/software asked), a full reset (/etc emptied: the
 # account comes back from the record, the system items are asked), a wiped home
@@ -48,6 +48,8 @@ t "check refuses a colon in the admin password" "echo \"\$out\" | grep -q \"inva
 out=$(echo "$GOOD" | sed "s/}\$/,\"admin_password\":\"short\"}/" | $A --check || true)
 t "check refuses a short admin password" "echo \"\$out\" | grep -q \"invalid admin_password\""
 t "check passes a good plan"       "echo \"\$GOOD\" | $A --check | grep -qx \"ok check\""
+out=$(echo "$GOOD" | sed "s/}\$/,\"ui_size\":{\"key\":\"Glassine Panel Unknown\",\"percent\":85}}/" | $A --check || true)
+t "check refuses an interface size that is not a step" "echo \"\$out\" | grep -q \"invalid ui_size\""
 
 out=$(echo "$GOOD" | $A --dry-run)
 t "dry run lists 6 steps"          "echo \"\$out\" | grep -qx \"steps 6\""
@@ -75,13 +77,16 @@ t "done marker"                    "[ -e /etc/glassine/setup-done ]"
 t "no-sleep marker released"       "[ ! -e /tmp/no-sleep ]"
 
 GOOD2=$(plan Europe/Berlin anna "Mondlicht#2027" "\"dev\",\"news\"")
-out=$(echo "$GOOD2" | sed "s/\"admin\":true/\"admin\":false/" | sed "s/\"clock24\":false/\"clock24\":true/" | $A || true)
+printf "120 Other Monitor 7\n80 Glassine Panel Unknown\n" > /home/anna/.config/glassine/ui-size
+out=$(echo "$GOOD2" | sed "s/\"admin\":true/\"admin\":false/" | sed "s/\"clock24\":false/\"clock24\":true/" |
+      sed "s/}\$/,\"ui_size\":{\"key\":\"Glassine Panel Unknown\",\"percent\":90}}/" | $A || true)
 echo "$out" | sed "s/^/     | /"
 t "re-run: a failing pack goes on" "echo \"\$out\" | grep -q \"^fail pack-dev\" && echo \"\$out\" | grep -q \"^ok pack-news\""
 t "re-run ends done-with-skips"    "echo \"\$out\" | tail -1 | grep -qx done-with-skips"
 t "re-run: one anna"               "[ \$(grep -c ^anna: /etc/passwd) = 1 ]"
 t "re-run: admin off drops wheel"  "! id -nG anna | grep -qw wheel"
 t "re-run: 24 h clock"             "[ ! -e /home/anna/.config/glassine-shell/clock12 ]"
+t "re-run: the interface size replaces its display line" "[ \"\$(cat /home/anna/.config/glassine/ui-size)\" = \"\$(printf \"120 Other Monitor 7\\n90 Glassine Panel Unknown\")\" ]"
 t "not root: refused"              "! su nobody -s /bin/sh -c \"echo x | $A\" >/dev/null 2>&1"
 
 # the record (cleanup saved it): root only, holds the passwd/shadow/memberships

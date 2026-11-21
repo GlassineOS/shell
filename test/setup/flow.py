@@ -115,6 +115,44 @@ draw()
 r.hits[app.s.kfocus][1]()
 check(app.s.step == "look", "Tab focus + Enter presses the focused control (%d targets)" % n)
 
+# the Look step's Interface size (shell spec 012 FR-016): its four steps for the display the
+# setup is on; a tap sets that display's step and its factor
+app.go("look")
+app.disp = be.display()
+draw()
+segs = [rect for rect, fn in r.hits if rect[3] == 48 and 600 < rect[1] < A.H0 - 84]   # (not the footer)
+check(len(segs) == 4, "look: the Interface size has 4 steps (%d)" % len(segs))
+if segs:
+    x, y, w, h = segs[0]
+    tap(x + w / 2, y + h / 2)
+check(app.disp["percent"] == 80 and abs(app.disp["factor"] - 8.943 * 0.224 * 0.8) < 0.01,
+      "look: Smaller sets the display to 80 %% (factor %.3f)" % app.disp["factor"])
+app.set_ui_size(100)
+check(app.disp["percent"] == 100 and app.disp["factor"] == 2, "look: Default again: factor 2")
+
+# a body longer than the window (Large in landscape) moves up under the header, no further
+# than its end; unmoved it is drawn as before. Moved, a target is where it is seen, cut to
+# the body (none over the header or the footer)
+LW, LH = 1872 / 2.4, 1404 / 2.4                   # the landscape panel at 120 %
+for st in ("look", "software", "account"):
+    app.go(st)
+    surf = cairo.ImageSurface(cairo.FORMAT_RGB24, 10, 10)
+    r.draw(cairo.Context(surf), LW, LH, 1, 2.4 / 8.943)
+    far = r.max_scroll
+    check(far > 0, "%s: at Large in landscape the body can move up (%d px)" % (st, far))
+    low = r.low
+    app.s.scroll = far
+    r.draw(cairo.Context(surf), LW, LH, 1, 2.4 / 8.943)
+    hh = A.P.px(r.k["headH"])
+    body = [rect for rect, fn in r.hits if hh <= rect[1] < LH - 84]
+    check(all(y >= hh and y + h <= LH - 84 + 0.01 for x, y, w, h in body) and
+          (low - far) <= LH - 84, "%s: moved to its end, its targets stay in the body" % st)
+    app.s.scroll = 0
+    r.draw(cairo.Context(surf), A.W0, A.H0, 1)
+app.go("look")
+r.draw(cairo.Context(cairo.ImageSurface(cairo.FORMAT_RGB24, 10, 10)), A.W0, A.H0, 1)
+check(r.max_scroll == 0, "look: at Default in portrait nothing moves (%d)" % r.max_scroll)
+
 # --- the real backend (run.sh installed packs.conf, the apply and a doas shim)
 import os  # noqa: E402
 import time  # noqa: E402
@@ -143,6 +181,11 @@ check(rapp.s.step == "done", "real: Installing moves on to Done")
 check(all(state == "done" for _, state, _ in st["steps"]), "real: every step done")
 check(rb.installed(rapp) == 2, "real: 2 packs installed")
 check(os.path.exists("/home/bea/.config/glassine-shell/theme"), "real: bea's profile written")
+rapp.disp = dict(key="Glassine Panel Unknown", name="Built-in panel", at=(0, 0), percent=90, density=8.943,
+                 source="reported", factor=1.8, applied=True)
+pl = rb.plan(rapp.s, rapp)
+check(pl.get("ui_size") == {"key": "Glassine Panel Unknown", "percent": 90}, "real: the plan carries the Look step's interface size")
+rapp.disp = None
 draw_r = A.Renderer(rapp)
 surf = cairo.ImageSurface(cairo.FORMAT_RGB24, A.W0, A.H0)
 for step in ("location", "software", "review", "done"):
