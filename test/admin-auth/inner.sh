@@ -68,7 +68,7 @@ ok "no restart step: Restart is the user-started reboot, restart-check prints no
 # doesn't return when it restarts) and logs the rest
 printf '#!/bin/sh\necho "deploy $*" >> /tmp/ran\ncase "$*" in "restart --check") exit 0 ;; "restart --check --porcelain") printf "glassine-deploy 1\\ntype=restart\\trestart=soft\\trestart_reason=\\n" ;; esac\n' > /usr/sbin/glassine-deploy; chmod +x /usr/sbin/glassine-deploy
 : > /tmp/ran
-ok "Restart: glassine-deploy restart (soft where it can be)" "as kid $P reboot && grep -qx 'deploy restart' /tmp/ran && ! grep -q 'restart --cold' /tmp/ran"
+ok "Restart: glassine-deploy restart (soft where it can be), no --check before it" "as kid $P reboot && grep -qx 'deploy restart' /tmp/ran && ! grep -q 'restart --cold' /tmp/ran && ! grep -qx 'deploy restart --check' /tmp/ran"
 : > /tmp/ran
 ok "Restart fully: restart --cold" "as kid $P reboot-full && grep -qx 'deploy restart --cold' /tmp/ran"
 ok "restart-check: the step's record" "DOAS_USER=kid $P restart-check | grep -q '^type=restart	restart=soft'"
@@ -78,7 +78,7 @@ mkdir -p /run/glassine; : > /run/glassine/restarting; : > /tmp/ran
 ok "Restart: the step returns while its soft restart runs (restarting): no reboot after it" "as kid $P reboot && grep -qx 'deploy restart' /tmp/ran && ! grep -qx -- --user-shutdown /tmp/ran"
 rm -f /run/glassine/restarting
 printf '#!/bin/sh\necho "deploy $*" >> /tmp/ran\nexit 2\n' > /usr/sbin/glassine-deploy; : > /tmp/ran
-ok "an older glassine-deploy (no restart: usage 2): the reboot alone" "as kid $P reboot && ! grep -qx 'deploy restart' /tmp/ran && grep -qx -- --user-shutdown /tmp/ran && [ -z \"\$(DOAS_USER=kid $P restart-check)\" ]"
+ok "an older glassine-deploy (no restart: usage 2): its refusal, then the reboot" "as kid $P reboot && grep -qx 'deploy restart' /tmp/ran && ! grep -q 'restart --check' /tmp/ran && grep -qx -- --user-shutdown /tmp/ran && [ -z \"\$(DOAS_USER=kid $P restart-check)\" ]"
 rm -f /usr/sbin/glassine-deploy /usr/sbin/glassine-switch-hook
 # ---- the shutdown screen (spec 009): first, before the shutdown; never for a request that can still be refused ----
 printf '#!/bin/sh\necho "screen $*" >> /tmp/ran\n' > /usr/sbin/glassine-shutdown-screen; chmod +x /usr/sbin/glassine-shutdown-screen

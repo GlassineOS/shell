@@ -22,7 +22,9 @@ case "$1" in
 	reboot)   # "Restart": soft where it can be; a restart the step refuses (busy, no space for the
 	          # switch) is an ordinary one, as the person asked to restart
 		screen restart
-		if has_restart; then
+		# no --check first: restart decides soft or cold itself, and one that refuses
+		# (busy, no space, no deployments) returns without restarting
+		if [ -x /usr/sbin/glassine-deploy ]; then
 			/usr/sbin/glassine-deploy restart
 			# it returned while its restart runs (the stop ended it): nothing more to do
 			[ ! -e /run/glassine/restarting ] || exit 0
@@ -30,7 +32,7 @@ case "$1" in
 		user_shutdown; exec reboot ;;
 	reboot-full) # "Restart fully": always cold, through the firmware
 		screen restart
-		if has_restart; then /usr/sbin/glassine-deploy restart --cold; fi
+		if [ -x /usr/sbin/glassine-deploy ]; then /usr/sbin/glassine-deploy restart --cold; fi
 		user_shutdown; exec reboot ;;
 	restart-check) # what "Restart" would be: the step's porcelain record (nothing where it has none)
 		has_restart || exit 0
