@@ -20,6 +20,19 @@ for t in ${THEMES:-white editorial stationery}; do
             python3 $S --demo --render /out/shots/$n-$pg.png --page $pg --theme $t --size $(size $w) $extra 2>/out/err.txt || { echo "FAIL $n $pg"; cat /out/err.txt; fail=1; }
         done
     done
+    # Screen size (spec 011): Appearance with a display of unknown size, its page not measured,
+    # measured, on another display, typing, a refused number; every window
+    for w in ${WINS:-full column row quarter}; do
+        n=$t; [ $w = full ] || n=$t-$w
+        for st in appearance:unknown appearance:elsewhere screen-size:unknown screen-size:set screen-size:elsewhere \
+                  screen-size:set:5,2 screen-size:set:150:done; do
+            pg=${st%%:*}; r=${st#*:}; scr=${r%%:*}; ppm=; done_=
+            case $r in *:*) ppm=${r#*:}; case $ppm in *:done) ppm=${ppm%:done}; done_=--done ;; esac ;; esac
+            f=/out/shots/$n-$pg-$scr${ppm:+-typed}${done_:+-refused}.png
+            GLASSINE_DEMO_SCREEN=$scr python3 $S --demo --render $f --page $pg --theme $t --size $(size $w) \
+                ${ppm:+--ppm $ppm} $done_ 2>/out/err.txt || { echo "FAIL $n $st"; cat /out/err.txt; fail=1; }
+        done
+    done
     # glassine-nm-agent's deep link (wifi-ask SSID [--eap]): a refused WPA2 password, an 802.1X login
     python3 $S --demo --render /out/shots/$t-wifi-ask.png --page wifi --ask "FRITZ!Box 7590 KL" --pw kranich --theme $t 2>/out/err.txt || { echo "FAIL $t wifi-ask"; cat /out/err.txt; fail=1; }
     python3 $S --demo --render /out/shots/$t-wifi-ask-eap.png --page wifi --ask eduroam --eap --user sample@example.org --pw x --theme $t 2>/out/err.txt || { echo "FAIL $t wifi-ask-eap"; cat /out/err.txt; fail=1; }
@@ -87,6 +100,7 @@ want=$(grep -c '^## ' $P/rootfs/usr/share/glassine/sway/keys.conf)
 python3 /t/tab.py $P || fail=1
 python3 /t/files.py $P || fail=1
 python3 /t/homeconf.py $P || fail=1
+python3 /t/outputs.py $P || fail=1
 TMPDIR=/tmp python3 /t/power.py $P || fail=1
 TMPDIR=/tmp python3 /t/kb_typing.py $P || fail=1
 # Settings opened on the page Home asks for (glassine-shell launch glassine-settings new updates)

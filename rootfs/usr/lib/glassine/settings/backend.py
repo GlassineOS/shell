@@ -27,6 +27,7 @@ from gi.repository import GLib
 
 from . import homeconf      # favourites: Home's layout file (~/.config/glassine/home.conf)
 from . import predict       # Keyboard > Typing: predict.conf, the languages, the learned words
+from . import outputs       # Appearance > Screen size: ~/.config/glassine/output-density (spec 011)
 
 HOME = os.environ.get("HOME", "/home/user")
 RUN = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
@@ -449,6 +450,9 @@ class Base:
         self.kb_dir, self.kb_dir_there, self.kb_opener = None, False, False
         self.own_ws = True
         self.rot_auto, self.rot_lock, self.rot_now = True, 0, 0     # glassine-rotd (degrees, content turned clockwise)
+        # Screen size (spec 011): the displays of unknown size (outputs.listing), the kept densities
+        self.screens, self.density = [], {}
+        self.here_fn = None                     # the window: -> the logical (x, y) of the display it is on
         self.zone, self.h24, self.ntp, self.synced = ("Europe", "Berlin"), True, True, ""
         # storage, about
         self.space, self.folders, self.space_at = [], None, ""
@@ -695,6 +699,29 @@ class Base:
     def about(self):
         return []
 
+    # -- Screen size (spec 011)
+    def screen(self, k):
+        return next((x for x in self.screens if x["key"] == k), None)
+
+    def set_density(self, k, v):
+        """keep v pixels per millimetre for the display k (None: forget it)"""
+        try:
+            self._write_density(k, v)
+        except OSError as e:
+            self.error("Screen size", "The size couldn’t be kept: %s" % (e.strerror or e))
+            return
+        if v is None:
+            self.density.pop(k, None)
+        else:
+            self.density[k] = v
+        for x in self.screens:
+            if x["key"] == k:
+                x["density"] = v
+        self.changed()
+
+    def _write_density(self, k, v):
+        pass
+
 
 # ---- the design's sample data -----------------------------------------------------
 
@@ -767,6 +794,17 @@ class Demo(Base):
         self.space = [("Userdata", 18.2e9, 52e9), ("System", 6.1e9, 8e9)]
         self.folders = [("Books", 4.1e9), ("Downloads", 2.7e9), (".cache", 1.9e9), ("Music", 1.2e9), ("Maps", 0.82e9)]
         self.space_at = "20:11"
+        # (test.sh: GLASSINE_DEMO_SCREEN=unknown: a display of unknown size, not measured, Settings on it;
+        # =set: measured; =elsewhere: Settings on the built-in panel, the other display unknown; unset: none)
+        scr = os.environ.get("GLASSINE_DEMO_SCREEN", "")
+        if scr:
+            outs = [dict(name="HDMI-A-1", make="Optoma", model="HD146X", serial="Unknown", active=True, scale=1.0,
+                         rect=dict(x=0, y=0, width=1280, height=720)),
+                    dict(name="EPD-1", make="Glassine", model="Panel", serial="Unknown", active=True, scale=2.0,
+                         rect=dict(x=1280, y=0, width=702, height=936))]
+            mons = [dict(x=0, y=0, w_mm=0, h_mm=0), dict(x=1280, y=0, w_mm=157, h_mm=209)]
+            self.density = {"Optoma HD146X Unknown": 4.25} if scr == "set" else {}
+            self.screens = outputs.listing(outs, mons, self.density, (1280, 0) if scr == "elsewhere" else (0, 0))
         # Keyboard > Typing: the design's sample (kbWordsL, kbLangs, KB_LANGS)
         self.osk, self.kb_langs = "us", ["en", "de"]
         self.kb_models = {"en": 40000, "de": 40000}
@@ -1401,6 +1439,8 @@ class Real(Base):
 
     def refresh(self, page):
         self.read_local()
+        if page in ("appearance", "screen-size"):
+            self.read_screens()
         top = page.split("-")[0]
         if top == "wifi" or page == "about":
             self.bg(self.read_wifi, page == "wifi")
@@ -1414,6 +1454,24 @@ class Real(Base):
             self.bg(self.measure)
         if page in ("keyboard", "kb-words"):
             self.bg(self.kb_read_words)
+
+    # -- Screen size (spec 011): sway's outputs, the display server's sizes (main thread: GDK)
+    def read_screens(self):
+        rc, o, _ = run("swaymsg", "-r", "-t", "get_outputs", timeout=3)
+        try:
+            outs = json.loads(o) if rc == 0 else []
+        except ValueError:
+            outs = []
+        here = None
+        try:
+            here = self.here_fn() if self.here_fn else None
+        except Exception:
+            pass
+        self.density = outputs.read()
+        self.screens = outputs.listing(outs, outputs.gdk_monitors(), self.density, here)
+
+    def _write_density(self, k, v):
+        outputs.write(k, v)
 
     # -- Wi-Fi (NetworkManager)
     def read_wifi(self, rescan=False):
