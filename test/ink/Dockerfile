@@ -6,5 +6,5 @@ COPY glassine-20261015.rsa.pub /etc/apk/keys/
 RUN if [ "$SWAY" = glassine ]; then \
         echo https://pkgs.glassine.org/alpine/v3.24/glassine >> /etc/apk/repositories; S=sway-glassine; \
     else S=sway; fi; \
-    apk add --no-cache $S gcc musl-dev pkgconf wayland-dev wayland-protocols gtk+3.0-dev py3-gobject3 \
+    apk add --no-cache $S gcc musl-dev pkgconf wayland-dev wayland-protocols gtk+3.0-dev py3-gobject3 py3-cairo \
         python3 font-dejavu >/dev/null
