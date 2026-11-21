@@ -37,4 +37,20 @@ fi
 grep -q 'glassine-ink: on' /tmp/app.err && ok "protocol found: on" || bad "the module did not find glassine_ink_manager_v1"
 grep -i 'protocol error' /tmp/app.err && bad "a protocol error" || ok "no protocol error"
 python3 /r/test/ink/check.py /tmp/app.out /tmp/fifo.log /tmp/app.err || fail=1
+
+# what a repaint is (spec 003 FR-009..FR-012): a self-drawn app that asks for it, one that
+# inherits another process's mark, one that asks for nothing
+WLR_BACKENDS=headless WLR_RENDERER=pixman WLR_LIBINPUT_NO_DEVICES=1 /tmp/sway -c /tmp/c >/out/sway-$SWAY-content.log 2>&1 &
+SW=$!
+sleep 0.5
+for i in $(seq 1 100); do ls $XDG_RUNTIME_DIR/sway-ipc.* >/dev/null 2>&1 && break; sleep 0.2; done
+export SWAYSOCK=$(ls -t $XDG_RUNTIME_DIR/sway-ipc.* | head -1)
+for m in asked parent plain; do
+    GTK_PATH=/tmp/gtk GTK_MODULES=glassine-ink GLASSINE_INK_LOG=1 NO_AT_BRIDGE=1 \
+        timeout 120 python3 /r/test/ink/content.py $m >/out/content-$m.out 2>/out/content-$m.err || true
+    grep -q '^DONE' /out/content-$m.out && ok "content $m: the app ran through" || bad "content $m: the app did not finish"
+    grep -i 'protocol error' /out/content-$m.err && bad "content $m: a protocol error" || ok "content $m: no protocol error"
+    python3 /r/test/ink/content-check.py $m /out/content-$m.err || fail=1
+done
+kill $SW 2>/dev/null || true
 exit $fail

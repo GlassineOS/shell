@@ -8,6 +8,10 @@
 #    ink report, read from a FIFO standing in for glassine-epdd-desktop's control
 #    FIFO, must hold the app's own areas (S 1) and exactly the visible canvas, before
 #    and after a second window narrows it; the second window (no canvas) gets none.
+#    Then what a repaint is (content.py, content-check.py): a self-drawn app that asks
+#    for it plays taps, a drag and a scroll; the module's log must name the tap's
+#    repaint a page, the steps motion and nothing else; an app that does not ask, or
+#    inherits another process's mark, says only what it names itself.
 # Logs: OUT/*.log.  INK_GLASSINE=0 skips tier 2, =1 requires it.
 #   test.sh [OUT]
 set -eu
