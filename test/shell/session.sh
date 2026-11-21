@@ -478,6 +478,22 @@ tap bar screen
 expect "17 windows on one screen: the bar and Overview draw them, the shell still runs" "$(view) $(kill -0 $SHELLPID 2>/dev/null && echo runs)" "2 runs"
 key Escape
 
+# ---- the picture of the screen (spec 010, SC-001, SC-002) ---------------------------------
+# as the hibernate step takes it: from outside the session (no WAYLAND_DISPLAY, the
+# runtime directories searched), the same pixels as grim's
+pic() { env -u WAYLAND_DISPLAY GLASSINE_USER_RUN=/tmp/pic-run $B/glassine-screen-picture "$@"; }
+picsame() {
+    rm -f /tmp/pic-$O.ppm; pic /tmp/pic-$O.ppm; r=$?
+    grim -t ppm -o HEADLESS-1 /tmp/grim-$O.ppm
+    if [ $r = 0 ] && cmp -s /tmp/pic-$O.ppm /tmp/grim-$O.ppm; then ok "$1"
+    else bad "$1" "exit $r, $(head -c 15 /tmp/pic-$O.ppm 2>/dev/null | tr '\n' ' ') vs $(head -c 15 /tmp/grim-$O.ppm | tr '\n' ' ')"; fi
+}
+mkdir -p /tmp/pic-run/1000 && ln -sf $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY /tmp/pic-run/1000/$WAYLAND_DISPLAY
+picsame "screen picture: the whole screen, as grim takes it, found from outside the session"
+rm -f /tmp/pic-none.ppm
+t0=$(date +%s); env -u WAYLAND_DISPLAY GLASSINE_USER_RUN=/tmp/pic-none $B/glassine-screen-picture /tmp/pic-none.ppm 2>/dev/null; r=$?
+expect "screen picture: no session: exit 3 at once, no file" "$r $([ -e /tmp/pic-none.ppm ] && echo file) $(( $(date +%s) - t0 < 4 ))" "3  1"
+
 # ---- the shutdown screen (spec 009, SC-001): last, the shell takes nothing after it --------
 # portrait: with the panel daemon's control FIFO (held: "full", then "pause" in a read of its
 # own); landscape: without it (a PC: shown, nothing written)
@@ -511,6 +527,12 @@ pop = [i for i, r in enumerate(reads) if any(l.startswith("popup 0 0 ") for l in
 print("ok" if len(f) == 1 and len(p) == 1 and f[0] < p[0] and pop and pop[0] <= f[0] else f"full {f} pause {p} overlay {pop} of {len(reads)}")')
     expect "shutdown screen: the overlay, then \"full\", then \"pause\" in a read of its own" "$hold" "ok"
 fi
+
+# a turned output (last: the shell restarts itself on a new output size, and nothing
+# here starts it again)
+sm output HEADLESS-1 transform 90 >/dev/null; sleep 1.5
+picsame "screen picture: a turned output: upright, as grim takes it"
+rm -rf /tmp/pic-run /tmp/pic-$O.ppm /tmp/grim-$O.ppm
 
 grep -q 'glassine-shell: ' $L || bad "the shell logged nothing" ""
 kill $SWAYPID 2>/dev/null
