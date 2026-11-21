@@ -49,6 +49,16 @@ offers `glassine_ink_manager_v1` (stock sway, X11),
 **Then** the module loads without an error and changes nothing; the per-app setting and
 `glassine-ink-discover` decide as before.
 
+### Scenario 5 – A self-drawn app's pages are shown at once (Priority: P1)
+
+**Given** an app that draws itself in one window and answers a tap with a new picture
+(Settings, the first-run setup), on an e-ink panel,
+**When** the person taps a control,
+**Then** the panel is told that the repaint is a page and shows it at once in one exact
+refresh; while the person drags (a slider), the repaints are shown fast, and the exact
+picture follows when the drag ends. The app has no code for it. An app that did not ask
+is shown exactly as before.
+
 ## Requirements
 
 - **FR-001**: A GTK 3 module named `glassine-ink`, installed as
@@ -66,6 +76,21 @@ offers `glassine_ink_manager_v1` (stock sway, X11),
 - **FR-007**: Without a Wayland display or without the `glassine_ink_manager_v1` global the
   module does nothing after its registry check.
 - **FR-008**: `GLASSINE_INK_LOG=1` logs every region sent, for testing.
+- **FR-009**: For an app that asks for it, the module tells the compositor what a repaint
+  of a window is (`glassine_ink_surface_v1.set_content`): the first repaint within 150 ms
+  after the app handled a tap in that window is a page; a repaint after the finger, the
+  pen or the pointer moved 8 px or more while down is motion; every other repaint says
+  nothing, also the one after the drag ends and one after a wheel's scroll.
+- **FR-010**: An app asks with `GLASSINE_CONTENT=auto:PID` in its environment, PID being
+  its own process (GlassineOS/ui's Python package sets it when imported), read when an
+  input arrives. `auto` alone asks for every app that inherits it. Another process's PID,
+  `off` or no value: the app did not ask, and nothing about it changes.
+- **FR-011**: Any app can name a window's next repaint itself with a style class on the
+  toplevel: `glassine-content-page`, `glassine-content-motion`, or `glassine-content-none`
+  (nothing is said, whatever FR-009 gives). The module takes the class off after that
+  repaint.
+- **FR-012**: Nothing is said when the compositor's protocol is older than version 4, and
+  for a window drawn somewhere else than on its surface (a picture of it).
 
 ## Out of scope
 
