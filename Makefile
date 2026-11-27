@@ -70,6 +70,7 @@ check:
 	sh test/health/test.sh
 	sh test/session-dispatch/run.sh
 	sh test/bgprio/test.sh
+	sh test/pkgindex/test.sh
 	sh test/zram/test.sh
 	sh test/rotd/test.sh
 	sh test/predict/test.sh
