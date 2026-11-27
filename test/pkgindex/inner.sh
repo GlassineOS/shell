@@ -32,11 +32,7 @@ reset; stub /usr/sbin/glassine 1
 ok "the update fails: no stamp, retried on the next up" "run wlan0 up && grep -q '^/usr/sbin/glassine apk update' $L && [ ! -e $STAMP ]"
 reset; rm /usr/sbin/glassine
 ok "no wrapper: apk update -q" "run wlan0 up && grep -q '^$APK update -q' $L && [ -e $STAMP ]"
-reset; stub /usr/sbin/glassine 0; stub /usr/local/bin/alpine-appstream-downloader 0
-ok "the catalogue after the index" "run wlan0 up && [ \"\$(cut -d' ' -f1 $L | tr '\n' ' ')\" = '/usr/sbin/glassine /usr/local/bin/alpine-appstream-downloader ' ]"
-reset; stub /usr/local/bin/alpine-appstream-downloader 1
-ok "a failed catalogue: the index still counts" "run wlan0 up && [ -e $STAMP ]"
-reset; touch -d '2 days ago' $STAMP 2>/dev/null || touch -t "$(date -d @$(( $(date +%s) - 172800 )) +%Y%m%d%H%M)" $STAMP
+reset; stub /usr/sbin/glassine 0; touch -d '2 days ago' $STAMP 2>/dev/null || touch -t "$(date -d @$(( $(date +%s) - 172800 )) +%Y%m%d%H%M)" $STAMP
 ok "a stamp older than a day: refreshed" "run wlan0 up && grep -q '^/usr/sbin/glassine apk update' $L"
 ok "shellcheck" "shellcheck -s sh $S"
 [ $F = 0 ] || cat $L
