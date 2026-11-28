@@ -136,7 +136,7 @@ pages adds nothing (spec 013 FR-038).
   offering only the collections that take that kind plus On this device. The first chosen
   collection that takes a kind is preselected for it. A kind no chosen collection takes shows On
   this device and the line "This server's calendars don't take notes; notes stay on this
-  device." Long lists page with the tabs' More like every Settings list.
+  device." Long lists fold and page like every Settings page; nothing scrolls.
 - **FR-016**: **What leaves the device.** One page with the sentence of spec 013 FR-036 naming the
   server, the switch "Also copy the N entries already on this device", off, and Start syncing.
   Nothing has been added before this tap.
@@ -179,8 +179,8 @@ pages adds nothing (spec 013 FR-038).
   offers it (spec 006); there is no handwriting-only field.
 - **FR-042**: Every add page is a new page, shown in one refresh; nothing animates; waiting is
   said in words. A status or progress change redraws only its line, during a first sync at most
-  once every 5 seconds (spec 013 FR-051). The pages follow Settings' fit to its window (every
-  window size Settings fits, spec 012) and its voice.
+  once every 5 seconds (spec 013 FR-051). The pages lay out for Settings' window (spec 012
+  FR-020), fold and page as every Settings page does, and follow the voice.
 - **FR-043**: None of these pages needs an administrator: accounts are the person's own.
 
 ## Contracts
@@ -244,9 +244,9 @@ the keyboard over the address field, supervised.
   is in front again; the account service holds the result.
 - **No browser on the system**: Show link is the way, and the page says so.
 - **Two Settings windows add the same account**: the second is told it exists (FR-017).
-- **Many collections**: the lists page with More; rows keep the tap target size (spec 012).
-- **The keyboard covers Continue in a small window**: the page scrolls so the focused field and
-  Continue stay above it (FR-040).
+- **Many collections**: the lists fold and page (FR-015); rows keep Settings' tap target size.
+- **The keyboard covers Continue in a small window**: the page shows the focused field and
+  Continue above it, on a page of their own if needed (FR-040).
 - **An account removed while its page is open**: the page returns to the accounts page and says
   the account was removed.
 - **A collection turned off on the server while it is on here**: the row goes, and the status's

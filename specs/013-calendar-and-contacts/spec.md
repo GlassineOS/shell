@@ -83,10 +83,9 @@ minute and the server's own changes arrive, without the person doing anything.
 ### Scenario 5 – Changed in two places (Priority: P2)
 
 **Given** an event changed on the device and on the server since the last sync, **When** the
-two changes touch different properties (the title here, the place there), **Then** the event
-keeps both. **When** they touch the same property, **Then** the later change wins, the other
-version is kept for 30 days and can be brought back, and the account's status says that one
-entry was changed in two places.
+next sync runs, **Then** the later change wins as a whole, the other version is kept for 30 days
+and can be brought back, and the account's status says that one entry was changed in two
+places.
 
 ### Scenario 6 – Sign-in no longer works (Priority: P2)
 
@@ -226,9 +225,10 @@ Settings shows, with what the person can do there.
 - **FR-042**: Offline, every client works as before: the store accepts every change, and the
   changes wait, in order, until the account can be reached. Waiting changes survive restarts.
 - **FR-043**: Only what changed is sent and fetched, where the server supports it.
-- **FR-044**: **Conflicts.** An item changed on both sides since the last sync is merged
-  property by property when the two changes touch different properties. When both change the
-  same property, the change made later wins. The version that lost is kept, unchanged, for 30
+- **FR-044**: **Conflicts.** For an item changed on both sides since the last sync, the version
+  changed later wins as a whole item; properties are never mixed from the two, so an item's text
+  and the app-only data that belong to it (such as the ink it was read from) stay together. The
+  version that lost is kept, unchanged, for 30
   days, and the person can bring it back from the account's page. An edit on one side and a
   deletion on the other keep the edited item. No conflict deletes an item.
 - **FR-045**: When a server returns an item without app-only properties the device sent, the
@@ -304,7 +304,7 @@ Settings shows, with what the person can do there.
 | Nextcloud's sign-in for apps (Login Flow v2) | consumed | v2 | Nextcloud's developer documentation |
 | The person's secret storage, unlocked at login | consumed | — | the session (not specified yet; see Assumptions) |
 | The system's web browser, opened with a link | consumed | — | the session's default browser |
-| The store, every app a client, one sync engine, one shared account list | consumed | — | GlassineOS/docs decision 0017 |
+| The store, every app a client, one sync engine, outside services set up in Settings | consumed | — | GlassineOS/docs decision 0017 |
 | User data unlocked at login | consumed | — | GlassineOS/docs decision 0006 |
 
 ## Device scope and risk
@@ -337,7 +337,7 @@ Host level, against a test calendar and contacts server in a container:
   is refused;
 - offline changes wait, survive a restart of every program, and arrive in order when the server
   is reachable again;
-- both conflict kinds of FR-044 and edit-against-delete, with the replaced version brought back;
+- a conflict of FR-044 (the winner whole, nothing mixed) and edit-against-delete, with the replaced version brought back;
 - a server that drops `X-` properties and one that refuses a large item give the statuses of
   FR-045 and FR-046, and the store keeps everything;
 - a revoked password gives "Sign in again", and signing in again sends what waited;
@@ -404,8 +404,8 @@ syncing across a sleep and wake, on a device (decision 0017's owed checks).
 ## Assumptions
 
 - Each person on a device has their own login and user data (decision 0006); the account list,
-  the store and the secrets are per person. "One list for the whole system" means one list per
-  person, kept by Settings, that every app of the person reads, not one per app.
+  the store and the secrets are per person: each person has one account list, kept by Settings,
+  that every app of that person reads.
 - The session offers each person a secret storage unlocked at login. GlassineOS doesn't specify
   one yet; this spec needs it.
 - The system has a web browser for the browser sign-in; without one, the link and code of FR-033
@@ -426,16 +426,6 @@ syncing across a sleep and wake, on a device (decision 0017's owed checks).
 - **SC-005**: An account added, paused or removed in Settings shows the same in every app of the
   person that reads the list within 5 seconds.
 - **SC-006**: A first client gets an answer from a stopped store within 2 seconds.
-
-## Repository
-
-This spec is a draft in `GlassineOS/shell` because the shell holds Settings, the session's
-services and the session's system files, which this backend joins. A repository of its own
-may fit better: the backend is not part of the desktop shell, several repositories (shell's
-Settings, the planner, Home) consume it, and the shell is installed only on e-ink images today
-while this backend belongs on every GlassineOS system with a desktop, PCs included. The
-packaging of the store's server, the sync engine and the desktop's calendar layer belongs to
-`GlassineOS/packages` and `GlassineOS/images` in either case.
 
 ## Design boards
 
